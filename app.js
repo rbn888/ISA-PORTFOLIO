@@ -129,6 +129,8 @@ const T = {
     bmDiff:      'Diferencia',
     // Metal asset names (single language, no parenthetical mixing)
     metalNames: { XAU: 'Oro', XAG: 'Plata' },
+    // Beta screen
+    exit: 'Salir',
   },
   en: {
     // Summary
@@ -254,6 +256,8 @@ const T = {
     reName: 'Property name', reValueLabel: 'Value (in base currency)',
     reRentLabel: 'Monthly rent', reRentHint: 'Optional — leave 0 if not applicable',
     rentPerMonth: '/mo',
+    // Beta screen
+    exit: 'Exit',
   },
 };
 
@@ -282,7 +286,7 @@ function switchLang(newLang) {
   if (newLang === lang) return;
   lang = newLang;
   localStorage.setItem(LANG_KEY, lang);
-  document.querySelectorAll('.lang-btn').forEach(b => {
+  document.querySelectorAll('[data-lang]').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
   applyI18n();
@@ -2927,11 +2931,370 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
 // ── Language switcher ──────────────────────────────────────
 (function initLangSwitcher() {
-  document.querySelectorAll('.lang-btn').forEach(btn => {
+  document.querySelectorAll('[data-lang]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.lang === lang);
     btn.addEventListener('click', () => switchLang(btn.dataset.lang));
   });
   // Apply TYPE_META labels for current lang (HTML is already in ES, only override for EN)
   applyTypeMetaLabels();
   if (lang !== 'es') applyI18n();
+})();
+
+// ── Hamburger menu ─────────────────────────────────────────
+(function initMenu() {
+  const toggle = document.getElementById('menuToggle');
+  const panel  = document.getElementById('menuPanel');
+  const exit   = document.getElementById('menuExit');
+  const proxy  = document.getElementById('btnExit'); // hidden button with revokeAccess listener
+  if (!toggle || !panel) return;
+
+  function openMenu()  {
+    panel.classList.add('open');
+    toggle.classList.add('open');
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+  function closeMenu() {
+    panel.classList.remove('open');
+    toggle.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+  function isOpen() { return panel.classList.contains('open'); }
+
+  toggle.addEventListener('click', e => {
+    e.stopPropagation();
+    isOpen() ? closeMenu() : openMenu();
+  });
+
+  // Close on outside click
+  document.addEventListener('click', e => {
+    if (isOpen() && !panel.contains(e.target) && !toggle.contains(e.target)) closeMenu();
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isOpen()) { closeMenu(); toggle.focus(); }
+  });
+
+  // Language items — switchLang already wired via initLangSwitcher; just close menu
+  panel.querySelectorAll('.menu-item--lang').forEach(btn => {
+    btn.addEventListener('click', () => closeMenu());
+  });
+
+  // Exit — proxy to hidden #btnExit which has the revokeAccess listener
+  if (exit && proxy) {
+    exit.addEventListener('click', () => { closeMenu(); proxy.click(); });
+  }
+})();
+
+// ── Private Beta Auth ──────────────────────────────────────
+(function initBetaAuth() {
+  const APP_PIN       = '8181';
+  const EMERGENCY_PIN = '0000';
+  const AUTH_KEY      = 'isa_auth';
+  const MAX_DIGITS    = 4;
+
+  const screen    = document.getElementById('betaAccessScreen');
+  const form      = document.getElementById('betaForm');
+  const pinInput  = document.getElementById('betaPin');
+  const inputWrap = document.getElementById('betaInputWrap');
+  const dotsEl    = document.getElementById('betaDots');
+  const errorEl   = document.getElementById('betaError');
+  const btnSubmit = document.getElementById('betaSubmit');
+  const btnExit   = document.getElementById('btnExit');
+
+  // ── Entrance animation ──────────────────────────────────
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile      = window.innerWidth <= 640;
+  const STEP          = reducedMotion ? 0  : (isMobile ? 50  : 90);
+  const REVEAL_DUR    = reducedMotion ? 0  : (isMobile ? 280 : 500);
+  const appEl         = document.querySelector('.app');
+
+  function getDashTargets() {
+    return [
+      document.querySelector('.header'),
+      document.querySelector('.dashboard-top'),
+      document.querySelector('.chart-section'),
+    ].filter(Boolean);
+  }
+
+  // Instantly hide dashboard elements while screen is still covering them
+  function maskDashboard() {
+    if (reducedMotion) return;
+    getDashTargets().forEach(el => {
+      el.style.opacity    = '0';
+      el.style.transform  = 'translateY(12px) scale(0.98)';
+      el.style.transition = 'none';
+    });
+    // Hide categories section separately — cards stagger in individually
+    const catSection = document.getElementById('categoriesSection');
+    if (catSection) {
+      catSection.style.opacity    = '0';
+      catSection.style.transition = 'none';
+    }
+  }
+
+  // Animate #appRoot in: opacity/scale/blur, slight overlap with screen exit
+  function enterAppRoot() {
+    if (!appEl || reducedMotion) return;
+    const ease = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+    appEl.style.opacity    = '0';
+    appEl.style.transform  = 'scale(0.985)';
+    appEl.style.filter     = 'blur(8px)';
+    appEl.style.transition = 'none';
+    void appEl.getBoundingClientRect();
+    appEl.style.transition = `opacity 600ms ${ease}, transform 600ms ${ease}, filter 600ms ${ease}`;
+    appEl.style.opacity    = '1';
+    appEl.style.transform  = 'scale(1)';
+    appEl.style.filter     = 'blur(0px)';
+    setTimeout(() => {
+      appEl.style.opacity = appEl.style.transform = appEl.style.filter = appEl.style.transition = '';
+    }, 660);
+  }
+
+  // Reveal one element after `delay` ms using a CSS transition
+  function revealEl(el, delay) {
+    setTimeout(() => {
+      // rAF ensures at least one painted frame with transition:none before re-enabling
+      requestAnimationFrame(() => {
+        el.style.transition = `opacity ${REVEAL_DUR}ms var(--ease-out), transform ${REVEAL_DUR}ms var(--ease-out)`;
+        el.style.opacity    = '1';
+        el.style.transform  = 'translateY(0) scale(1)';
+        // Clean up inline styles once animation settles so hover/CSS can take over
+        setTimeout(() => {
+          el.style.transition = '';
+          el.style.opacity    = '';
+          el.style.transform  = '';
+        }, REVEAL_DUR + 60);
+      });
+    }, delay);
+  }
+
+  // Count total balance up from 0 (hero moment for the summary panel)
+  function runEntranceCountUp() {
+    const target = totalValueBase();
+    if (target <= 0) return;
+
+    const dur = reducedMotion ? 0 : (isMobile ? 420 : 820);
+    totalValueEl.classList.remove('skeleton');
+    _countUpCurrent = target; // prevent countUpTotalValue from clobbering mid-animation
+
+    if (dur === 0) {
+      totalValueEl.textContent = formatBase(target);
+      return;
+    }
+
+    const t0 = performance.now();
+    function ease(t) { return 1 - Math.pow(1 - t, 3); }
+
+    (function step(now) {
+      const p = Math.min((now - t0) / dur, 1);
+      totalValueEl.textContent = formatBase(target * ease(p));
+      if (p < 1) {
+        requestAnimationFrame(step);
+      } else {
+        totalValueEl.textContent = formatBase(target);
+        totalValueEl.classList.add('balance-glow-pulse');
+        setTimeout(() => totalValueEl.classList.remove('balance-glow-pulse'), 1000);
+      }
+    })(t0);
+  }
+
+  // Orchestrate the full staggered dashboard entrance
+  function playDashboardEntrance() {
+    const targets = getDashTargets();
+
+    // Suppress hover transforms until all animations settle
+    if (appEl) appEl.classList.add('app--animating');
+    setTimeout(() => {
+      if (appEl) appEl.classList.remove('app--animating');
+    }, 1800);
+
+    // 1–3: staggered reveals (header, dashboard-top, chart-section)
+    targets.forEach((el, i) => revealEl(el, i * STEP));
+
+    // Hero: count up the balance as the summary panel fades in
+    setTimeout(runEntranceCountUp, 1 * STEP + 120);
+
+    // Chart: wipe cover slides away left → right, revealing the drawn line
+    if (!reducedMotion) {
+      setTimeout(() => {
+        const cw = document.querySelector('.chart-wrap');
+        if (!cw) return;
+        cw.classList.add('chart-wrap--drawing');
+        setTimeout(() => cw.classList.remove('chart-wrap--drawing'), 1050);
+      }, 2 * STEP + 200);
+    }
+
+    // Categories: section visible instantly, cards stagger in 120ms after chart starts
+    const CARD_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+    setTimeout(() => {
+      const catSection = document.getElementById('categoriesSection');
+      const grid       = document.getElementById('categoriesGrid');
+      if (!catSection || !grid) return;
+
+      // Snap section container to visible (no fade — cards handle the entrance)
+      catSection.style.transition = 'none';
+      catSection.style.opacity    = '1';
+      setTimeout(() => { catSection.style.transition = catSection.style.opacity = ''; }, 60);
+
+      const cards = Array.from(grid.querySelectorAll('.cat-card'));
+      if (!cards.length) return;
+
+      if (reducedMotion) return; // instant — already visible via section reveal
+
+      // Set initial hidden state on all cards before first paint
+      cards.forEach(card => {
+        card.style.opacity    = '0';
+        card.style.transform  = 'translateY(14px) scale(0.98)';
+        card.style.transition = 'none';
+      });
+      void grid.getBoundingClientRect();
+
+      // Stagger each card in, then animate its internal visual
+      cards.forEach((card, i) => {
+        setTimeout(() => {
+          card.style.transition = `opacity 420ms ${CARD_EASE}, transform 420ms ${CARD_EASE}`;
+          card.style.opacity    = '1';
+          card.style.transform  = 'translateY(0) scale(1)';
+
+          // Internal visual fades up 150ms after the card starts appearing
+          setTimeout(() => {
+            const visual = card.querySelector('.cat-card-visual');
+            if (visual) {
+              visual.style.opacity    = '0';
+              visual.style.transform  = 'translateY(8px)';
+              visual.style.transition = 'none';
+              void visual.getBoundingClientRect();
+              visual.style.transition = `opacity 400ms ${CARD_EASE}, transform 400ms ${CARD_EASE}`;
+              visual.style.opacity    = '0.18';
+              visual.style.transform  = 'translateY(0)';
+              setTimeout(() => {
+                visual.style.opacity = visual.style.transform = visual.style.transition = '';
+              }, 460);
+            }
+            // Clean up card inline styles so CSS hover can take over
+            setTimeout(() => {
+              card.style.opacity = card.style.transform = card.style.transition = '';
+            }, 460);
+          }, 150);
+        }, i * 70);
+      });
+    }, 2 * STEP + 120);
+  }
+
+  // ── Dot management — dynamic add/remove for true centering ─
+  // Only live dots exist in the flex container so justify-content:center
+  // always centers exactly the typed count, not a fixed 4-slot row.
+  const dotEls = [];
+
+  function addDot() {
+    const dot = document.createElement('span');
+    dot.className = 'beta-dot';
+    dotsEl.appendChild(dot);
+    dotEls.push(dot);
+    // Force layout commit before adding .visible so the transition fires
+    void dot.getBoundingClientRect();
+    dot.classList.add('visible');
+  }
+
+  function removeDot() {
+    if (!dotEls.length) return;
+    const dot = dotEls.pop();
+    dot.classList.remove('visible');
+    // Remove from DOM after both opacity (.12s) and transform (.14s) finish
+    setTimeout(() => { if (dot.parentNode) dot.remove(); }, 180);
+  }
+
+  function renderDots(count) {
+    const delta = count - dotEls.length;
+    if (delta > 0) for (let i = 0; i < delta; i++) addDot();
+    else if (delta < 0) for (let i = 0; i < -delta; i++) removeDot();
+
+    const hasValue = count > 0;
+    pinInput.classList.toggle('has-value', hasValue);
+    inputWrap.classList.toggle('has-input', hasValue);
+    inputWrap.classList.toggle('ready', count === MAX_DIGITS);
+    btnSubmit.classList.toggle('ready', count === MAX_DIGITS);
+  }
+
+  // ── Auth utils ─────────────────────────────────────────
+  function isAuthed() {
+    try { return localStorage.getItem(AUTH_KEY) === 'true'; }
+    catch (e) { return true; } // localStorage unavailable → grant access
+  }
+  function saveAuth()  { try { localStorage.setItem(AUTH_KEY, 'true'); } catch (e) {} }
+  function clearAuth() { try { localStorage.removeItem(AUTH_KEY); }      catch (e) {} }
+
+  // Card shrinks + blurs → screen fades → dashboard reveals in sequence
+  function grantAccess() {
+    saveAuth();
+    btnExit.style.display = '';
+    maskDashboard();                                  // hide dashboard while screen still covers it
+    screen.classList.add('exiting');
+    setTimeout(enterAppRoot, 150);                   // begin #appRoot entrance, overlaps with screen fade
+    setTimeout(() => screen.classList.add('authed'), 220);
+    setTimeout(playDashboardEntrance, 700);           // crossfades with tail of screen fade
+  }
+
+  // Instant card reset → screen fades back in → ready for re-entry
+  function revokeAccess() {
+    clearAuth();
+    screen.classList.remove('exiting');   // snap card back (no transition without .exiting)
+    void screen.offsetWidth;              // force reflow
+    screen.classList.remove('authed');
+    btnExit.style.display = 'none';
+    pinInput.value = '';
+    // Instant clear — no exit animations when returning to the auth screen
+    dotsEl.innerHTML = '';
+    dotEls.length = 0;
+    inputWrap.classList.remove('has-input', 'ready');
+    pinInput.classList.remove('has-value');
+    btnSubmit.classList.remove('ready');
+    btnSubmit.disabled = true;
+    errorEl.classList.remove('show');
+    setTimeout(() => pinInput.focus(), 80);
+  }
+
+  function showError() {
+    errorEl.classList.add('show');
+    inputWrap.classList.remove('shake');
+    void inputWrap.offsetWidth;
+    inputWrap.classList.add('shake');
+  }
+
+  // ── Input events ───────────────────────────────────────
+  pinInput.addEventListener('input', () => {
+    if (pinInput.value.length > MAX_DIGITS) pinInput.value = pinInput.value.slice(0, MAX_DIGITS);
+    renderDots(pinInput.value.length);
+    btnSubmit.disabled = pinInput.value.length === 0;
+    if (pinInput.value.length > 0) errorEl.classList.remove('show');
+  });
+  pinInput.addEventListener('focus', () => inputWrap.classList.add('focused'));
+  pinInput.addEventListener('blur',  () => inputWrap.classList.remove('focused'));
+
+  // ── On load ────────────────────────────────────────────
+  if (isAuthed()) {
+    // Already authenticated — hide screen instantly, no entrance sequence needed
+    screen.style.transition = 'none';
+    screen.classList.add('authed');
+    btnExit.style.display = '';
+    requestAnimationFrame(() => { screen.style.transition = ''; });
+  } else {
+    pinInput.focus();
+  }
+
+  // ── Submit ─────────────────────────────────────────────
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const pin = pinInput.value.trim();
+    if (pin === APP_PIN || pin === EMERGENCY_PIN) {
+      errorEl.classList.remove('show');
+      grantAccess();
+    } else {
+      showError();
+    }
+  });
+
+  // ── Logout ─────────────────────────────────────────────
+  btnExit.addEventListener('click', revokeAccess);
 })();

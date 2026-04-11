@@ -7,11 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=36">
+  <link rel="stylesheet" href="styles.css?v=38">
 </head>
 <body>
 
-  <div class="app">
+  <div class="app" id="appRoot">
 
     <header class="header">
       <div class="header-left">
@@ -21,9 +21,20 @@
         </div>
       </div>
       <div class="header-right">
-        <div class="lang-switcher">
-          <button class="lang-btn" data-lang="es" title="Español">🇪🇸</button>
-          <button class="lang-btn" data-lang="en" title="English">🇺🇸</button>
+        <!-- Hidden proxy — revokeAccess listener lives here -->
+        <button class="btn-exit" id="btnExit" data-i18n="exit" aria-hidden="true">Salir</button>
+
+        <button id="menuToggle" class="menu-toggle" aria-label="Menu" aria-expanded="false">
+          <span class="menu-toggle-bar"></span>
+          <span class="menu-toggle-bar"></span>
+          <span class="menu-toggle-bar"></span>
+        </button>
+
+        <div id="menuPanel" class="menu-panel" role="menu">
+          <button class="menu-item menu-item--lang" data-lang="es" role="menuitem">🇪🇸 Español</button>
+          <button class="menu-item menu-item--lang" data-lang="en" role="menuitem">🇬🇧 English</button>
+          <div class="menu-divider"></div>
+          <button id="menuExit" class="menu-item menu-item--danger" data-i18n="exit" role="menuitem">Salir</button>
         </div>
       </div>
     </header>
@@ -320,7 +331,38 @@
     </div>
   </div>
 
+  <!-- Private Beta Access Screen -->
+  <div id="betaAccessScreen">
+    <div class="beta-container">
+      <div class="beta-logo-above">
+        <span class="beta-logo-isa">ISA</span>
+        <span class="beta-logo-wealth">WEALTH</span>
+      </div>
+      <div class="beta-card">
+        <div class="beta-access-label">Private Beta Access</div>
+        <p class="beta-hint">Introduce your access code</p>
+        <form id="betaForm">
+          <div class="beta-input-wrap" id="betaInputWrap">
+            <input
+              type="password"
+              id="betaPin"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              spellcheck="false"
+            >
+            <div class="beta-dots" id="betaDots" aria-hidden="true"></div>
+            <div class="beta-underline" aria-hidden="true"></div>
+          </div>
+          <p class="beta-error" id="betaError">Invalid access code</p>
+          <button type="submit" class="beta-btn" id="betaSubmit" disabled>Enter</button>
+          <p class="beta-version">Private Beta &bull; v0.1</p>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>
