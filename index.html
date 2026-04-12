@@ -70,22 +70,6 @@
           </div>
         </section>
 
-        <section class="distribution-section" id="distributionSection" style="display:none">
-          <div class="distribution-header">
-            <span class="chart-title card-title" data-i18n="distribution">Distribución del patrimonio</span>
-          </div>
-          <div class="distribution-inner">
-            <div class="donut-wrap">
-              <canvas id="donutChart"></canvas>
-              <div class="donut-center-label">
-                <div class="donut-center-val" id="donutCenterVal"></div>
-                <div class="donut-center-sub" id="donutCenterSub">total</div>
-              </div>
-            </div>
-            <div class="distribution-legend" id="distributionLegend"></div>
-          </div>
-        </section>
-
       </div>
 
       <section class="chart-section">
@@ -94,17 +78,39 @@
             <div class="chart-title card-title" data-i18n="evolution">Evolución del patrimonio</div>
             <span class="chart-change" id="chartChange"></span>
           </div>
-          <div class="range-toggle">
-            <button class="range-btn active" data-range="24h">24H</button>
-            <button class="range-btn" data-range="7d">7D</button>
-            <button class="range-btn" data-range="30d">30D</button>
-            <button class="range-btn" data-range="1y" data-i18n="range1y">1A</button>
-            <button class="range-btn" data-range="all" data-i18n="rangeAll">TOTAL</button>
+          <div class="chart-controls">
+            <div class="perf-toggle">
+              <button class="perf-btn active" data-perf="%">%</button>
+              <button class="perf-btn" id="perfCurrBtn" data-perf="curr">€</button>
+            </div>
+            <div class="range-toggle">
+              <button class="range-btn active" data-range="24h">24H</button>
+              <button class="range-btn" data-range="7d">7D</button>
+              <button class="range-btn" data-range="30d">30D</button>
+              <button class="range-btn" data-range="1y" data-i18n="range1y">1A</button>
+              <button class="range-btn" data-range="all" data-i18n="rangeAll">TOTAL</button>
+            </div>
           </div>
         </div>
         <div class="chart-wrap">
           <canvas id="portfolioChart"></canvas>
           <div class="chart-no-data" id="chartNoData" data-i18n="chartNoData">Añade activos para ver la evolución</div>
+        </div>
+      </section>
+
+      <section class="distribution-section" id="distributionSection" style="display:none">
+        <div class="distribution-header">
+          <span class="chart-title card-title" data-i18n="distribution">Distribución del patrimonio</span>
+        </div>
+        <div class="distribution-inner">
+          <div class="donut-wrap">
+            <canvas id="donutChart"></canvas>
+            <div class="donut-center-label">
+              <div class="donut-center-val" id="donutCenterVal"></div>
+              <div class="donut-center-sub" id="donutCenterSub">total</div>
+            </div>
+          </div>
+          <div class="distribution-legend" id="distributionLegend"></div>
         </div>
       </section>
 

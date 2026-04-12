@@ -453,6 +453,7 @@ let portfolioHistory = loadHistory();
 let lastSnapshotMs   = 0;
 let lastRefreshAt    = null;   // timestamp of last successful price refresh
 let activeRange      = '24h';
+let activePerfMode   = '%';    // '%' = percentage change | 'curr' = absolute gain/loss in base currency
 let portfolioChart   = null;
 let _detailChart     = null;  // Chart.js instance for category detail sparkline
 let _detailChartType = null;  // which category the sparkline was last rendered for
@@ -1057,10 +1058,17 @@ function updateChart(animate = false) {
   const first = data.values[0];
   const last  = data.values[data.values.length - 1];
   const pct   = first > 0 ? ((last - first) / first) * 100 : 0;
-  const sign  = pct >= 0 ? '+' : '';
   const cls   = pct > 0.005 ? 'up' : pct < -0.005 ? 'down' : 'flat';
-  chartChangeEl.textContent = `${sign}${pct.toFixed(2)}%`;
-  chartChangeEl.className   = `chart-change ${cls}`;
+
+  if (activePerfMode === 'curr') {
+    const absChange = last - first;
+    const absSign   = absChange >= 0 ? '+' : '';
+    chartChangeEl.textContent = `${absSign}${formatBase(absChange)}`;
+  } else {
+    const sign = pct >= 0 ? '+' : '';
+    chartChangeEl.textContent = `${sign}${pct.toFixed(2)}%`;
+  }
+  chartChangeEl.className = `chart-change ${cls}`;
 
   portfolioChart.data.labels = data.labels;
   portfolioChart.data.datasets[0].data = data.values;
@@ -1086,6 +1094,15 @@ document.querySelectorAll('.range-btn').forEach(btn => {
     btn.classList.add('active');
     activeRange = btn.dataset.range;
     updateChart(true);
+  });
+});
+
+document.querySelectorAll('.perf-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.perf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activePerfMode = btn.dataset.perf;
+    updateChart();
   });
 });
 
@@ -1587,12 +1604,13 @@ function setActiveCategory(type) {
       clickedCard.style.filter     = 'brightness(1.08)';
     }
 
-    // Fade out entire dashboard (summary + chart + category cards)
+    // Fade out entire dashboard (summary + chart + distribution + category cards)
     const dashTop      = document.querySelector('.dashboard-top');
     const chartSection = document.querySelector('.chart-section');
+    const distSection  = document.getElementById('distributionSection');
     const catSection   = document.getElementById('categoriesSection');
 
-    const toHide = [dashTop, chartSection, catSection].filter(
+    const toHide = [dashTop, chartSection, distSection, catSection].filter(
       el => el && el.style.display !== 'none'
     );
 
@@ -1644,11 +1662,12 @@ function setActiveCategory(type) {
       assetsSection.style.transform  = 'translateY(8px)';
       setTimeout(() => {
         assetsSection.style.transition = assetsSection.style.opacity = assetsSection.style.transform = '';
-        _commit(); // render() shows dashTop/chartSection, hides assetsSection; updateCategoryCards shows catSection
+        _commit(); // render() shows dashTop/chartSection/distributionSection, hides assetsSection; updateCategoryCards shows catSection
         const dashTop      = document.querySelector('.dashboard-top');
         const chartSection = document.querySelector('.chart-section');
+        const distSection  = document.getElementById('distributionSection');
         const catSec       = document.getElementById('categoriesSection');
-        [dashTop, chartSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
+        [dashTop, chartSection, distSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
         window.scrollTo(0, 0);
         setTimeout(() => { _catTransitioning = false; }, 320);
       }, 190);
@@ -1656,8 +1675,9 @@ function setActiveCategory(type) {
       _commit();
       const dashTop      = document.querySelector('.dashboard-top');
       const chartSection = document.querySelector('.chart-section');
+      const distSection  = document.getElementById('distributionSection');
       const catSec       = document.getElementById('categoriesSection');
-      [dashTop, chartSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
+      [dashTop, chartSection, distSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
       setTimeout(() => { _catTransitioning = false; }, 320);
     }
   }
@@ -2063,9 +2083,10 @@ function render(animate = false) {
   const chartSecEl       = document.querySelector('.chart-section');
   if (activeCategory) {
     // Category drill-down: hide dashboard, show asset list only
-    if (assetsSectionEl) { assetsSectionEl.style.display = ''; assetsSectionEl.classList.add('is-detail'); }
-    if (dashTopEl)        dashTopEl.style.display        = 'none';
-    if (chartSecEl)       chartSecEl.style.display       = 'none';
+    if (assetsSectionEl)        { assetsSectionEl.style.display = ''; assetsSectionEl.classList.add('is-detail'); }
+    if (dashTopEl)               dashTopEl.style.display               = 'none';
+    if (chartSecEl)              chartSecEl.style.display              = 'none';
+    if (distributionSectionEl)   distributionSectionEl.style.display   = 'none';
     // categoriesSection already hidden by updateCategoryCards() short-circuit
     // Render premium detail hero (category stats + mini sparkline)
     const typeAssets = assets.filter(a => (TYPE_META[a.type] ? a.type : 'other') === activeCategory);
@@ -2075,6 +2096,7 @@ function render(animate = false) {
     if (assetsSectionEl) { assetsSectionEl.style.display = 'none'; assetsSectionEl.classList.remove('is-detail'); }
     if (dashTopEl)        dashTopEl.style.display        = '';
     if (chartSecEl)       chartSecEl.style.display       = '';
+    if (distributionSectionEl && _donutDist.length > 0) distributionSectionEl.style.display = '';
     // Clean up detail hero, sparkline and hero animation when returning to dashboard
     const heroEl = document.getElementById('detailHero');
     if (heroEl) heroEl.remove();
@@ -3276,6 +3298,8 @@ document.querySelectorAll('.currency-btn').forEach(btn => {
     localStorage.setItem(BASE_KEY, baseCurrency);
     document.querySelectorAll('.currency-btn')
       .forEach(b => b.classList.toggle('active', b.dataset.currency === baseCurrency));
+    const perfCurrBtn = document.getElementById('perfCurrBtn');
+    if (perfCurrBtn) perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
     render(true);
     updateChart(true);
     updateDonut();
@@ -3431,6 +3455,10 @@ document.addEventListener('keydown', e => {
 // Apply saved base currency to toggle
 document.querySelectorAll('.currency-btn')
   .forEach(b => b.classList.toggle('active', b.dataset.currency === baseCurrency));
+
+// Set initial perf-toggle currency button label to match base currency
+const _perfCurrBtn = document.getElementById('perfCurrBtn');
+if (_perfCurrBtn) _perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
 
 render(true);
 
