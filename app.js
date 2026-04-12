@@ -2006,9 +2006,11 @@ function buildCardVisual(type, typeAssets, pct) {
     const fallback = type === 'etf'
       ? [{ ticker: 'SPY' }, { ticker: 'QQQ' }]
       : [{ ticker: 'TSLA' }, { ticker: 'AAPL' }];
-    const src   = top.length ? top : fallback;
-    const chip  = src.slice(0, 1).map((a) =>
-      `<span class="cc-ticker-big">${escHtml(a.ticker.slice(0, 5))}</span>`
+    const src  = top.length ? top : fallback;
+    const chip = src.slice(0, 2).map((a, i) =>
+      i === 0
+        ? `<span class="cc-ticker-big">${escHtml(a.ticker.slice(0, 5))}</span>`
+        : `<span class="cc-ticker-secondary">${escHtml(a.ticker.slice(0, 5))}</span>`
     ).join('');
     // Micro sparkline — deterministic heights give a realistic chart silhouette
     const SPARK_H = type === 'etf'
@@ -2082,8 +2084,16 @@ function updateCategoryCards() {
         .reduce((s, a) => s + a.rent, 0);
       const totalRentBase = toBase(totalRentEur, 'EUR') + toBase(totalRentUsd, 'USD');
       if (totalRentBase > 0) {
-        const rentLabel = lang === 'es' ? '/mes' : '/mo';
-        rentLineHtml = `<span class="cat-card-rent">+${formatBase(totalRentBase)}${rentLabel}</span>`;
+        const rentLabel     = lang === 'es' ? '/mes' : '/mo';
+        const rentLblText   = lang === 'es' ? 'Ingresos mensuales' : 'Monthly income';
+        const multipleProps = typeAssets.filter(a => a.rent > 0).length > 1;
+        const rentLblFull   = multipleProps
+          ? (lang === 'es' ? 'Ingresos mensuales totales' : 'Total monthly income')
+          : rentLblText;
+        rentLineHtml = `<div class="cat-card-rent-group">
+          <span class="cat-card-rent-lbl">${rentLblFull}</span>
+          <span class="cat-card-rent">+${formatBase(totalRentBase)}${rentLabel}</span>
+        </div>`;
       }
     }
 

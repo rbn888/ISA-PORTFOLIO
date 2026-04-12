@@ -46,9 +46,9 @@ select:focus-visible {
   --ease-in-out:  cubic-bezier(0.4, 0, 0.2, 1);
   /* Timing — slightly slower for more refined feel */
   --dur-tap:  80ms;
-  --dur-fast: 140ms;
-  --dur-med:  260ms;
-  --dur-slow: 400ms;
+  --dur-fast: 160ms;
+  --dur-med:  290ms;
+  --dur-slow: 420ms;
   /* Glow system — removed; any var(--glow-*) renders as none */
   --glow-soft:   none;
   --glow-medium: none;
@@ -89,8 +89,8 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 }
 
 @keyframes logo-enter {
-  from { opacity: 0; transform: translateY(6px) scaleX(1.35) scaleY(0.8); }
-  to   { opacity: 1; transform: translateY(0)  scaleX(1.35) scaleY(0.8); }
+  from { opacity: 0;   transform: translateY(6px) scaleX(1.18) scaleY(0.86); }
+  to   { opacity: .88; transform: translateY(0)   scaleX(1.18) scaleY(0.86); }
 }
 
 /* ── Skeleton shimmer ───────────────────────────────────── */
@@ -183,7 +183,6 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 .logo-block .logo-aurix {
   font-size: 21px;
   letter-spacing: .38em;
-  opacity: .88;
   transform: scaleX(1.18) scaleY(0.86);
   transform-origin: center center;
   animation: logo-enter .3s .05s var(--ease-out) both;
@@ -386,9 +385,6 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 }
 
 .summary-label {
-  font-size: 11px;
-  letter-spacing: .14em;
-  opacity: 0.65;
   margin-bottom: 14px;
 }
 
@@ -625,6 +621,20 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 }
 
 /* Monthly rent in category card */
+.cat-card-rent-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+.cat-card-rent-lbl {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  line-height: 1;
+}
 .cat-card-rent {
   font-size: 11px;
   font-weight: 600;
@@ -648,7 +658,7 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 .rent-banner-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
@@ -659,7 +669,6 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
   font-variant-numeric: tabular-nums;
   animation: re-rent-pulse 5s ease-in-out infinite;
   will-change: opacity;
-  text-shadow: 0 0 18px rgba(74,222,128,.35);
 }
 .rent-banner--zero {
   background: rgba(255,255,255,.03);
@@ -1784,7 +1793,7 @@ body.modal-open {
 .cc-vis--etf { flex-direction: column; justify-content: flex-end; align-items: flex-end; gap: 4px; }
 
 .cc-ticker-big {
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: -.04em;
   line-height: 1;
@@ -1795,6 +1804,21 @@ body.modal-open {
 }
 .cc-vis--stock .cc-ticker-big { color: #c0c8d8; }
 .cc-vis--etf   .cc-ticker-big { color: #8f9dba; }
+
+/* Secondary ticker — smaller, faded, staggered drift */
+.cc-ticker-secondary {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+  opacity: .45;
+  animation: cc-drift-up 7s ease-in-out 1.8s infinite;
+  will-change: transform, opacity;
+}
+.cc-vis--stock .cc-ticker-secondary { color: #c0c8d8; }
+.cc-vis--etf   .cc-ticker-secondary { color: #8f9dba; }
 
 /* ── METAL: horizontal shimmer sweep (gold / silver) ────── */
 .cc-vis--metal { flex-direction: column; justify-content: center; align-items: center; padding: 0; }
@@ -2478,7 +2502,7 @@ body.modal-open {
     border-radius: 16px;
   }
   .hero-left {
-    padding: 24px 20px 18px 22px;
+    padding: 24px 20px 18px 20px;
     border-right: none;
     border-bottom: 1px solid rgba(255,255,255,.055);
   }
@@ -2486,9 +2510,7 @@ body.modal-open {
     padding: 20px 20px 24px;
   }
   .summary-label {
-    font-size: 10px;
-    opacity: .50;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .summary-total {
     font-size: clamp(30px, 9vw, 44px);
@@ -2768,7 +2790,7 @@ body.modal-open {
   .cat-card--arrive   { animation: none; }
   .chart-wrap--drawing::after { animation: none; opacity: 0; }
   .cc-wave-bar, .cc-metal-shine, .cc-bldg, .cc-flow, .cc-ticker-big,
-  .cc-micro-bar, .cc-signal-ring { animation: none; }
+  .cc-ticker-secondary, .cc-micro-bar, .cc-signal-ring { animation: none; }
   .cc-signal-ring { opacity: 0; }
   .hero-card::before { animation: none; }
   .chart-wrap::after { animation: none; opacity: 0; }
