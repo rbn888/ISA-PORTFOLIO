@@ -179,10 +179,12 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dashboard header variant — stretched brand mark */
+/* Dashboard header variant — refined brand mark */
 .logo-block .logo-aurix {
-  font-size: 25px;
-  transform: scaleX(1.35) scaleY(0.8);
+  font-size: 21px;
+  letter-spacing: .38em;
+  opacity: .88;
+  transform: scaleX(1.18) scaleY(0.86);
   transform-origin: center center;
   animation: logo-enter .3s .05s var(--ease-out) both;
   transition: opacity .15s;
@@ -2459,15 +2461,15 @@ body.modal-open {
 
   /* Header — tighter vertical rhythm */
   .header {
-    padding: 18px 0 18px;
+    padding: 12px 0 12px;
     margin-bottom: 0;
   }
-  .logo-block .logo-aurix { font-size: 28px; }
+  .logo-block .logo-aurix { font-size: 21px; }
 
-  /* Dashboard top — compact margins */
+  /* Dashboard top — breathing room */
   .dashboard-top {
-    margin-top: 16px;
-    margin-bottom: 16px;
+    margin-top: 20px;
+    margin-bottom: 24px;
   }
 
   /* Hero card — stack vertically on mobile */
@@ -2476,19 +2478,22 @@ body.modal-open {
     border-radius: 16px;
   }
   .hero-left {
-    padding: 22px 20px 18px 22px;
+    padding: 24px 20px 18px 22px;
     border-right: none;
     border-bottom: 1px solid rgba(255,255,255,.055);
   }
   .hero-right {
-    padding: 16px 20px 18px;
+    padding: 20px 20px 24px;
   }
   .summary-label {
-    margin-bottom: 12px;
+    font-size: 10px;
+    opacity: .50;
+    margin-bottom: 8px;
   }
   .summary-total {
-    font-size: clamp(28px, 8vw, 44px);
-    margin-bottom: 10px;
+    font-size: clamp(30px, 9vw, 44px);
+    color: #ffffff;
+    margin-bottom: 8px;
   }
   .summary-meta {
     font-size: 12px;
@@ -2499,32 +2504,33 @@ body.modal-open {
     gap: 10px;
   }
   .summary-footer {
-    margin-top: 12px;
+    margin-top: 14px;
     padding-top: 12px;
     gap: 6px;
   }
   .summary-actions  { flex-direction: row; flex-wrap: wrap; gap: 6px; width: auto; }
+  /* Action buttons: text-style, low visual weight */
   .btn-summary-action {
     width: auto;
-    min-height: 34px;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 6px 12px;
+    min-height: 26px;
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 6px;
   }
-  /* On mobile, action buttons step back — numbers stay the focus */
   .btn-primary,
   .btn-secondary {
-    background: rgba(79,142,247,.05);
-    border-color: rgba(79,142,247,.14);
-    color: rgba(79,142,247,.70);
+    background: transparent;
+    border-color: rgba(79,142,247,.16);
+    color: rgba(79,142,247,.58);
     font-weight: 500;
   }
 
   /* Distribution — stack donut + legend vertically */
   .distribution-section {
-    padding: 18px 16px 18px;
+    padding: 20px 16px 20px;
     border-radius: 14px;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
   }
   .distribution-header { margin-bottom: 12px; }
   .distribution-inner {
@@ -2533,8 +2539,8 @@ body.modal-open {
     gap: 16px;
   }
   .donut-wrap {
-    width: 140px;
-    height: 140px;
+    width: 114px;
+    height: 114px;
     flex-shrink: 0;
   }
   .distribution-legend {
@@ -2548,9 +2554,9 @@ body.modal-open {
     margin: 0 -7px;
   }
 
-  /* Chart (inside hero-right on mobile) */
+  /* Chart — dominant on mobile */
   .chart-header {
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
     gap: 10px;
   }
@@ -2560,7 +2566,7 @@ body.modal-open {
     justify-content: flex-start;
   }
   .chart-wrap {
-    height: 155px;
+    height: 220px;
   }
   .chart-change { font-size: 13px; }
   .range-btn {
@@ -2574,7 +2580,7 @@ body.modal-open {
   }
 
   /* Assets section */
-  .assets-section { margin-top: 20px; }
+  .assets-section { margin-top: 28px; }
   .assets-list    { gap: 8px; }
 }
 
@@ -2677,22 +2683,22 @@ body.modal-open {
   /* Suggestions list: tighter max-height on small screens */
   .asset-suggestions { max-height: 42vh; }
 
-  .hero-left     { padding: 18px 16px 16px; }
-  .hero-right    { padding: 14px 16px 16px; }
+  .hero-left     { padding: 20px 16px 16px; }
+  .hero-right    { padding: 18px 16px 20px; }
   .form-row      { grid-template-columns: 1fr; }
 }
 
 /* ── Very small phones (≤ 375px) ───────────────────────── */
 @media (max-width: 375px) {
   .app            { padding: 0 12px 40px; }
-  .summary-total  { font-size: 24px; }
+  .summary-total  { font-size: 26px; }
   .asset-card     { padding: 12px 10px; gap: 0 10px; }
   .btn-add-pos,
   .btn-reduce,
   .btn-delete,
   .btn-edit-re    { width: 36px; height: 36px; }
-  .hero-left      { padding: 16px 14px 14px; }
-  .hero-right     { padding: 12px 14px 14px; }
+  .hero-left      { padding: 18px 14px 14px; }
+  .hero-right     { padding: 16px 14px 18px; }
 }
 
 /* ── Dashboard entrance animation ──────────────────────── */
