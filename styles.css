@@ -3809,3 +3809,51 @@ body.modal-open {
   .aes-label     { font-size: 10px; }
   .aes-preview   { font-size: 11px; }
 }
+
+/* ── ISIN / Manual Mode ─────────────────────────────────── */
+
+/* "— or —" divider between search and ISIN sections */
+.form-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.form-or-divider::before,
+.form-or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Optional label suffix */
+.label-optional {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: .85em;
+}
+
+/* ISIN input — monospace with letter-spacing for readability */
+.form-group--isin input {
+  font-family: 'SF Mono', 'Fira Code', 'Roboto Mono', ui-monospace, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-size: 13.5px;
+}
+
+/* ISIN status indicator (below ISIN input) */
+.isin-status {
+  display: block;
+  font-size: 11.5px;
+  margin-top: 5px;
+  transition: color var(--dur-fast) ease;
+}
+.isin-status:empty { margin-top: 0; }
+.isin-status--hint  { color: var(--text-muted); }
+.isin-status--ok    { color: var(--green); }
+.isin-status--error { color: var(--red); }

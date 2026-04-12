@@ -131,6 +131,24 @@ const T = {
     bmDiff:      'Diferencia',
     // Metal asset names (single language, no parenthetical mixing)
     metalNames: { XAU: 'Oro', XAG: 'Plata' },
+    // ISIN / manual entry
+    orLabel:          'o',
+    isinLabel:        'ISIN',
+    isinOptional:     ' (opcional)',
+    isinPH:           'IE00B4L5Y983',
+    isinOk:           '✓ ISIN válido',
+    isinError:        'ISIN inválido — 12 caracteres alfanuméricos',
+    isinHint:         n => `${n}/12`,
+    manualNameLabel:  'Nombre del activo',
+    manualNamePH:     'Ej: iShares Core MSCI World',
+    manualTypeLabel:  'Tipo de activo',
+    manualTypeStock:  'Acciones',
+    manualTypeEtf:    'ETF/Fondo',
+    manualTypeCrypto: 'Cripto',
+    manualTypeOther:  'Otros',
+    manualCurrLabel:  'Moneda',
+    manualPriceLabel: 'Precio por unidad',
+    manualPriceOptional: ' (opcional)',
     // Beta screen
     exit: 'Salir',
   },
@@ -255,6 +273,24 @@ const T = {
     bmDiff:      'Difference',
     // Metal asset names (single language, no parenthetical mixing)
     metalNames: { XAU: 'Gold', XAG: 'Silver' },
+    // ISIN / manual entry
+    orLabel:          'or',
+    isinLabel:        'ISIN',
+    isinOptional:     ' (optional)',
+    isinPH:           'IE00B4L5Y983',
+    isinOk:           '✓ Valid ISIN',
+    isinError:        'Invalid ISIN — 12 alphanumeric characters',
+    isinHint:         n => `${n}/12`,
+    manualNameLabel:  'Asset name',
+    manualNamePH:     'E.g.: iShares Core MSCI World',
+    manualTypeLabel:  'Asset type',
+    manualTypeStock:  'Stocks',
+    manualTypeEtf:    'ETF/Fund',
+    manualTypeCrypto: 'Crypto',
+    manualTypeOther:  'Other',
+    manualCurrLabel:  'Currency',
+    manualPriceLabel: 'Price per unit',
+    manualPriceOptional: ' (optional)',
     filterAll: 'All', filterCrypto: 'Crypto', filterStock: 'Stocks',
     filterEtf: 'ETF / Funds', filterMetal: 'Metals', filterRE: 'Real Estate',
     reName: 'Property name', reValueLabel: 'Value (in base currency)',
@@ -272,6 +308,10 @@ function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const v = T[lang][el.dataset.i18n];
     if (typeof v === 'string') el.textContent = v;
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const v = T[lang][el.dataset.i18nPh];
+    if (typeof v === 'string') el.placeholder = v;
   });
 }
 
@@ -423,6 +463,9 @@ let pendingGoldUnit     = 'g';  // unit for pending gold asset ('g' | 'oz')
 let goldPriceUpdatedAt  = null; // timestamp of last successful live gold price fetch
 let goldChangePct       = null; // daily % change for XAU — shared across all gold assets
 let isRealEstateMode    = false; // true when modal is in manual real-estate entry mode
+let isManualMode        = false; // true when modal is in ISIN manual-entry mode
+let manualAssetType     = 'etf'; // type selected in manual mode
+let manualCurrency      = 'USD'; // currency selected in manual mode
 let rePendingCurrency   = 'EUR'; // currency selected in RE modal
 let rePendingRent       = 0;     // monthly rent input in RE modal
 let reEditTargetId      = null;  // when set, submit updates this asset instead of creating
@@ -2717,6 +2760,9 @@ function clearSelectedAsset() {
 
 function enterSearchMode() {
   isRealEstateMode = false;
+  if (isManualMode) exitManualMode();
+  const isinOrWrap = document.getElementById('isinOrWrap');
+  if (isinOrWrap) isinOrWrap.style.display = '';
   const reNameGroupEl = document.getElementById('reNameGroup');
   const reCurrGroupEl = document.getElementById('reCurrGroup');
   const reRentGroupEl = document.getElementById('reRentGroup');
@@ -2744,6 +2790,11 @@ function enterRealEstateMode() {
   rePendingRent      = 0;
   clearSelectedAsset();
   closeSuggestions();
+
+  // Also exit manual mode if active and hide ISIN section
+  if (isManualMode) exitManualMode();
+  const isinOrWrap = document.getElementById('isinOrWrap');
+  if (isinOrWrap) isinOrWrap.style.display = 'none';
 
   searchInputWrapEl.style.display = 'none';
 
@@ -2871,6 +2922,69 @@ function openContextualModal(type) {
   }
 }
 
+// ── ISIN / Manual mode helpers ──────────────────────────────
+function detectTypeFromISIN(isin) {
+  const cc = isin.slice(0, 2).toUpperCase();
+  if (cc === 'IE' || cc === 'LU') return 'etf';           // fund domiciles
+  if (['US', 'CA', 'GB', 'DE', 'FR', 'ES', 'IT',
+       'NL', 'CH', 'JP', 'AU', 'SE', 'DK', 'NO'].includes(cc)) return 'stock';
+  return 'other';
+}
+
+function enterManualMode(isin) {
+  isManualMode    = true;
+  manualAssetType = detectTypeFromISIN(isin);
+  manualCurrency  = 'USD';
+
+  // Hide search UI
+  searchInputWrapEl.style.display = 'none';
+  if (searchFiltersEl) searchFiltersEl.style.display = 'none';
+  clearSelectedAsset();
+  closeSuggestions();
+  setLookupStatus('');
+
+  // Show manual fields
+  const mf = document.getElementById('manualFields');
+  if (mf) mf.style.display = '';
+
+  // Activate detected type
+  document.querySelectorAll('#manualTypeToggle [data-mtype]').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.mtype === manualAssetType));
+
+  // Activate currency
+  document.querySelectorAll('#manualCurrToggle [data-mcurr]').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.mcurr === manualCurrency));
+
+  // Show qty + preview + submit
+  if (qtyLabelEl) qtyLabelEl.textContent = t('qty');
+  qtyGroup.style.display      = '';
+  formPreviewEl.style.display = '';
+  btnSubmitEl.style.display   = '';
+
+  setTimeout(() => document.getElementById('manualName')?.focus(), 50);
+}
+
+function exitManualMode() {
+  isManualMode = false;
+  const mf = document.getElementById('manualFields');
+  if (mf) mf.style.display = 'none';
+  searchInputWrapEl.style.display = '';
+  if (searchFiltersEl) searchFiltersEl.style.display = '';
+  qtyGroup.style.display      = 'none';
+  formPreviewEl.style.display = 'none';
+  btnSubmitEl.style.display   = 'none';
+  const isinStatus = document.getElementById('isinStatus');
+  if (isinStatus) isinStatus.textContent = '';
+}
+
+function resetISINInput() {
+  const isinInput  = document.getElementById('isinInput');
+  const isinStatus = document.getElementById('isinStatus');
+  if (isinInput)  { isinInput.value = ''; }
+  if (isinStatus) { isinStatus.textContent = ''; isinStatus.className = 'isin-status'; }
+  if (isManualMode) exitManualMode();
+}
+
 function openModal() {
   assetForm.reset();
   previewTotal.textContent = formatBase(0);
@@ -2890,9 +3004,16 @@ function openModal() {
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = 'none';
   if (qtyLabelEl)      qtyLabelEl.textContent        = t('qty');
   isRealEstateMode  = false;
+  isManualMode      = false;
   rePendingCurrency = 'EUR';
   rePendingRent     = 0;
   reEditTargetId    = null;
+  // Reset ISIN + manual fields
+  resetISINInput();
+  const isinOrWrap = document.getElementById('isinOrWrap');
+  if (isinOrWrap) isinOrWrap.style.display = '';
+  const manualFields = document.getElementById('manualFields');
+  if (manualFields) manualFields.style.display = 'none';
   const reNameGroupEl = document.getElementById('reNameGroup');
   const reCurrGroupEl = document.getElementById('reCurrGroup');
   const reRentGroupEl = document.getElementById('reRentGroup');
@@ -2988,12 +3109,85 @@ filterBtns.forEach(btn => {
   });
 });
 
+// ── ISIN input real-time validation ────────────────────────
+const isinInputEl = document.getElementById('isinInput');
+if (isinInputEl) {
+  isinInputEl.addEventListener('input', () => {
+    // Force uppercase + strip non-alphanumeric
+    const raw = isinInputEl.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (isinInputEl.value !== raw) isinInputEl.value = raw;
+
+    const statusEl = document.getElementById('isinStatus');
+    const n = raw.length;
+
+    if (n === 0) {
+      if (isManualMode) exitManualMode();
+      if (statusEl) { statusEl.textContent = ''; statusEl.className = 'isin-status'; }
+      return;
+    }
+
+    if (n < 12) {
+      if (isManualMode) exitManualMode();
+      if (statusEl) {
+        statusEl.textContent = t('isinHint')(n);
+        statusEl.className   = 'isin-status isin-status--hint';
+      }
+      return;
+    }
+
+    // Exactly 12 chars — validate: 2 letters + 9 alphanumeric + 1 digit
+    const valid = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(raw);
+    if (!valid) {
+      if (isManualMode) exitManualMode();
+      if (statusEl) {
+        statusEl.textContent = t('isinError');
+        statusEl.className   = 'isin-status isin-status--error';
+      }
+      isinInputEl.classList.add('aes-shake');
+      setTimeout(() => isinInputEl.classList.remove('aes-shake'), 450);
+      return;
+    }
+
+    // Valid ISIN
+    if (statusEl) {
+      statusEl.textContent = t('isinOk');
+      statusEl.className   = 'isin-status isin-status--ok';
+    }
+    if (!isManualMode) enterManualMode(raw);
+  });
+}
+
+// ── Manual type toggle ─────────────────────────────────────
+document.getElementById('manualTypeToggle')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-mtype]');
+  if (!btn) return;
+  manualAssetType = btn.dataset.mtype;
+  document.querySelectorAll('#manualTypeToggle [data-mtype]').forEach(b =>
+    b.classList.toggle('active', b === btn));
+});
+
+// ── Manual currency toggle ─────────────────────────────────
+document.getElementById('manualCurrToggle')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-mcurr]');
+  if (!btn) return;
+  manualCurrency = btn.dataset.mcurr;
+  document.querySelectorAll('#manualCurrToggle [data-mcurr]').forEach(b =>
+    b.classList.toggle('active', b === btn));
+  updatePreview();
+});
+
 // ── Live Preview ───────────────────────────────────────────
 function updatePreview() {
   const qty = parseLocalFloat(qtyInput.value) || 0;
   // Real estate: qty IS the value, already in rePendingCurrency
   if (isRealEstateMode) {
     previewTotal.textContent = formatBase(toBase(qty, rePendingCurrency));
+    return;
+  }
+  // Manual ISIN mode: qty × manual price (if any), in selected manualCurrency
+  if (isManualMode) {
+    const price = parseLocalFloat(document.getElementById('manualPrice')?.value) || 0;
+    previewTotal.textContent = formatBase(toBase(qty * price, manualCurrency));
     return;
   }
   const price = pendingPrice || 0;
@@ -3007,6 +3201,7 @@ function updatePreview() {
   previewTotal.textContent = formatBase(toBase(value, 'USD'));
 }
 qtyInput.addEventListener('input', updatePreview);
+document.getElementById('manualPrice')?.addEventListener('input', updatePreview);
 
 // ── Add Asset ──────────────────────────────────────────────
 assetForm.addEventListener('submit', e => {
@@ -3048,6 +3243,49 @@ assetForm.addEventListener('submit', e => {
         change24h:     null,
         prevPrice:     null,
         rent,
+      });
+    }
+    save();
+    render(true);
+    closeModal();
+    onPortfolioChange(true);
+    return;
+  }
+
+  // ── Manual ISIN branch ────────────────────────────────────
+  if (isManualMode) {
+    const isinVal = (document.getElementById('isinInput')?.value || '').toUpperCase().trim();
+    const nameVal = (document.getElementById('manualName')?.value || '').trim();
+    if (!nameVal) { document.getElementById('manualName')?.focus(); return; }
+
+    const qty = parseLocalFloat(qtyInput.value);
+    if (isNaN(qty) || qty <= 0) { qtyInput.focus(); return; }
+
+    const price  = parseLocalFloat(document.getElementById('manualPrice')?.value) || 0;
+    const ticker = nameVal.replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || 'MANU';
+
+    // Merge into existing position if same ISIN (or same ticker+type fallback)
+    const existing = isinVal
+      ? assets.find(a => a.isin === isinVal)
+      : assets.find(a => a.ticker.toUpperCase() === ticker && a.type === manualAssetType);
+
+    if (existing) {
+      existing.qty = +(existing.qty + qty).toFixed(8);
+      if (price > 0) existing.price = price;
+    } else {
+      assets.push({
+        id:            Date.now().toString(36) + Math.random().toString(36).slice(2),
+        name:          nameVal,
+        ticker,
+        type:          manualAssetType,
+        qty,
+        price:         price > 0 ? price : 1,
+        isin:          isinVal || null,
+        coinId:        null,
+        marketSymbol:  null,
+        assetCurrency: manualCurrency,
+        change24h:     null,
+        prevPrice:     null,
       });
     }
     save();
