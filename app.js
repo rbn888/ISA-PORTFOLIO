@@ -1490,26 +1490,35 @@ function setActiveCategory(type) {
   // Reduced-motion: instant swap, no animations
   if (reducedMotion) {
     _commit();
-    if (next) document.getElementById('assetsSection')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.scrollTo(0, 0);
     return;
   }
 
   _catTransitioning = true;
 
   if (isDrilling) {
-    // Fade categories out, then show asset list
-    const catSection = document.getElementById('categoriesSection');
-    if (catSection && catSection.style.display !== 'none') {
-      catSection.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
-      catSection.style.opacity    = '0';
-      catSection.style.transform  = 'translateY(-6px) scale(0.98)';
+    // Fade out entire dashboard (summary + chart + category cards)
+    const dashTop      = document.querySelector('.dashboard-top');
+    const chartSection = document.querySelector('.chart-section');
+    const catSection   = document.getElementById('categoriesSection');
+
+    const toHide = [dashTop, chartSection, catSection].filter(
+      el => el && el.style.display !== 'none'
+    );
+
+    if (toHide.length) {
+      toHide.forEach(el => {
+        el.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
+        el.style.opacity    = '0';
+        el.style.transform  = 'translateY(-6px) scale(0.98)';
+      });
       setTimeout(() => {
-        catSection.style.transition = catSection.style.opacity = catSection.style.transform = '';
-        _commit();
+        toHide.forEach(el => {
+          el.style.transition = el.style.opacity = el.style.transform = '';
+        });
+        _commit(); // render() sets dashTop/chartSection display:none, shows assetsSection
         _animateSectionIn(document.getElementById('assetsSection'));
-        document.getElementById('assetsSection')
-          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.scrollTo(0, 0);
         setTimeout(() => { _catTransitioning = false; }, 320);
       }, 210);
     } else {
@@ -1517,22 +1526,31 @@ function setActiveCategory(type) {
       _animateSectionIn(document.getElementById('assetsSection'));
       setTimeout(() => { _catTransitioning = false; }, 320);
     }
+
   } else {
-    // Fade asset list out, then show category grid
+    // Fade out asset list, then slide the full dashboard back in
     const assetsSection = document.getElementById('assetsSection');
+
     if (assetsSection && assetsSection.style.display !== 'none') {
       assetsSection.style.transition = `opacity 180ms ${EASE}, transform 180ms ${EASE}`;
       assetsSection.style.opacity    = '0';
       assetsSection.style.transform  = 'translateY(8px)';
       setTimeout(() => {
         assetsSection.style.transition = assetsSection.style.opacity = assetsSection.style.transform = '';
-        _commit();
-        _animateSectionIn(document.getElementById('categoriesSection'));
+        _commit(); // render() shows dashTop/chartSection, hides assetsSection; updateCategoryCards shows catSection
+        const dashTop      = document.querySelector('.dashboard-top');
+        const chartSection = document.querySelector('.chart-section');
+        const catSec       = document.getElementById('categoriesSection');
+        [dashTop, chartSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
+        window.scrollTo(0, 0);
         setTimeout(() => { _catTransitioning = false; }, 320);
       }, 190);
     } else {
       _commit();
-      _animateSectionIn(document.getElementById('categoriesSection'));
+      const dashTop      = document.querySelector('.dashboard-top');
+      const chartSection = document.querySelector('.chart-section');
+      const catSec       = document.getElementById('categoriesSection');
+      [dashTop, chartSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
       setTimeout(() => { _catTransitioning = false; }, 320);
     }
   }
@@ -1742,16 +1760,21 @@ function render(animate = false) {
     if (filterIndicator) filterIndicator.style.display = 'none';
   }
 
-  // Section visibility: dashboard shows category cards; category view shows asset list
+  // Section visibility: full-page navigation between dashboard and category drill-down
   const assetsSectionEl = document.getElementById('assetsSection');
+  const dashTopEl        = document.querySelector('.dashboard-top');
+  const chartSecEl       = document.querySelector('.chart-section');
   if (activeCategory) {
-    // Category drill-down — asset list is the main view
+    // Category drill-down: hide dashboard, show asset list only
     if (assetsSectionEl) assetsSectionEl.style.display = '';
+    if (dashTopEl)        dashTopEl.style.display        = 'none';
+    if (chartSecEl)       chartSecEl.style.display       = 'none';
     // categoriesSection already hidden by updateCategoryCards() short-circuit
   } else {
-    // Dashboard — category cards are primary navigation; raw list always hidden here
-    // (categories show all 6 types even when empty, so empty-state lives inside category drill-down)
+    // Dashboard: show all dashboard sections, hide asset list
     if (assetsSectionEl) assetsSectionEl.style.display = 'none';
+    if (dashTopEl)        dashTopEl.style.display        = '';
+    if (chartSecEl)       chartSecEl.style.display       = '';
   }
 
   // Clear list (keep empty state node)
