@@ -450,6 +450,8 @@ let lastSnapshotMs   = 0;
 let lastRefreshAt    = null;   // timestamp of last successful price refresh
 let activeRange      = '24h';
 let portfolioChart   = null;
+let _detailChart     = null;  // Chart.js instance for category detail sparkline
+let _detailChartType = null;  // which category the sparkline was last rendered for
 
 const BASE_KEY   = 'portfolio_base_currency';
 let baseCurrency = localStorage.getItem(BASE_KEY) || 'USD';
@@ -1740,6 +1742,157 @@ function updatePerformance() {
   summaryPerfEl.style.display = '';
 }
 
+// ── Detail View ────────────────────────────────────────────
+function _hexToRgb(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16 & 0xff), (n >> 8 & 0xff), (n & 0xff)];
+}
+
+// Weighted-average 24h change across all assets in a category.
+// Excludes cash and real estate (no daily market price change).
+function computeCategoryChange(typeAssets) {
+  const liquid = typeAssets.filter(
+    a => typeof a.change24h === 'number' && a.type !== 'cash' && a.type !== 'real_estate'
+  );
+  if (!liquid.length) return null;
+  const totalVal = liquid.reduce(
+    (s, a) => s + toBase(assetNativeValue(a), (a.assetCurrency || 'USD').toUpperCase()), 0
+  );
+  if (totalVal <= 0) return null;
+  return liquid.reduce((s, a) => {
+    const w = toBase(assetNativeValue(a), (a.assetCurrency || 'USD').toUpperCase()) / totalVal;
+    return s + a.change24h * w;
+  }, 0);
+}
+
+// Build (or rebuild) the mini sparkline chart inside .detail-chart-wrap.
+// Uses deterministic synthetic data: smoothstep from 24h-ago value to now,
+// plus a fixed wave pattern — no Math.random so it stays stable on re-renders.
+function buildDetailSparkline(totalValue, change24h, color) {
+  const canvas = document.getElementById('detailChartCanvas');
+  if (!canvas) return;
+  if (_detailChart) { _detailChart.destroy(); _detailChart = null; }
+
+  const pts     = 32;
+  const startVal = totalValue / (1 + (change24h || 0) / 100);
+  const now      = Date.now();
+  const STEP     = (24 * 3_600_000) / (pts - 1);
+
+  const values = Array.from({ length: pts }, (_, i) => {
+    const t      = i / (pts - 1);
+    const smooth = t * t * (3 - 2 * t);            // smoothstep ease
+    const wave   = Math.sin(i * 1.9) * 0.004 + Math.cos(i * 3.1) * 0.002;
+    return startVal + (totalValue - startVal) * smooth + totalValue * wave;
+  });
+
+  const labels = Array.from({ length: pts }, (_, i) => {
+    const d = new Date(now - (pts - 1 - i) * STEP);
+    return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  });
+
+  const isUp        = (change24h || 0) >= 0;
+  const lineColor   = isUp ? color : '#f87171';
+  const [lr, lg, lb] = _hexToRgb(lineColor);
+
+  const fillPlugin = {
+    id: 'detailFill',
+    beforeDraw(chart) {
+      if (!chart.chartArea) return;
+      const { ctx, chartArea: { top, bottom } } = chart;
+      const grad = ctx.createLinearGradient(0, top, 0, bottom);
+      grad.addColorStop(0,   `rgba(${lr},${lg},${lb},0.20)`);
+      grad.addColorStop(0.55, `rgba(${lr},${lg},${lb},0.06)`);
+      grad.addColorStop(1,   `rgba(${lr},${lg},${lb},0.00)`);
+      chart.data.datasets.forEach(ds => { ds.backgroundColor = grad; });
+    }
+  };
+
+  const glowPlugin = {
+    id: 'detailGlow',
+    beforeDatasetsDraw(chart) {
+      chart.ctx.save();
+      chart.ctx.shadowColor = `rgba(${lr},${lg},${lb},0.4)`;
+      chart.ctx.shadowBlur  = 9;
+    },
+    afterDatasetsDraw(chart) { chart.ctx.restore(); }
+  };
+
+  _detailChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values, borderColor: lineColor, backgroundColor: 'transparent',
+        fill: true, tension: 0.45, pointRadius: 0, borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false } },
+      animation: { duration: 700, easing: 'easeInOutQuart' },
+    },
+    plugins: [fillPlugin, glowPlugin],
+  });
+}
+
+// Render or update the premium detail hero (category name, total value,
+// 24h change badge, mini sparkline chart). Called from render() when in
+// category drill-down. Re-creates sparkline only when category changes.
+function renderDetailHero(type, typeAssets) {
+  const m          = TYPE_META[type] || TYPE_META.other;
+  const dist       = _donutDist.find(d => d.type === type);
+  const totalValue = dist
+    ? dist.valueBase
+    : typeAssets.reduce(
+        (s, a) => s + toBase(assetNativeValue(a), (a.assetCurrency || 'USD').toUpperCase()), 0
+      );
+  const change24h = computeCategoryChange(typeAssets);
+
+  // Create hero element once
+  let heroEl = document.getElementById('detailHero');
+  if (!heroEl) {
+    heroEl = document.createElement('div');
+    heroEl.id        = 'detailHero';
+    heroEl.className = 'detail-hero';
+    heroEl.innerHTML = `
+      <div class="detail-hero-info">
+        <div class="detail-hero-meta">
+          <span class="detail-hero-dot"></span>
+          <span class="detail-hero-type"></span>
+        </div>
+        <div class="detail-hero-value"></div>
+        <span class="detail-hero-change"></span>
+      </div>
+      <div class="detail-chart-wrap"><canvas id="detailChartCanvas"></canvas></div>`;
+    const hdr = document.querySelector('#assetsSection .section-header');
+    if (hdr) hdr.after(heroEl);
+  }
+
+  // Update live values
+  heroEl.querySelector('.detail-hero-dot').style.background = m.color;
+  heroEl.querySelector('.detail-hero-type').textContent     = m.label.toUpperCase();
+  heroEl.querySelector('.detail-hero-value').textContent    = formatBase(totalValue);
+
+  const changeEl = heroEl.querySelector('.detail-hero-change');
+  if (change24h !== null) {
+    const sign = change24h >= 0 ? '+' : '';
+    const cls  = change24h > 0.005 ? 'up' : change24h < -0.005 ? 'down' : 'flat';
+    changeEl.textContent = `${sign}${change24h.toFixed(2)}%`;
+    changeEl.className   = `detail-hero-change ${cls}`;
+    changeEl.style.display = '';
+  } else {
+    changeEl.style.display = 'none';
+  }
+
+  // Re-build sparkline only when the category changes (not on every price tick)
+  if (_detailChartType !== type) {
+    _detailChartType = type;
+    requestAnimationFrame(() => buildDetailSparkline(totalValue, change24h, m.color));
+  }
+}
+
 // ── Render ─────────────────────────────────────────────────
 function render(animate = false) {
   countUpTotalValue(totalValueBase());
@@ -1770,11 +1923,19 @@ function render(animate = false) {
     if (dashTopEl)        dashTopEl.style.display        = 'none';
     if (chartSecEl)       chartSecEl.style.display       = 'none';
     // categoriesSection already hidden by updateCategoryCards() short-circuit
+    // Render premium detail hero (category stats + mini sparkline)
+    const typeAssets = assets.filter(a => (TYPE_META[a.type] ? a.type : 'other') === activeCategory);
+    renderDetailHero(activeCategory, typeAssets);
   } else {
     // Dashboard: show all dashboard sections, hide asset list
     if (assetsSectionEl) assetsSectionEl.style.display = 'none';
     if (dashTopEl)        dashTopEl.style.display        = '';
     if (chartSecEl)       chartSecEl.style.display       = '';
+    // Clean up detail hero and sparkline when returning to dashboard
+    const heroEl = document.getElementById('detailHero');
+    if (heroEl) heroEl.remove();
+    if (_detailChart) { _detailChart.destroy(); _detailChart = null; }
+    _detailChartType = null;
   }
 
   // Clear list (keep empty state node)
