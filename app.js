@@ -2803,12 +2803,14 @@ function openModal() {
   const modalTitle = document.querySelector('#modalOverlay .modal-header h3');
   if (modalTitle) modalTitle.textContent = t('modalAddTitle');
   modalOverlay.classList.add('open');
+  document.body.classList.add('modal-open');
   suppressFocusDefaults = true;
   setTimeout(() => searchInput.focus(), 50);
 }
 
 function closeModal() {
   modalOverlay.classList.remove('open');
+  document.body.classList.remove('modal-open');
   clearTimeout(searchDebounceTimer);
   if (searchAbortCtrl) { searchAbortCtrl.abort(); searchAbortCtrl = null; }
   closeSuggestions();
@@ -3026,11 +3028,13 @@ function openReduceModal(id) {
   reduceError.textContent = '';
 
   reduceOverlay.classList.add('open');
+  document.body.classList.add('modal-open');
   reduceQtyInput.focus();
 }
 
 function closeReduceModal() {
   reduceOverlay.classList.remove('open');
+  document.body.classList.remove('modal-open');
   reduceTargetId = null;
 }
 
@@ -3144,11 +3148,13 @@ function openAddModal(id) {
   previewAddValueTotal.textContent = formatBase(totalBase);
 
   addOverlay.classList.add('open');
+  document.body.classList.add('modal-open');
   addQtyInput.focus();
 }
 
 function closeAddModal() {
   addOverlay.classList.remove('open');
+  document.body.classList.remove('modal-open');
   addTargetId = null;
 }
 
@@ -3302,11 +3308,13 @@ function openLiquidityModal() {
   liquidityCurrIn.value = 'EUR';
   liqBtns.forEach(b => b.classList.toggle('active', b.dataset.curr === 'EUR'));
   liquidityOverlay.classList.add('open');
+  document.body.classList.add('modal-open');
   setTimeout(() => liquidityQtyInput.focus(), 50);
 }
 
 function closeLiquidityModal() {
   liquidityOverlay.classList.remove('open');
+  document.body.classList.remove('modal-open');
 }
 
 liqBtns.forEach(btn => {

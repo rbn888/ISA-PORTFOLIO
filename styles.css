@@ -894,6 +894,13 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 .empty-state p { font-size: 14px; line-height: 1.6; }
 .empty-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
+/* ── Body scroll lock when any modal is open ───────────── */
+body.modal-open {
+  overflow: hidden;
+  /* Prevents iOS Safari rubber-band scroll bleeding through */
+  touch-action: none;
+}
+
 /* ── Modal ─────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0;
@@ -2107,10 +2114,24 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
   border-radius: var(--radius-sm);
   box-shadow: 0 12px 36px rgba(0,0,0,.55);
   z-index: 300;
-  overflow: hidden;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: none;
 }
 .asset-suggestions.open { display: block; }
+/* Fade at bottom signals more content is scrollable */
+.asset-suggestions.open::after {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: 28px;
+  background: linear-gradient(to top, var(--bg-card) 0%, transparent 100%);
+  pointer-events: none;
+  margin-top: -28px;
+}
 
 .suggestion-item {
   display: grid;
@@ -2597,10 +2618,28 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
     transform: translateY(56px) scale(1);
     transition: opacity .3s var(--ease-out), transform .4s var(--ease-out);
     will-change: auto;
+    /* Constrain height so body can scroll independently */
+    max-height: 88svh;
+    max-height: 88vh; /* fallback for older Safari */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .modal-overlay.open .modal {
     transform: translateY(0) scale(1);
   }
+  /* Header stays fixed at top of sheet */
+  .modal-header { flex-shrink: 0; }
+  /* Form body scrolls within the constrained sheet */
+  .modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    flex: 1;
+    min-height: 0; /* required for flex child to shrink below content height */
+  }
+  /* Suggestions list: tighter max-height on small screens */
+  .asset-suggestions { max-height: 42vh; }
 
   .summary-panel { padding: 18px 16px; }
   .form-row      { grid-template-columns: 1fr; }
