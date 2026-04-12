@@ -1484,6 +1484,47 @@ body.modal-open {
   pointer-events: none;
 }
 
+/* ── Chart interactive tooltip ─────────────────────────── */
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: rgba(10, 12, 20, 0.92);
+  border: 1px solid rgba(79, 142, 247, 0.22);
+  border-radius: 8px;
+  padding: 7px 11px;
+  pointer-events: none;
+  opacity: 0;
+  white-space: nowrap;
+  z-index: 10;
+  box-shadow: 0 4px 20px rgba(0,0,0,.55),
+              0 0 0 1px rgba(79,142,247,.06),
+              0 0 14px rgba(79,142,247,.07);
+  transition: opacity 100ms var(--ease-out);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.chart-tooltip--visible {
+  opacity: 1;
+}
+.chart-tooltip-time {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .3px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.chart-tooltip-val {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+.chart-tooltip-val[data-dir="up"]   { color: var(--green); }
+.chart-tooltip-val[data-dir="down"] { color: var(--red); }
+.chart-tooltip-val[data-dir="flat"] { color: var(--text); }
+
 /* ── Category cards ────────────────────────────────────── */
 .categories-section { margin-bottom: 24px; }
 

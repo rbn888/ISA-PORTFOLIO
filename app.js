@@ -951,6 +951,75 @@ const lineGlowPlugin = {
   }
 };
 
+// Draws a vertical dashed crosshair line at the hovered data point
+const crosshairPlugin = {
+  id: 'crosshair',
+  afterDraw(chart) {
+    if (!chart.tooltip?._active?.length) return;
+    const { ctx, chartArea: { top, bottom } } = chart;
+    const x = chart.tooltip._active[0].element.x;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.lineWidth    = 1;
+    ctx.strokeStyle  = 'rgba(79,142,247,0.40)';
+    ctx.setLineDash([3, 4]);
+    ctx.lineDashOffset = 0;
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+// External tooltip renderer — replaces Chart.js built-in tooltip with a custom DOM element
+function updateChartTooltip(context) {
+  const tooltipEl = document.getElementById('chartTooltip');
+  if (!tooltipEl) return;
+
+  const tooltip = context.tooltip;
+
+  // Hide when no active point
+  if (!tooltip.opacity || !tooltip.dataPoints?.length) {
+    tooltipEl.classList.remove('chart-tooltip--visible');
+    return;
+  }
+
+  const dp    = tooltip.dataPoints[0];
+  const label = dp.label;
+  const value = dp.raw;
+  const data  = context.chart.data.datasets[0].data;
+
+  // ── Time label ──
+  tooltipEl.querySelector('.chart-tooltip-time').textContent = label;
+
+  // ── Value: absolute or % change from range start ──
+  const first = data.length ? data[0] : value;
+  let valText, valDir;
+  if (activePerfMode === 'curr') {
+    valText = formatBase(value);
+    valDir  = value > first ? 'up' : value < first ? 'down' : 'flat';
+  } else {
+    const pct  = first > 0 ? ((value - first) / first) * 100 : 0;
+    const sign = pct >= 0 ? '+' : '';
+    valText = `${sign}${pct.toFixed(2)}%`;
+    valDir  = pct > 0.005 ? 'up' : pct < -0.005 ? 'down' : 'flat';
+  }
+  const valEl = tooltipEl.querySelector('.chart-tooltip-val');
+  valEl.textContent   = valText;
+  valEl.dataset.dir   = valDir;
+
+  // ── Position: left of cursor if near right edge, else right ──
+  const chart = context.chart;
+  const wrapW = chart.canvas.parentElement.offsetWidth;
+  const x     = tooltip.caretX;
+  const ttW   = tooltipEl.offsetWidth || 110;
+  let left    = x + 14;
+  if (left + ttW > wrapW - 8) left = x - ttW - 14;
+  tooltipEl.style.left = Math.max(4, left) + 'px';
+  tooltipEl.style.top  = (chart.chartArea.top + 4) + 'px';
+  tooltipEl.classList.add('chart-tooltip--visible');
+}
+
 function initChart() {
   const canvas = document.getElementById('portfolioChart');
   if (!canvas || portfolioChart) return;
@@ -979,19 +1048,10 @@ function initChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          mode: 'index',
+          enabled:  false,
+          external: updateChartTooltip,
+          mode:     'index',
           intersect: false,
-          backgroundColor: '#1a1e2a',
-          borderColor: '#2e3450',
-          borderWidth: 1,
-          titleColor: '#6b7494',
-          bodyColor: '#e8eaf0',
-          padding: 10,
-          displayColors: false,
-          animation: { duration: 150 },
-          callbacks: {
-            label: ctx => ' ' + formatUSD(ctx.raw),
-          }
         }
       },
       scales: {
@@ -1019,8 +1079,19 @@ function initChart() {
       interaction: { mode: 'index', intersect: false },
       animation: { duration: 1200, easing: 'easeOutQuart' },
     },
-    plugins: [fillGradientPlugin, lineGlowPlugin],
+    plugins: [fillGradientPlugin, lineGlowPlugin, crosshairPlugin],
   });
+
+  // Prevent page scroll while dragging on mobile
+  canvas.style.touchAction = 'none';
+
+  // Hide custom tooltip when pointer/touch leaves the chart
+  const _hideTooltip = () => {
+    const el = document.getElementById('chartTooltip');
+    if (el) el.classList.remove('chart-tooltip--visible');
+  };
+  canvas.addEventListener('mouseleave', _hideTooltip);
+  canvas.addEventListener('touchend',   _hideTooltip, { passive: true });
 }
 
 function getChartData(range) {
