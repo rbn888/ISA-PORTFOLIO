@@ -64,6 +64,8 @@ const T = {
     donutMeta: { etf: 'Fondos', real_estate: 'Inmob.' },
     // Suggestion type badges
     typeLabel: { crypto: 'Cripto', stock: 'Acción', etf: 'ETF', metal: 'Metal' },
+    // Contextual add button in category detail view
+    addCtx: { crypto: '+ Añadir cripto', stock: '+ Añadir acción', etf: '+ Añadir fondo', metal: '+ Añadir metal', real_estate: '+ Añadir inmueble', cash: '+ Añadir liquidez' },
     // Search
     searchPH: {
       all: 'Buscar activo...', crypto: 'Buscar criptomoneda...',
@@ -191,6 +193,8 @@ const T = {
     donutMeta: { etf: 'Funds', real_estate: 'Real Est.' },
     // Suggestion type badges
     typeLabel: { crypto: 'Crypto', stock: 'Stock', etf: 'ETF', metal: 'Metal' },
+    // Contextual add button in category detail view
+    addCtx: { crypto: '+ Add crypto', stock: '+ Add stock', etf: '+ Add fund', metal: '+ Add metal', real_estate: '+ Add property', cash: '+ Add cash' },
     // Search
     searchPH: {
       all: 'Search asset...', crypto: 'Search cryptocurrency...',
@@ -1422,7 +1426,7 @@ function _animateHeroValue(el, target) {
 function animateCardValues() {
   const dur = 500;
   function easeOut(t) { return 1 - (1 - t) ** 3; }
-  assetsListEl.querySelectorAll('.asset-value-amount[data-from]').forEach(el => {
+  assetsListEl.querySelectorAll('.asset-value-amount[data-from], .dar-value[data-from]').forEach(el => {
     const from = +el.dataset.from;
     const to   = +el.dataset.to;
     if (!isFinite(from) || !isFinite(to) || Math.abs(from - to) < 0.001) return;
@@ -1546,6 +1550,15 @@ function setActiveCategory(type) {
   _catTransitioning = true;
 
   if (isDrilling) {
+    // Briefly lift the clicked card before the dashboard fades
+    const clickedCard = document.querySelector(`.cat-card[data-type="${next}"]`);
+    if (clickedCard) {
+      clickedCard.style.transition = `transform 130ms ${EASE}, box-shadow 130ms ${EASE}, filter 130ms ${EASE}`;
+      clickedCard.style.transform  = 'scale(1.04) translateY(-4px)';
+      clickedCard.style.boxShadow  = '0 24px 52px rgba(0,0,0,.6), 0 0 0 2px rgba(79,142,247,.22)';
+      clickedCard.style.filter     = 'brightness(1.08)';
+    }
+
     // Fade out entire dashboard (summary + chart + category cards)
     const dashTop      = document.querySelector('.dashboard-top');
     const chartSection = document.querySelector('.chart-section');
@@ -1555,25 +1568,42 @@ function setActiveCategory(type) {
       el => el && el.style.display !== 'none'
     );
 
-    if (toHide.length) {
-      toHide.forEach(el => {
-        el.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
-        el.style.opacity    = '0';
-        el.style.transform  = 'translateY(-6px) scale(0.98)';
-      });
-      setTimeout(() => {
+    const _runFade = () => {
+      if (toHide.length) {
         toHide.forEach(el => {
-          el.style.transition = el.style.opacity = el.style.transform = '';
+          el.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
+          el.style.opacity    = '0';
+          el.style.transform  = 'translateY(-6px) scale(0.98)';
         });
-        _commit(); // render() sets dashTop/chartSection display:none, shows assetsSection
+        setTimeout(() => {
+          if (clickedCard) {
+            clickedCard.style.transition = clickedCard.style.transform =
+              clickedCard.style.boxShadow = clickedCard.style.filter = '';
+          }
+          toHide.forEach(el => {
+            el.style.transition = el.style.opacity = el.style.transform = '';
+          });
+          _commit(); // render() sets dashTop/chartSection display:none, shows assetsSection
+          _animateSectionIn(document.getElementById('assetsSection'));
+          window.scrollTo(0, 0);
+          setTimeout(() => { _catTransitioning = false; }, 320);
+        }, 210);
+      } else {
+        if (clickedCard) {
+          clickedCard.style.transition = clickedCard.style.transform =
+            clickedCard.style.boxShadow = clickedCard.style.filter = '';
+        }
+        _commit();
         _animateSectionIn(document.getElementById('assetsSection'));
-        window.scrollTo(0, 0);
         setTimeout(() => { _catTransitioning = false; }, 320);
-      }, 210);
+      }
+    };
+
+    // Give the card lift a 55ms head-start before the dashboard fades
+    if (clickedCard) {
+      setTimeout(_runFade, 55);
     } else {
-      _commit();
-      _animateSectionIn(document.getElementById('assetsSection'));
-      setTimeout(() => { _catTransitioning = false; }, 320);
+      _runFade();
     }
 
   } else {
@@ -1606,10 +1636,9 @@ function setActiveCategory(type) {
 }
 
 // ── Category card visual builder ───────────────────────────
-// Returns decorative HTML for each asset type. All animations
-// use only transform/opacity — GPU-accelerated, low CPU cost.
+// Returns decorative HTML for each asset type. Animations use
+// only transform / opacity / background-position — GPU-only.
 function buildCardVisual(type, typeAssets, pct) {
-  // Top assets by native value (for ticker labels)
   const top = [...typeAssets]
     .sort((a, b) => assetNativeValue(b) - assetNativeValue(a))
     .slice(0, 3);
@@ -1619,46 +1648,52 @@ function buildCardVisual(type, typeAssets, pct) {
       BTC: '₿', ETH: 'Ξ', SOL: '◎', XRP: '✦', USDT: '₮',
       BNB: '⬡', DOGE: 'Ð', ADA: '₳', DOT: '●', LTC: 'Ł', AVAX: '▲',
     };
-    const src = top.length ? top : [{ ticker: 'BTC' }, { ticker: 'ETH' }];
-    const chips = src.map((a, i) => {
-      const g = GLYPHS[a.ticker] || a.ticker.slice(0, 3);
-      return `<span class="cc-coin" style="animation-delay:${(i * 0.65).toFixed(2)}s">${g}</span>`;
-    }).join('');
-    return `<div class="cat-card-visual cc-vis--crypto">${chips}</div>`;
+    // Primary glyph from top holding; deterministic bar heights for sparkline
+    const glyph    = (top[0] && GLYPHS[top[0].ticker]) || '◈';
+    const HEIGHTS  = [38, 52, 44, 68, 55, 82, 62, 100];
+    const bars     = HEIGHTS.map((h, i) =>
+      `<div class="cc-wave-bar" style="--wh:${h}%;animation-delay:${(i * 0.18).toFixed(2)}s"></div>`
+    ).join('');
+    return `<div class="cat-card-visual cc-vis--crypto">
+      <span class="cc-glyph">${glyph}</span>
+      <div class="cc-wave-wrap">${bars}</div>
+    </div>`;
   }
 
   if (type === 'metal') {
-    const barCount = Math.min(5, Math.max(2, Math.floor(pct / 12) + 1));
     const hasSilverOnly = top.length > 0 && top.every(a => a.ticker === 'XAG');
-    const cls = hasSilverOnly ? 'cc-bar--silver' : 'cc-bar--gold';
-    const bars = Array.from({ length: barCount }, (_, i) =>
-      `<div class="cc-bar ${cls}" style="animation-delay:${(i * 0.5).toFixed(1)}s"></div>`
-    ).join('');
-    return `<div class="cat-card-visual cc-vis--metal">${bars}</div>`;
+    const shineCls = hasSilverOnly ? 'cc-metal-shine--silver' : 'cc-metal-shine--gold';
+    const labelCls = hasSilverOnly ? 'cc-metal-label--silver' : 'cc-metal-label--gold';
+    const symbol   = hasSilverOnly ? 'Ag' : 'Au';
+    return `<div class="cat-card-visual cc-vis--metal">
+      <div class="cc-metal-shine ${shineCls}"></div>
+      <span class="cc-metal-label ${labelCls}">${symbol}</span>
+    </div>`;
   }
 
   if (type === 'stock' || type === 'etf') {
-    const src = top.length ? top : [{ ticker: type === 'etf' ? 'ETF' : 'STK' }];
-    const chips = src.map((a, i) =>
-      `<span class="cc-ticker" style="animation-delay:${(i * 1.4).toFixed(1)}s">${a.ticker.slice(0, 5)}</span>`
+    const fallback = type === 'etf'
+      ? [{ ticker: 'SPY' }, { ticker: 'QQQ' }]
+      : [{ ticker: 'TSLA' }, { ticker: 'AAPL' }];
+    const src   = top.length ? top : fallback;
+    const chips = src.slice(0, 2).map((a, i) =>
+      `<span class="cc-ticker-big" style="animation-delay:${(i * 2.2).toFixed(1)}s">${escHtml(a.ticker.slice(0, 5))}</span>`
     ).join('');
     return `<div class="cat-card-visual cc-vis--${type}">${chips}</div>`;
   }
 
   if (type === 'cash') {
-    const blocks = [0, 1, 2].map(i =>
-      `<div class="cc-block" style="animation-delay:${(i * 0.6).toFixed(1)}s"></div>`
+    const bars = [100, 80, 62].map((fw, i) =>
+      `<div class="cc-flow cc-flow--green" style="--fw:${fw}%;animation-delay:${(i * 0.9).toFixed(2)}s"></div>`
     ).join('');
-    return `<div class="cat-card-visual cc-vis--cash">${blocks}</div>`;
+    return `<div class="cat-card-visual cc-vis--cash">${bars}</div>`;
   }
 
   if (type === 'real_estate') {
-    // Number of buildings scales with portfolio percentage weight
-    const bldgCount = Math.min(5, Math.max(2, Math.floor(pct / 12) + 2));
-    // Heights in px — varied to create a skyline silhouette
-    const HEIGHTS = [52, 32, 70, 22, 44];
-    const blocks = Array.from({ length: bldgCount }, (_, i) =>
-      `<div class="cc-bldg" style="height:${HEIGHTS[i % HEIGHTS.length]}px;animation-delay:${(i * 0.5).toFixed(1)}s"></div>`
+    const bldgCount = Math.min(5, Math.max(3, Math.floor(pct / 12) + 2));
+    const HEIGHTS   = [55, 32, 72, 22, 46];
+    const blocks    = Array.from({ length: bldgCount }, (_, i) =>
+      `<div class="cc-bldg" style="--bh:${HEIGHTS[i % HEIGHTS.length]}px;animation-delay:${(i * 0.7).toFixed(1)}s"></div>`
     ).join('');
     return `<div class="cat-card-visual cc-vis--realestate">${blocks}</div>`;
   }
@@ -1918,6 +1953,7 @@ function renderDetailHero(type, typeAssets) {
   }
 
   // Update static fields
+  heroEl.style.setProperty('--detail-hero-color', m.color);
   heroEl.querySelector('.detail-hero-dot').style.background = m.color;
   heroEl.querySelector('.detail-hero-type').textContent     = m.label.toUpperCase();
 
@@ -1974,7 +2010,7 @@ function render(animate = false) {
   const chartSecEl       = document.querySelector('.chart-section');
   if (activeCategory) {
     // Category drill-down: hide dashboard, show asset list only
-    if (assetsSectionEl) assetsSectionEl.style.display = '';
+    if (assetsSectionEl) { assetsSectionEl.style.display = ''; assetsSectionEl.classList.add('is-detail'); }
     if (dashTopEl)        dashTopEl.style.display        = 'none';
     if (chartSecEl)       chartSecEl.style.display       = 'none';
     // categoriesSection already hidden by updateCategoryCards() short-circuit
@@ -1983,7 +2019,7 @@ function render(animate = false) {
     renderDetailHero(activeCategory, typeAssets);
   } else {
     // Dashboard: show all dashboard sections, hide asset list
-    if (assetsSectionEl) assetsSectionEl.style.display = 'none';
+    if (assetsSectionEl) { assetsSectionEl.style.display = 'none'; assetsSectionEl.classList.remove('is-detail'); }
     if (dashTopEl)        dashTopEl.style.display        = '';
     if (chartSecEl)       chartSecEl.style.display       = '';
     // Clean up detail hero, sparkline and hero animation when returning to dashboard
@@ -1993,6 +2029,20 @@ function render(animate = false) {
     _detailChartType = null;
     if (_heroRaf) { cancelAnimationFrame(_heroRaf); _heroRaf = null; }
     _heroValueShown = null;
+  }
+
+  // Toggle premium detail-view styling on the list container
+  assetsListEl.classList.toggle('assets-list--detail', !!activeCategory);
+
+  // Contextual add button: show inside category view with translated label
+  const btnAddCtxEl = document.getElementById('btnAddContext');
+  if (btnAddCtxEl) {
+    if (activeCategory) {
+      btnAddCtxEl.textContent = (T[lang].addCtx || {})[activeCategory] || '+ Añadir';
+      btnAddCtxEl.style.display = '';
+    } else {
+      btnAddCtxEl.style.display = 'none';
+    }
   }
 
   // Clear list (keep empty state node)
@@ -2117,6 +2167,54 @@ function render(animate = false) {
          <button class="btn-reduce"  title="${t('btnReduce')}" data-id="${asset.id}">−</button>
          <button class="btn-delete"  title="${t('btnDelete')}" data-id="${asset.id}">✕</button>`;
 
+    // ── Premium detail row (category drill-down view) ────────
+    if (activeCategory) {
+      const darChangeCls  = typeof change24 === 'number'
+        ? (change24 > 0.005 ? 'up' : change24 < -0.005 ? 'down' : 'flat') : '';
+      const darChangeHtml = (!isCash && darChangeCls)
+        ? `<span class="dar-change ${darChangeCls}">${change24 >= 0 ? '+' : ''}${change24.toFixed(2)}%</span>`
+        : '';
+
+      const qtyStr = (() => {
+        if (isGold)               return (asset.goldUnit || 'g') === 'g' ? gramsToDisplay(asset.qty) : `${formatQty(asset.qty)} oz`;
+        if (asset.type === 'crypto') return `${formatQty(asset.qty)} ${asset.ticker.toUpperCase()}`;
+        if (asset.type === 'metal')  return gramsToDisplay(asset.qty);
+        if (isCash)               return formatCurrency(asset.qty, assetCurr);
+        return `${formatQty(asset.qty)} ${t('units')}`;
+      })();
+      const priceStr = (!isCash && !isRE && asset.price > 0)
+        ? `${formatCurrency(asset.price, assetCurr)}${isGold ? t('perTrOz') : t('perUnit')}`
+        : '';
+      const darRentHtml = (isRE && asset.rent > 0)
+        ? `<span class="dar-rent">+${formatCurrency(asset.rent, assetCurr)}${lang === 'es' ? '/mes' : '/mo'}</span>`
+        : '';
+
+      const subParts   = [qtyStr, priceStr].filter(Boolean);
+      const darSubHtml = `<span class="dar-qty">${escHtml(subParts.join(' · '))}</span>${darRentHtml}`;
+
+      const row = document.createElement('div');
+      row.className = 'detail-asset-row';
+      row.dataset.type = asset.type;
+      row.innerHTML = `
+        <div class="dar-badge ${asset.type}">${badgeText}</div>
+        <div class="dar-info">
+          <div class="dar-name">${escHtml(getDisplayName(asset))}</div>
+          <div class="dar-sub">${darSubHtml}</div>
+        </div>
+        <div class="dar-right">
+          <div class="dar-value ${flashClass}"${prevValueBase != null ? ` data-from="${prevValueBase.toFixed(6)}" data-to="${valueBase.toFixed(6)}"` : ''}>${formatBase(valueBase)}</div>
+          ${darChangeHtml}
+          <div class="dar-actions">${actionsHtml}</div>
+        </div>`;
+      if (animate) {
+        row.style.setProperty('--card-i', cardIndex);
+        row.classList.add('dar-entering');
+      }
+      assetsListEl.appendChild(row);
+      return;
+    }
+
+    // ── Standard asset card (dashboard / all-assets view) ────
     const card = document.createElement('div');
     card.className = 'asset-card';
     card.dataset.type = asset.type;
@@ -2591,6 +2689,18 @@ document.addEventListener('click', e => {
 }, true);
 
 // ── Modal ──────────────────────────────────────────────────
+
+// Opens the add-asset modal pre-filtered to the given category type.
+// Reuses openModal() then programmatically clicks the matching filter button.
+function openContextualModal(type) {
+  openModal();
+  const filterKey = { crypto: 'crypto', stock: 'stock', etf: 'etf', metal: 'metal', real_estate: 'real_estate' }[type];
+  if (filterKey) {
+    const btn = document.querySelector(`.filter-btn[data-filter="${filterKey}"]`);
+    if (btn) btn.click();
+  }
+}
+
 function openModal() {
   assetForm.reset();
   previewTotal.textContent = formatBase(0);
@@ -3235,6 +3345,14 @@ document.getElementById('logoHome')
 document.getElementById('assetsBackBtn')
   ?.addEventListener('click', () => setActiveCategory(null));
 btnAdd.addEventListener('click', openModal);
+document.getElementById('btnAddContext')?.addEventListener('click', () => {
+  if (!activeCategory) return;
+  if (activeCategory === 'cash') {
+    openLiquidityModal();
+  } else {
+    openContextualModal(activeCategory);
+  }
+});
 modalClose.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => {
   if (e.target === modalOverlay) closeModal();
