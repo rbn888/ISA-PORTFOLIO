@@ -46,21 +46,23 @@
           <div class="summary-label card-title" data-i18n="totalValue">Valor total de cartera</div>
           <div class="summary-total" id="totalValue">$0.00</div>
           <div class="summary-perf" id="summaryPerf" style="display:none"></div>
-          <div class="summary-meta">
-            <span id="assetCount">0 activos</span>
-            <span class="summary-divider">·</span>
-            <span class="update-indicator">
-              <span class="update-dot" id="updateDot"></span>
-              <span id="updateText" data-i18n="noPrices">precios no cargados</span>
-            </span>
-          </div>
-          <div class="summary-footer">
+          <div class="summary-meta-row">
+            <div class="summary-meta">
+              <span id="assetCount">0 activos</span>
+              <span class="summary-divider">·</span>
+              <span class="update-indicator">
+                <span class="update-dot" id="updateDot"></span>
+                <span id="updateText" data-i18n="noPrices">precios no cargados</span>
+              </span>
+            </div>
             <div class="summary-currency">
               <div class="currency-toggle" id="baseCurrencyToggle">
                 <button class="currency-btn" data-currency="USD">$ USD</button>
                 <button class="currency-btn" data-currency="EUR">€ EUR</button>
               </div>
             </div>
+          </div>
+          <div class="summary-footer">
             <div class="summary-actions">
               <button class="btn-summary-action btn-primary" id="btnAdd" data-i18n="addAsset">+ Añadir activo</button>
               <button class="btn-summary-action btn-secondary" id="btnAddLiquidity" data-i18n="addLiquidity">+ Añadir liquidez</button>
