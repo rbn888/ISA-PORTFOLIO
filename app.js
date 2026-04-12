@@ -942,8 +942,8 @@ const lineGlowPlugin = {
   id: 'lineGlow',
   beforeDatasetsDraw(chart) {
     chart.ctx.save();
-    chart.ctx.shadowColor = 'rgba(79,142,247,0.35)';
-    chart.ctx.shadowBlur  = 6;
+    chart.ctx.shadowColor = 'rgba(79,142,247,0.40)';
+    chart.ctx.shadowBlur  = 8;
   },
   afterDatasetsDraw(chart) {
     chart.ctx.restore();
@@ -1016,7 +1016,7 @@ function initChart() {
         }
       },
       interaction: { mode: 'index', intersect: false },
-      animation: { duration: 300, easing: 'easeInOutQuart' },
+      animation: { duration: 1200, easing: 'easeOutQuart' },
     },
     plugins: [fillGradientPlugin, lineGlowPlugin],
   });
@@ -1064,7 +1064,14 @@ function updateChart(animate = false) {
 
   portfolioChart.data.labels = data.labels;
   portfolioChart.data.datasets[0].data = data.values;
-  portfolioChart.update(animate ? undefined : 'none');
+  if (animate) {
+    // Range-switch: fast crossfade, not full 1200ms draw
+    portfolioChart.options.animation.duration = 280;
+    portfolioChart.update();
+    portfolioChart.options.animation.duration = 1200; // restore for next cold draw
+  } else {
+    portfolioChart.update('none');
+  }
 }
 
 function onPortfolioChange(force = false) {
@@ -1337,13 +1344,30 @@ let _heroRaf         = null;
 let _heroValueShown  = null;   // last value rendered in detail hero (null = not shown yet)
 
 function countUpTotalValue(targetBase) {
-  // Skip animation on first render (no previous value)
+  totalValueEl.classList.remove('skeleton');
+
+  // First load: count up from 0 (gives the "live numbers waking up" feel)
   if (_countUpCurrent === null) {
-    _countUpCurrent = targetBase;
-    totalValueEl.classList.remove('skeleton');
-    totalValueEl.textContent = formatBase(targetBase);
+    _countUpCurrent = 0;
+    if (reducedMotion) {
+      _countUpCurrent = targetBase;
+      totalValueEl.textContent = formatBase(targetBase);
+      return;
+    }
+    const end      = targetBase;
+    const dur      = 1000;
+    const t0       = performance.now();
+    function easeOutFirst(t) { return 1 - Math.pow(1 - t, 2.5); }
+    _countUpCurrent = end;
+    (function step(now) {
+      const p = Math.min((now - t0) / dur, 1);
+      totalValueEl.textContent = formatBase(end * easeOutFirst(p));
+      if (p < 1) { _countUpRaf = requestAnimationFrame(step); }
+      else        { _countUpRaf = null; totalValueEl.textContent = formatBase(end); }
+    })(t0);
     return;
   }
+
   // Skip if value hasn't changed
   if (_countUpCurrent === targetBase) return;
 
@@ -1542,10 +1566,14 @@ function setActiveCategory(type) {
 
   // Reduced-motion: instant swap, no animations
   if (reducedMotion) {
+    document.body.classList.toggle('is-detail-view', isDrilling);
     _commit();
     window.scrollTo(0, 0);
     return;
   }
+
+  // Background dim: apply immediately so it transitions in parallel with everything else
+  document.body.classList.toggle('is-detail-view', isDrilling);
 
   _catTransitioning = true;
 
@@ -1655,6 +1683,8 @@ function buildCardVisual(type, typeAssets, pct) {
       `<div class="cc-wave-bar" style="--wh:${h}%;animation-delay:${(i * 0.18).toFixed(2)}s"></div>`
     ).join('');
     return `<div class="cat-card-visual cc-vis--crypto">
+      <div class="cc-signal-ring"></div>
+      <div class="cc-signal-ring"></div>
       <span class="cc-glyph">${glyph}</span>
       <div class="cc-wave-wrap">${bars}</div>
     </div>`;
@@ -1676,10 +1706,20 @@ function buildCardVisual(type, typeAssets, pct) {
       ? [{ ticker: 'SPY' }, { ticker: 'QQQ' }]
       : [{ ticker: 'TSLA' }, { ticker: 'AAPL' }];
     const src   = top.length ? top : fallback;
-    const chips = src.slice(0, 2).map((a, i) =>
-      `<span class="cc-ticker-big" style="animation-delay:${(i * 2.2).toFixed(1)}s">${escHtml(a.ticker.slice(0, 5))}</span>`
+    const chip  = src.slice(0, 1).map((a) =>
+      `<span class="cc-ticker-big">${escHtml(a.ticker.slice(0, 5))}</span>`
     ).join('');
-    return `<div class="cat-card-visual cc-vis--${type}">${chips}</div>`;
+    // Micro sparkline — deterministic heights give a realistic chart silhouette
+    const SPARK_H = type === 'etf'
+      ? [42, 38, 55, 48, 62, 58, 72, 66, 80, 74]
+      : [38, 50, 44, 60, 52, 78, 64, 55, 88, 70];
+    const sparkBars = SPARK_H.map((h, i) =>
+      `<div class="cc-micro-bar" style="height:${h}%;animation-delay:${(i * 0.20).toFixed(2)}s"></div>`
+    ).join('');
+    return `<div class="cat-card-visual cc-vis--${type}">
+      ${chip}
+      <div class="cc-micro-chart">${sparkBars}</div>
+    </div>`;
   }
 
   if (type === 'cash') {
