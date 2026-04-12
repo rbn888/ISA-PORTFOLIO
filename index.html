@@ -33,6 +33,11 @@
           <button class="menu-item menu-item--lang" data-lang="es" role="menuitem">🇪🇸 Español</button>
           <button class="menu-item menu-item--lang" data-lang="en" role="menuitem">🇬🇧 English</button>
           <div class="menu-divider"></div>
+          <div class="menu-curr-row" role="group" aria-label="Currency">
+            <button class="menu-curr-btn" data-currency="USD" role="menuitem">$ USD</button>
+            <button class="menu-curr-btn" data-currency="EUR" role="menuitem">€ EUR</button>
+          </div>
+          <div class="menu-divider"></div>
           <button id="menuExit" class="menu-item menu-item--danger" data-i18n="exit" role="menuitem">Salir</button>
         </div>
       </div>
@@ -40,9 +45,9 @@
 
     <main>
 
-      <div class="dashboard-top">
+      <section class="dashboard-top hero-card">
 
-        <section class="summary-panel">
+        <div class="hero-left">
           <div class="summary-label card-title" data-i18n="totalValue">Valor total de cartera</div>
           <div class="summary-total" id="totalValue">$0.00</div>
           <div class="summary-perf" id="summaryPerf" style="display:none"></div>
@@ -55,12 +60,6 @@
                 <span id="updateText" data-i18n="noPrices">precios no cargados</span>
               </span>
             </div>
-            <div class="summary-currency">
-              <div class="currency-toggle" id="baseCurrencyToggle">
-                <button class="currency-btn" data-currency="USD">$ USD</button>
-                <button class="currency-btn" data-currency="EUR">€ EUR</button>
-              </div>
-            </div>
           </div>
           <div class="summary-footer">
             <div class="summary-actions">
@@ -68,38 +67,38 @@
               <button class="btn-summary-action btn-secondary" id="btnAddLiquidity" data-i18n="addLiquidity">+ Añadir liquidez</button>
             </div>
           </div>
-        </section>
+        </div>
 
-      </div>
-
-      <section class="chart-section">
-        <div class="chart-header">
-          <div>
-            <div class="chart-title card-title" data-i18n="evolution">Evolución del patrimonio</div>
-            <span class="chart-change" id="chartChange"></span>
-          </div>
-          <div class="chart-controls">
-            <div class="perf-toggle">
-              <button class="perf-btn active" data-perf="%">%</button>
-              <button class="perf-btn" id="perfCurrBtn" data-perf="curr">€</button>
+        <div class="hero-right">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title card-title" data-i18n="evolution">Evolución del patrimonio</div>
+              <span class="chart-change" id="chartChange"></span>
             </div>
-            <div class="range-toggle">
-              <button class="range-btn active" data-range="24h">24H</button>
-              <button class="range-btn" data-range="7d">7D</button>
-              <button class="range-btn" data-range="30d">30D</button>
-              <button class="range-btn" data-range="1y" data-i18n="range1y">1A</button>
-              <button class="range-btn" data-range="all" data-i18n="rangeAll">TOTAL</button>
+            <div class="chart-controls">
+              <div class="perf-toggle">
+                <button class="perf-btn active" data-perf="%">%</button>
+                <button class="perf-btn" id="perfCurrBtn" data-perf="curr">€</button>
+              </div>
+              <div class="range-toggle">
+                <button class="range-btn active" data-range="24h">24H</button>
+                <button class="range-btn" data-range="7d">7D</button>
+                <button class="range-btn" data-range="30d">30D</button>
+                <button class="range-btn" data-range="1y" data-i18n="range1y">1A</button>
+                <button class="range-btn" data-range="all" data-i18n="rangeAll">TOTAL</button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="portfolioChart"></canvas>
+            <div class="chart-no-data" id="chartNoData" data-i18n="chartNoData">Añade activos para ver la evolución</div>
+            <div class="chart-tooltip" id="chartTooltip">
+              <div class="chart-tooltip-time"></div>
+              <div class="chart-tooltip-val"></div>
             </div>
           </div>
         </div>
-        <div class="chart-wrap">
-          <canvas id="portfolioChart"></canvas>
-          <div class="chart-no-data" id="chartNoData" data-i18n="chartNoData">Añade activos para ver la evolución</div>
-          <div class="chart-tooltip" id="chartTooltip">
-            <div class="chart-tooltip-time"></div>
-            <div class="chart-tooltip-val"></div>
-          </div>
-        </div>
+
       </section>
 
       <section class="distribution-section" id="distributionSection" style="display:none">

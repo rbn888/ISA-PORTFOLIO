@@ -1677,13 +1677,12 @@ function setActiveCategory(type) {
       clickedCard.style.filter     = 'brightness(1.08)';
     }
 
-    // Fade out entire dashboard (summary + chart + distribution + category cards)
-    const dashTop      = document.querySelector('.dashboard-top');
-    const chartSection = document.querySelector('.chart-section');
-    const distSection  = document.getElementById('distributionSection');
-    const catSection   = document.getElementById('categoriesSection');
+    // Fade out entire dashboard (hero card + distribution + category cards)
+    const dashTop     = document.querySelector('.dashboard-top');
+    const distSection = document.getElementById('distributionSection');
+    const catSection  = document.getElementById('categoriesSection');
 
-    const toHide = [dashTop, chartSection, distSection, catSection].filter(
+    const toHide = [dashTop, distSection, catSection].filter(
       el => el && el.style.display !== 'none'
     );
 
@@ -1702,7 +1701,7 @@ function setActiveCategory(type) {
           toHide.forEach(el => {
             el.style.transition = el.style.opacity = el.style.transform = '';
           });
-          _commit(); // render() sets dashTop/chartSection display:none, shows assetsSection
+          _commit(); // render() sets dashTop display:none, shows assetsSection
           _animateSectionIn(document.getElementById('assetsSection'));
           window.scrollTo(0, 0);
           setTimeout(() => { _catTransitioning = false; }, 320);
@@ -1735,22 +1734,20 @@ function setActiveCategory(type) {
       assetsSection.style.transform  = 'translateY(8px)';
       setTimeout(() => {
         assetsSection.style.transition = assetsSection.style.opacity = assetsSection.style.transform = '';
-        _commit(); // render() shows dashTop/chartSection/distributionSection, hides assetsSection; updateCategoryCards shows catSection
-        const dashTop      = document.querySelector('.dashboard-top');
-        const chartSection = document.querySelector('.chart-section');
-        const distSection  = document.getElementById('distributionSection');
-        const catSec       = document.getElementById('categoriesSection');
-        [dashTop, chartSection, distSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
+        _commit(); // render() shows dashTop/distributionSection, hides assetsSection; updateCategoryCards shows catSection
+        const dashTop    = document.querySelector('.dashboard-top');
+        const distSection = document.getElementById('distributionSection');
+        const catSec     = document.getElementById('categoriesSection');
+        [dashTop, distSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
         window.scrollTo(0, 0);
         setTimeout(() => { _catTransitioning = false; }, 320);
       }, 190);
     } else {
       _commit();
-      const dashTop      = document.querySelector('.dashboard-top');
-      const chartSection = document.querySelector('.chart-section');
-      const distSection  = document.getElementById('distributionSection');
-      const catSec       = document.getElementById('categoriesSection');
-      [dashTop, chartSection, distSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
+      const dashTop    = document.querySelector('.dashboard-top');
+      const distSection = document.getElementById('distributionSection');
+      const catSec     = document.getElementById('categoriesSection');
+      [dashTop, distSection, catSec].filter(Boolean).forEach(el => _animateSectionIn(el));
       setTimeout(() => { _catTransitioning = false; }, 320);
     }
   }
@@ -2152,13 +2149,11 @@ function render(animate = false) {
 
   // Section visibility: full-page navigation between dashboard and category drill-down
   const assetsSectionEl = document.getElementById('assetsSection');
-  const dashTopEl        = document.querySelector('.dashboard-top');
-  const chartSecEl       = document.querySelector('.chart-section');
+  const dashTopEl        = document.querySelector('.dashboard-top'); // the hero card
   if (activeCategory) {
     // Category drill-down: hide dashboard, show asset list only
     if (assetsSectionEl)        { assetsSectionEl.style.display = ''; assetsSectionEl.classList.add('is-detail'); }
     if (dashTopEl)               dashTopEl.style.display               = 'none';
-    if (chartSecEl)              chartSecEl.style.display              = 'none';
     if (distributionSectionEl)   distributionSectionEl.style.display   = 'none';
     // categoriesSection already hidden by updateCategoryCards() short-circuit
     // Render premium detail hero (category stats + mini sparkline)
@@ -2168,7 +2163,6 @@ function render(animate = false) {
     // Dashboard: show all dashboard sections, hide asset list
     if (assetsSectionEl) { assetsSectionEl.style.display = 'none'; assetsSectionEl.classList.remove('is-detail'); }
     if (dashTopEl)        dashTopEl.style.display        = '';
-    if (chartSecEl)       chartSecEl.style.display       = '';
     if (distributionSectionEl && _donutDist.length > 0) distributionSectionEl.style.display = '';
     // Clean up detail hero, sparkline and hero animation when returning to dashboard
     const heroEl = document.getElementById('detailHero');
@@ -3563,19 +3557,21 @@ assetsListEl.addEventListener('keydown', e => {
   }
 });
 
-// ── Base currency toggle ────────────────────────────────────
-document.querySelectorAll('.currency-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    baseCurrency = btn.dataset.currency;
-    localStorage.setItem(BASE_KEY, baseCurrency);
-    document.querySelectorAll('.currency-btn')
-      .forEach(b => b.classList.toggle('active', b.dataset.currency === baseCurrency));
-    const perfCurrBtn = document.getElementById('perfCurrBtn');
-    if (perfCurrBtn) perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
-    render(true);
-    updateChart(true);
-    updateDonut();
-  });
+// ── Base currency toggle (menu) ─────────────────────────────
+function _applyCurrencyChange(currency) {
+  baseCurrency = currency;
+  localStorage.setItem(BASE_KEY, baseCurrency);
+  document.querySelectorAll('.menu-curr-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.currency === baseCurrency));
+  const perfCurrBtn = document.getElementById('perfCurrBtn');
+  if (perfCurrBtn) perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
+  render(true);
+  updateChart(true);
+  updateDonut();
+}
+
+document.querySelectorAll('.menu-curr-btn').forEach(btn => {
+  btn.addEventListener('click', () => _applyCurrencyChange(btn.dataset.currency));
 });
 
 
@@ -3724,8 +3720,8 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Init ───────────────────────────────────────────────────
-// Apply saved base currency to toggle
-document.querySelectorAll('.currency-btn')
+// Apply saved base currency to menu toggle
+document.querySelectorAll('.menu-curr-btn')
   .forEach(b => b.classList.toggle('active', b.dataset.currency === baseCurrency));
 
 // Set initial perf-toggle currency button label to match base currency
@@ -3851,8 +3847,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   function getDashTargets() {
     return [
       document.querySelector('.header'),
-      document.querySelector('.dashboard-top'),
-      document.querySelector('.chart-section'),
+      document.querySelector('.dashboard-top'), // hero card (summary + chart)
     ].filter(Boolean);
   }
 
@@ -3948,10 +3943,10 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       if (appEl) appEl.classList.remove('app--animating');
     }, 1800);
 
-    // 1–3: staggered reveals (header, dashboard-top, chart-section)
+    // 1–2: staggered reveals (header, hero card)
     targets.forEach((el, i) => revealEl(el, i * STEP));
 
-    // Hero: count up the balance as the summary panel fades in
+    // Hero: count up the balance as the hero card fades in
     setTimeout(runEntranceCountUp, 1 * STEP + 120);
 
     // Chart: wipe cover slides away left → right, revealing the drawn line

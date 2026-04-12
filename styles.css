@@ -1148,14 +1148,62 @@ body.modal-open {
 }
 .btn-submit--green:hover { opacity: .93; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(39,199,104,.3); }
 
-/* ── Dashboard top row ─────────────────────────────────── */
+/* ── Dashboard top row / Hero Card ────────────────────── */
 .dashboard-top {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
   margin-top: 20px;
-  margin-bottom: 24px;
-  align-items: stretch;
+  margin-bottom: 28px;
+}
+
+.hero-card {
+  background: linear-gradient(160deg, #13172b 0%, #0d1018 100%);
+  border: 1px solid var(--border-hi);
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(240px, 380px) 1fr;
+  align-items: center;
+  transition: transform var(--dur-med) var(--ease-premium),
+              box-shadow var(--dur-med) var(--ease-premium),
+              border-color var(--dur-med) var(--ease-premium);
+  will-change: transform;
+}
+
+.hero-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 52px rgba(0,0,0,.52), 0 0 0 1px rgba(255,255,255,.07);
+  border-color: rgba(255,255,255,.08);
+}
+
+/* Breathing accent glow — top right */
+.hero-card::before {
+  content: '';
+  position: absolute;
+  top: -80px; right: -80px;
+  width: 260px; height: 260px;
+  background: radial-gradient(circle, rgba(79,142,247,.09) 0%, transparent 68%);
+  pointer-events: none;
+  animation: panel-breathe 6s ease-in-out infinite;
+  z-index: 0;
+}
+
+/* ── Hero left (total value + actions) ─────────────────── */
+.hero-left {
+  padding: 32px 24px 28px 36px;
+  position: relative;
+  z-index: 1;
+  border-right: 1px solid rgba(255,255,255,.055);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* ── Hero right (chart) ────────────────────────────────── */
+.hero-right {
+  padding: 22px 24px 18px 20px;
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Distribution Section ─────────────────────────────── */
@@ -1174,8 +1222,7 @@ body.modal-open {
   will-change: transform;
 }
 
-.distribution-section:hover,
-.chart-section:hover {
+.distribution-section:hover {
   transform: translateY(-4px);
   box-shadow: 0 20px 52px rgba(0,0,0,.52), 0 0 0 1px rgba(255,255,255,.07);
   border-color: rgba(255,255,255,.08);
@@ -1319,16 +1366,10 @@ body.modal-open {
   white-space: nowrap;
 }
 
-/* ── Chart Section ─────────────────────────────────────── */
+/* ── Chart Section (legacy selector kept for compatibility) */
+/* Chart is now embedded inside .hero-right — no card wrapper */
 .chart-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border-hi);
-  border-radius: 16px;
-  padding: 24px 28px 20px;
-  margin-bottom: 28px;
-  transition: transform .22s var(--ease-out), box-shadow .22s var(--ease-out),
-              border-color .22s var(--ease-out);
-  will-change: transform;
+  /* no-op: chart lives inside .hero-right */
 }
 
 .chart-header {
@@ -1449,28 +1490,31 @@ body.modal-open {
 .chart-wrap {
   position: relative;
   height: 190px;
+  overflow: hidden; /* contain the energy-sweep glow inside the chart bounds */
 }
 
-/* Moving energy glow that sweeps along the chart — pure CSS, no JS RAF */
+/* Moving energy glow — fully contained inside chart-wrap via overflow:hidden */
 @keyframes chart-energy-sweep {
-  0%   { transform: translateX(-120%) scaleX(0.6); opacity: 0; }
-  8%   { opacity: 0.55; }
-  92%  { opacity: 0.55; }
-  100% { transform: translateX(120%) scaleX(1.4); opacity: 0; }
+  0%   { transform: translateX(-100%); opacity: 0; }
+  12%  { opacity: 0.65; }
+  88%  { opacity: 0.65; }
+  100% { transform: translateX(100%); opacity: 0; }
 }
 .chart-wrap::after {
   content: '';
   position: absolute;
   top: 0; bottom: 0; left: 0;
-  width: 80px;
+  width: 100%;
   background: linear-gradient(90deg,
     transparent 0%,
-    rgba(79,142,247,.06) 30%,
-    rgba(79,142,247,.14) 50%,
-    rgba(79,142,247,.06) 70%,
+    transparent 28%,
+    rgba(79,142,247,.05) 40%,
+    rgba(79,142,247,.11) 50%,
+    rgba(79,142,247,.05) 60%,
+    transparent 72%,
     transparent 100%);
   pointer-events: none;
-  animation: chart-energy-sweep 5s ease-in-out infinite;
+  animation: chart-energy-sweep 6s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
@@ -2500,10 +2544,14 @@ body.modal-open {
   .assets-back-btn:hover {
     transform: none;
   }
+  /* Disable hover lift on hero card for touch devices */
+  .hero-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
   /* Disable will-change on touch to save GPU memory */
-  .summary-panel,
+  .hero-card,
   .distribution-section,
-  .chart-section,
   .asset-card,
   .modal {
     will-change: auto;
@@ -2547,18 +2595,24 @@ body.modal-open {
   }
   .logo-block .logo-aurix { font-size: 28px; }
 
-  /* Dashboard top — single column, tighter gaps */
+  /* Dashboard top — compact margins */
   .dashboard-top {
-    grid-template-columns: 1fr;
-    gap: 12px;
     margin-top: 16px;
     margin-bottom: 16px;
   }
 
-  /* Summary panel — app-card feel */
-  .summary-panel {
-    padding: 22px 22px 20px;
+  /* Hero card — stack vertically on mobile */
+  .hero-card {
+    grid-template-columns: 1fr;
     border-radius: 16px;
+  }
+  .hero-left {
+    padding: 22px 20px 18px 22px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,.055);
+  }
+  .hero-right {
+    padding: 16px 20px 18px;
   }
   .summary-label {
     margin-bottom: 12px;
@@ -2625,12 +2679,7 @@ body.modal-open {
     margin: 0 -7px;
   }
 
-  /* Chart section */
-  .chart-section {
-    padding: 18px 16px 14px;
-    border-radius: 14px;
-    margin-bottom: 20px;
-  }
+  /* Chart (inside hero-right on mobile) */
   .chart-header {
     margin-bottom: 12px;
     flex-wrap: wrap;
@@ -2759,7 +2808,8 @@ body.modal-open {
   /* Suggestions list: tighter max-height on small screens */
   .asset-suggestions { max-height: 42vh; }
 
-  .summary-panel { padding: 18px 16px; }
+  .hero-left     { padding: 18px 16px 16px; }
+  .hero-right    { padding: 14px 16px 16px; }
   .form-row      { grid-template-columns: 1fr; }
 }
 
@@ -2772,7 +2822,8 @@ body.modal-open {
   .btn-reduce,
   .btn-delete,
   .btn-edit-re    { width: 36px; height: 36px; }
-  .summary-panel  { padding: 16px 14px; }
+  .hero-left      { padding: 16px 14px 14px; }
+  .hero-right     { padding: 12px 14px 14px; }
 }
 
 /* ── Dashboard entrance animation ──────────────────────── */
@@ -2810,7 +2861,7 @@ body.modal-open {
     rgba(79,142,247,.28) 0px,
     rgba(79,142,247,.08) 10px,
     rgba(79,142,247,.02) 22px,
-    var(--bg-card)       28px
+    #0d1018             28px  /* matches hero-card right-side background */
   );
   transform-origin: right center;
   animation: chart-wipe .95s .05s var(--ease-out) forwards;
@@ -2830,9 +2881,8 @@ body.modal-open {
 }
 
 /* Suppress hover transforms while entrance sequence is running */
-.app--animating .summary-panel:hover,
+.app--animating .hero-card:hover,
 .app--animating .distribution-section:hover,
-.app--animating .chart-section:hover,
 .app--animating .cat-card:hover {
   transform: none !important;
 }
@@ -2845,13 +2895,12 @@ body.modal-open {
   .cc-wave-bar, .cc-metal-shine, .cc-bldg, .cc-flow, .cc-ticker-big,
   .cc-micro-bar, .cc-signal-ring { animation: none; }
   .cc-signal-ring { opacity: 0; }
-  .summary-panel::before { animation: none; }
+  .hero-card::before { animation: none; }
   .chart-wrap::after { animation: none; opacity: 0; }
   .logo-block .logo-aurix { animation: none; }
   /* Strip transitions for reduced-motion users */
-  .summary-panel,
+  .hero-card,
   .distribution-section,
-  .chart-section,
   .asset-card,
   .cat-card,
   .legend-item,
@@ -3274,6 +3323,46 @@ body.modal-open {
 
 .menu-item--danger { color: #ff6b6b; }
 .menu-item--danger:hover { background: rgba(232,69,69,.10); color: #ff8585; }
+
+/* ── Menu currency toggle ─────────────────────────────── */
+.menu-curr-row {
+  display: flex;
+  gap: 5px;
+  padding: 6px 8px 4px;
+}
+
+.menu-curr-btn {
+  flex: 1;
+  padding: 7px 6px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast),
+              border-color var(--dur-fast) var(--ease-out),
+              transform var(--dur-tap) var(--ease-premium);
+  -webkit-tap-highlight-color: transparent;
+}
+.menu-curr-btn:hover:not(.active) {
+  background: rgba(255,255,255,.08);
+  color: var(--text);
+  border-color: rgba(255,255,255,.16);
+}
+.menu-curr-btn.active {
+  background: rgba(79,142,247,.12);
+  border-color: rgba(79,142,247,.30);
+  color: var(--accent);
+}
+.menu-curr-btn:active {
+  transform: scale(.93);
+}
 
 /* ── Exit button (header top-right) ── (kept as hidden proxy) */
 .btn-exit {
