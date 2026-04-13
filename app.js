@@ -4841,7 +4841,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   // ── Core drag state ───────────────────────────────────────
-  let _drag = null; // { card, ph, offX, offY, lastTarget }
+  let _drag = null; // { card, startX, startY, active, lastTarget, container, offX, offY }
 
   function getClosestCard(clientX, clientY) {
     let closest = null;
@@ -4856,21 +4856,25 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     return closest;
   }
 
-  function beginDrag(card, clientX, clientY) {
+  function initDrag(card, clientX, clientY) {
+    _drag = { card, startX: clientX, startY: clientY, active: false, lastTarget: null, container: card.parentNode, offX: 0, offY: 0 };
+  }
+
+  function startDraggingVisuals(card, clientX, clientY) {
     // Capture layout size BEFORE any style changes
     const cardW = card.offsetWidth;
     const cardH = card.offsetHeight;
 
     // Read rects before any DOM/style changes
-    const container      = card.parentNode;
-    const containerRect  = container.getBoundingClientRect();
-    const rect           = card.getBoundingClientRect();
+    const container     = _drag.container;
+    const containerRect = container.getBoundingClientRect();
+    const rect          = card.getBoundingClientRect();
 
     // Position relative to container and pointer offset (both in viewport coords)
     const absLeft = rect.left - containerRect.left;
     const absTop  = rect.top  - containerRect.top;
-    const offX    = clientX   - rect.left;
-    const offY    = clientY   - rect.top;
+    _drag.offX    = clientX   - rect.left;
+    _drag.offY    = clientY   - rect.top;
 
     // Absolute positioning relative to container — no viewport drift
     Object.assign(card.style, {
@@ -4898,24 +4902,24 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     card.classList.add('dragging');
     if (navigator.vibrate) navigator.vibrate(22);
-
-    _drag = { card, offX, offY, container, lastTarget: null, active: false, startX: clientX, startY: clientY };
   }
 
   function moveDrag(clientX, clientY) {
     if (!_drag) return;
+
+    // Activate drag only after real movement (10px threshold)
+    if (!_drag.active) {
+      if (Math.abs(clientX - _drag.startX) < 10 && Math.abs(clientY - _drag.startY) < 10) return;
+      _drag.active = true;
+      startDraggingVisuals(_drag.card, clientX, clientY);
+    }
+
     const card = _drag.card;
 
     // Card tracks pointer 1:1 — container-relative absolute positioning
     const containerRect = _drag.container.getBoundingClientRect();
     card.style.left = (clientX - containerRect.left - _drag.offX) + 'px';
     card.style.top  = (clientY - containerRect.top  - _drag.offY) + 'px';
-
-    // Require real movement before allowing swaps
-    if (!_drag.active) {
-      if (Math.abs(clientX - _drag.startX) < 8 && Math.abs(clientY - _drag.startY) < 8) return;
-      _drag.active = true;
-    }
 
     // ── Target detection — element directly under pointer ───
     const el     = document.elementFromPoint(clientX, clientY);
@@ -4935,43 +4939,35 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   function endDrag() {
     if (!_drag) return;
-    const { card } = _drag;
+    const { card, active } = _drag;
     _drag = null;
 
-    card.style.position      = '';
-    card.style.left          = '';
-    card.style.top           = '';
-    card.style.width         = '';
-    card.style.height        = '';
-    card.style.margin        = '';
-    card.style.transform     = '';
-    card.style.zIndex        = '';
-    card.style.pointerEvents = '';
-    card.style.willChange    = '';
-    card.classList.remove('dragging');
-    saveCatOrder();
-    card.addEventListener('click', e => e.stopPropagation(), { once: true, capture: true });
+    if (active) {
+      card.style.position      = '';
+      card.style.left          = '';
+      card.style.top           = '';
+      card.style.width         = '';
+      card.style.height        = '';
+      card.style.margin        = '';
+      card.style.transform     = '';
+      card.style.zIndex        = '';
+      card.style.pointerEvents = '';
+      card.style.willChange    = '';
+      card.classList.remove('dragging');
+      saveCatOrder();
+      // Block the click that fires after pointerup from triggering card actions
+      card.addEventListener('click', e => e.stopPropagation(), { once: true, capture: true });
+    }
   }
 
   function startWith(card, clientX, clientY) {
-    let curX = clientX, curY = clientY; // tracks latest pointer position
-    let active = false;
-
-    const timer = setTimeout(() => {
-      active = true;
-      beginDrag(card, curX, curY); // use position at the moment drag fires, not mousedown
-    }, 250);
+    initDrag(card, clientX, clientY);
 
     return {
-      move(x, y) {
-        curX = x; curY = y; // always track, even before active
-        if (!active) return false; // not yet dragging
-        moveDrag(x, y);
-        return true;
-      },
-      cancel() { clearTimeout(timer); if (active) endDrag(); },
-      drop()   { clearTimeout(timer); if (active) endDrag(); },
-      isActive() { return active; },
+      move(x, y)  { moveDrag(x, y); return _drag?.active ?? false; },
+      cancel()    { endDrag(); },
+      drop()      { endDrag(); },
+      isActive()  { return _drag?.active ?? false; },
     };
   }
 
@@ -4985,13 +4981,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const session = startWith(card, e.clientX, e.clientY);
 
     const onMove = mv => {
-      if (!session.isActive() && Math.hypot(mv.clientX - e.clientX, mv.clientY - e.clientY) > 8) {
-        // User moved before long-press — cancel drag, let normal click/scroll proceed
-        session.cancel();
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup',   onUp);
-        return;
-      }
       if (session.move(mv.clientX, mv.clientY)) mv.preventDefault();
     };
     const onUp = () => {
@@ -5016,13 +5005,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     const onMove = mv => {
       const { clientX: x, clientY: y } = mv.touches[0];
-      if (!session.isActive()) {
-        if (Math.hypot(x - sx, y - sy) > 8) { session.cancel(); cleanup(); }
-        else session.move(x, y); // track position during long-press hold (returns false, no drag yet)
-        return;
-      }
-      mv.preventDefault();
-      session.move(x, y);
+      if (session.move(x, y)) mv.preventDefault();
     };
     const onEnd = () => { cleanup(); session.drop(); };
 
