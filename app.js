@@ -4968,7 +4968,8 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   // ── Mouse (desktop) ───────────────────────────────────────
   grid.addEventListener('mousedown', e => {
-    const card = e.target.closest('.cat-card[data-type]');
+    if (e.target.closest('button, a, input')) return;
+    const card = e.target.closest('.cat-card');
     if (!card) return;
 
     const session = startWith(card, e.clientX, e.clientY);
@@ -4995,7 +4996,8 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   // ── Touch (mobile) ────────────────────────────────────────
   grid.addEventListener('touchstart', e => {
-    const card = e.target.closest('.cat-card[data-type]');
+    if (e.target.closest('button, a, input')) return;
+    const card = e.target.closest('.cat-card');
     if (!card || e.touches.length !== 1) return;
 
     const { clientX: sx, clientY: sy } = e.touches[0];
