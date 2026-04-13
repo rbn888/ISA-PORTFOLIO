@@ -998,6 +998,11 @@ function updateDonut() {
     return;
   }
 
+  if (distributionSectionEl.style.display === 'none' || !distributionSectionEl.dataset.entered) {
+    distributionSectionEl.dataset.entered = '1';
+    distributionSectionEl.classList.add('is-entering');
+    distributionSectionEl.addEventListener('animationend', () => distributionSectionEl.classList.remove('is-entering'), { once: true });
+  }
   distributionSectionEl.style.display = '';
   resetDonutCenter();
 
@@ -1626,7 +1631,7 @@ function countUpTotalValue(targetBase) {
       return;
     }
     const end      = targetBase;
-    const dur      = 1000;
+    const dur      = 1200;
     const t0       = performance.now();
     function easeOutFirst(t) { return 1 - Math.pow(1 - t, 2.5); }
     _countUpCurrent = end;
@@ -2130,6 +2135,11 @@ function updateCategoryCards() {
 
   console.log('[categories] rendering:', ALL_CATEGORIES, '| live dist:', Object.keys(distMap));
 
+  if (!section.dataset.entered) {
+    section.dataset.entered = '1';
+    section.classList.add('is-entering');
+    section.addEventListener('animationend', () => section.classList.remove('is-entering'), { once: true });
+  }
   section.style.display = '';
   const hint = `<span class="cat-card-hint">${t('viewHint')}</span>`;
   grid.innerHTML = ALL_CATEGORIES.map(type => {

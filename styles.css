@@ -78,6 +78,31 @@ body.is-detail-view {
 }
 main { animation: page-enter .4s var(--ease-out) forwards; }
 
+@keyframes section-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero card: always visible on load — subtle lift-in */
+.hero-card {
+  animation: section-enter 0.5s var(--ease-out) 0.05s both;
+}
+
+/* Distribution + categories: animate on first appearance (JS adds .is-entering) */
+.distribution-section.is-entering {
+  animation: section-enter 0.45s var(--ease-out) 0.08s both;
+}
+.categories-section.is-entering {
+  animation: section-enter 0.45s var(--ease-out) 0.15s both;
+}
+
+/* Respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .hero-card,
+  .distribution-section.is-entering,
+  .categories-section.is-entering { animation: none; }
+}
+
 @keyframes card-enter {
   from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
