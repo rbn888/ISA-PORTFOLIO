@@ -1538,6 +1538,12 @@ body.modal-open {
               box-shadow    var(--dur-med) var(--ease-premium),
               opacity       200ms var(--ease-out);
 }
+.cat-card.dragging {
+  transition: none !important;
+  z-index: 1000;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  cursor: grabbing;
+}
 .cat-card:hover {
   border-color: var(--border-hi);
   transform: translateY(-4px) scale(1.01);
