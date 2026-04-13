@@ -768,14 +768,31 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 
 /* ── Market status badge (cat-card header) ─────────── */
 .market-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 500;
   opacity: 0.8;
   margin-left: auto;
 }
+.market-status .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .market-status.open   { color: #22c55e; }
 .market-status.closed { color: #ef4444; }
 .market-status.crypto { color: #a855f7; }
+.market-status.open   .dot { background: #22c55e; animation: mkt-pulse 1.5s ease-in-out infinite; }
+.market-status.closed .dot { background: #ef4444; }
+.market-status.crypto .dot { background: #a855f7; }
+
+@keyframes mkt-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
 
 /* Gold-specific dot — kept for updateGoldTimestamps() back-compat */
 .gold-live-dot {

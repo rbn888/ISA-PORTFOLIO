@@ -1749,6 +1749,17 @@ function getMarketStatus(type) {
   return null;
 }
 
+function getMarketLabel(status) {
+  if (lang === 'es') {
+    if (status === 'open')   return 'Mercado abierto';
+    if (status === 'closed') return 'Mercado cerrado';
+    if (status === '24/7')   return '24/7';
+  }
+  if (status === 'open')   return 'Market open';
+  if (status === 'closed') return 'Market closed';
+  return '24/7';
+}
+
 // Builds the status HTML for a card — only crypto and stock/ETF get a badge.
 function getStatusHtml(asset) {
   if (asset.type === 'cash' || asset.type === 'metal' || asset.type === 'real_estate') return '';
@@ -2153,10 +2164,9 @@ function updateCategoryCards() {
     }
 
     const catStatus = getMarketStatus(type);
-    let catStatusHtml = '';
-    if (catStatus === 'open')   catStatusHtml = '<span class="market-status open">● Open</span>';
-    else if (catStatus === 'closed') catStatusHtml = '<span class="market-status closed">● Closed</span>';
-    else if (catStatus === '24/7')   catStatusHtml = '<span class="market-status crypto">● 24/7</span>';
+    const catStatusHtml = catStatus
+      ? `<span class="market-status ${catStatus === '24/7' ? 'crypto' : catStatus}"><span class="dot"></span>${getMarketLabel(catStatus)}</span>`
+      : '';
 
     return `<button class="cat-card${isEmpty ? ' cat-card--empty' : ''}" data-type="${type}">
       ${visual}
