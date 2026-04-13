@@ -2623,6 +2623,7 @@ function render(animate = false) {
         <div class="dar-info">
           <div class="dar-name">${escHtml(getDisplayName(asset))}</div>
           <div class="dar-sub">${darSubHtml}</div>
+          ${statusHtml}
         </div>
         <div class="dar-right">
           <div class="dar-value ${flashClass}"${prevValueBase != null ? ` data-from="${prevValueBase.toFixed(6)}" data-to="${valueBase.toFixed(6)}"` : ''}>${formatBase(valueBase)}</div>
