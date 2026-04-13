@@ -4905,17 +4905,20 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   function moveDrag(clientX, clientY) {
     if (!_drag) return;
+    const card = _drag.card;
+    const ph   = _drag.ph;
 
     // Card tracks pointer 1:1 — offsets from post-fixed rect, never recomputed
-    _drag.card.style.left = (clientX - _drag.offX) + 'px';
-    _drag.card.style.top  = (clientY - _drag.offY) + 'px';
+    card.style.left = (clientX - _drag.offX) + 'px';
+    card.style.top  = (clientY - _drag.offY) + 'px';
 
     // ── Target detection — closest card by distance to center ───
     const target = getClosestCard(clientX, clientY);
-    if (!target || target === _drag.lastTarget) return;
-    _drag.lastTarget = target;
+    if (!target) return;
 
-    target.after(_drag.ph);
+    const targetRect = target.getBoundingClientRect();
+    const before = clientY < targetRect.top + targetRect.height / 2;
+    ph.parentNode.insertBefore(ph, before ? target : target.nextSibling);
   }
 
   function endDrag() {
