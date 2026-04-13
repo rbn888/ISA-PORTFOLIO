@@ -4857,10 +4857,10 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function beginDrag(card, clientX, clientY) {
-    // Insert placeholder first (keeps grid space), but size it AFTER fixed rect is known
+    // Insert placeholder BEFORE card so it occupies the card's exact grid slot
     const ph = document.createElement('div');
     ph.className = 'cat-drag-ph';
-    card.after(ph);
+    card.parentNode.insertBefore(ph, card);
 
     // Step 1: position:fixed + z-index FIRST — establishes the correct coordinate system
     card.style.position = 'fixed';
@@ -4914,7 +4914,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     // ── Target detection — closest card by distance to center ───
     const target = getClosestCard(clientX, clientY);
-    if (!target) return;
+    if (!target || target === card || target === ph) return;
 
     const targetRect = target.getBoundingClientRect();
     const before = clientY < targetRect.top + targetRect.height / 2;
