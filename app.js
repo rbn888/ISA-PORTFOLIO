@@ -4899,7 +4899,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.classList.add('dragging');
     if (navigator.vibrate) navigator.vibrate(22);
 
-    _drag = { card, offX, offY, container, lastTarget: null };
+    _drag = { card, offX, offY, container, lastTarget: null, cooldown: false };
   }
 
   function moveDrag(clientX, clientY) {
@@ -4917,8 +4917,19 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const target = el?.closest('.cat-card');
     if (!target || target === card) return;
 
+    // Only swap when pointer is strictly inside target bounds
+    const rect = target.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right ||
+        clientY < rect.top  || clientY > rect.bottom) return;
+
+    // Prevent repeated swaps on the same target
     if (_drag.lastTarget === target) return;
     _drag.lastTarget = target;
+
+    // Cooldown — one swap per 120ms max
+    if (_drag.cooldown) return;
+    _drag.cooldown = true;
+    setTimeout(() => { if (_drag) _drag.cooldown = false; }, 120);
 
     // Direct swap: A ↔ B
     const parent = card.parentNode;
