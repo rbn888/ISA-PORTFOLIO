@@ -4899,18 +4899,23 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.classList.add('dragging');
     if (navigator.vibrate) navigator.vibrate(22);
 
-    _drag = { card, offX, offY, container, lastTarget: null };
+    _drag = { card, offX, offY, container, lastTarget: null, active: false, startX: clientX, startY: clientY };
   }
 
   function moveDrag(clientX, clientY) {
     if (!_drag) return;
     const card = _drag.card;
-    const ph   = _drag.ph;
 
     // Card tracks pointer 1:1 — container-relative absolute positioning
     const containerRect = _drag.container.getBoundingClientRect();
     card.style.left = (clientX - containerRect.left - _drag.offX) + 'px';
     card.style.top  = (clientY - containerRect.top  - _drag.offY) + 'px';
+
+    // Require real movement before allowing swaps
+    if (!_drag.active) {
+      if (Math.abs(clientX - _drag.startX) < 8 && Math.abs(clientY - _drag.startY) < 8) return;
+      _drag.active = true;
+    }
 
     // ── Target detection — element directly under pointer ───
     const el     = document.elementFromPoint(clientX, clientY);
