@@ -4920,10 +4920,11 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const target = document.elementFromPoint(clientX, clientY)?.closest('.cat-card');
     if (!target || target === card || target === ph) return;
 
-    // Strict bounding check — only reorder when truly over the target
-    const r = target.getBoundingClientRect();
-    if (clientX < r.left || clientX > r.right ||
-        clientY < r.top  || clientY > r.bottom) return;
+    // Bounding check with tolerance — forgiving hit area
+    const r      = target.getBoundingClientRect();
+    const margin = 40;
+    if (clientX < r.left - margin || clientX > r.right  + margin ||
+        clientY < r.top  - margin || clientY > r.bottom + margin) return;
 
     const middle    = r.top + r.height / 2;
     const threshold = r.height * 0.25;
