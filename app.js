@@ -4916,19 +4916,15 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.style.left = (clientX - _drag.offX) + 'px';
     card.style.top  = (clientY - _drag.offY) + 'px';
 
-    // ── Target detection — closest card by distance to center ───
-    const cards = [...document.querySelectorAll('.cat-card:not(.dragging)')];
-    let target = null, minDist = Infinity;
-    for (const el of cards) {
-      const r  = el.getBoundingClientRect();
-      const dx = clientX - (r.left + r.width  / 2);
-      const dy = clientY - (r.top  + r.height / 2);
-      const d  = dx * dx + dy * dy;
-      if (d < minDist) { minDist = d; target = el; }
-    }
-    if (!target || target === ph) return;
+    // ── Target detection — element under pointer (card has pointer-events:none) ───
+    const target = document.elementFromPoint(clientX, clientY)?.closest('.cat-card');
+    if (!target || target === card || target === ph) return;
 
-    const r         = target.getBoundingClientRect();
+    // Strict bounding check — only reorder when truly over the target
+    const r = target.getBoundingClientRect();
+    if (clientX < r.left || clientX > r.right ||
+        clientY < r.top  || clientY > r.bottom) return;
+
     const middle    = r.top + r.height / 2;
     const threshold = r.height * 0.25;
 
@@ -4951,35 +4947,20 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const { card, ph } = _drag;
     _drag = null;
 
-    // Animate card gliding to the placeholder's exact position
-    const phRect = ph.getBoundingClientRect();
-    Object.assign(card.style, {
-      transition: 'left 160ms var(--ease-out), top 160ms var(--ease-out), transform 160ms var(--ease-out), opacity 160ms var(--ease-out), box-shadow 160ms var(--ease-out)',
-      left:       phRect.left + 'px',
-      top:        phRect.top  + 'px',
-      transform:  'translateZ(0) scale(1)',
-      opacity:    '1',
-      boxShadow:  'none',
-    });
-
-    // After animation: restore card to normal DOM flow
-    card.addEventListener('transitionend', () => {
-      ph.replaceWith(card);
-      card.style.position    = '';
-      card.style.left        = '';
-      card.style.top         = '';
-      card.style.width       = '';
-      card.style.height      = '';
-      card.style.margin      = '';
-      card.style.transform   = '';
-      card.style.zIndex      = '';
-      card.style.pointerEvents = '';
-      card.style.willChange  = '';
-      card.classList.remove('dragging');
-      saveCatOrder();
-      // Suppress post-drag click from opening the category
-      card.addEventListener('click', e => e.stopPropagation(), { once: true, capture: true });
-    }, { once: true });
+    ph.replaceWith(card);
+    card.style.position      = '';
+    card.style.left          = '';
+    card.style.top           = '';
+    card.style.width         = '';
+    card.style.height        = '';
+    card.style.margin        = '';
+    card.style.transform     = '';
+    card.style.zIndex        = '';
+    card.style.pointerEvents = '';
+    card.style.willChange    = '';
+    card.classList.remove('dragging');
+    saveCatOrder();
+    card.addEventListener('click', e => e.stopPropagation(), { once: true, capture: true });
   }
 
   function startWith(card, clientX, clientY) {
@@ -5065,4 +5046,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     document.addEventListener('touchend',    onEnd,  { passive: true });
     document.addEventListener('touchcancel', onEnd,  { passive: true });
   }, { passive: true });
+
+  // Safety net — guarantee endDrag runs even if per-session listeners miss the event
+  window.addEventListener('mouseup',     endDrag);
+  window.addEventListener('touchend',    endDrag);
+  window.addEventListener('touchcancel', endDrag);
 })();
