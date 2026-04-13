@@ -4877,15 +4877,16 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const offX = clientX - rect.left;
     const offY = clientY - rect.top;
 
-    // Lock card at exact pointer-relative position
+    // Lock card at exact pointer-relative position — visually independent from grid
     Object.assign(card.style, {
       left:          (clientX - offX) + 'px',
       top:           (clientY - offY) + 'px',
       width:         rect.width  + 'px',
       height:        rect.height + 'px',
       margin:        '0',
+      transform:     'none',
       pointerEvents: 'none',
-      transform:     'translateZ(0)',
+      willChange:    'left, top',
     });
 
     // Animate lift in next frame
@@ -4949,10 +4950,16 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     // After animation: restore card to normal DOM flow
     card.addEventListener('transitionend', () => {
       ph.replaceWith(card);
+      card.style.position    = '';
+      card.style.left        = '';
+      card.style.top         = '';
+      card.style.width       = '';
+      card.style.height      = '';
+      card.style.margin      = '';
+      card.style.transform   = '';
+      card.style.zIndex      = '';
       card.style.pointerEvents = '';
-      card.style.width         = '';
-      card.style.height        = '';
-      card.style.cssText       = '';
+      card.style.willChange  = '';
       card.classList.remove('dragging');
       saveCatOrder();
       // Suppress post-drag click from opening the category
