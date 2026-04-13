@@ -4843,19 +4843,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   // ── Core drag state ───────────────────────────────────────
   let _drag = null; // { card, startX, startY, active, lastX, lastY, container, offX, offY }
 
-  function getClosestCard(clientX, clientY) {
-    let closest = null;
-    let minDist = Infinity;
-    [...grid.querySelectorAll('.cat-card')].filter(c => c !== _drag.card).forEach(c => {
-      const r = c.getBoundingClientRect();
-      const dx = clientX - (r.left + r.width  / 2);
-      const dy = clientY - (r.top  + r.height / 2);
-      const dist = dx * dx + dy * dy;
-      if (dist < minDist) { minDist = dist; closest = c; }
-    });
-    return closest;
-  }
-
   function initDrag(card, clientX, clientY) {
     card.style.pointerEvents = 'none';
     _drag = { card, startX: clientX, startY: clientY, active: false, lastX: clientX, lastY: clientY, container: card.parentNode, offX: 0, offY: 0 };
@@ -4949,6 +4936,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       card.style.height     = '';
       card.style.margin     = '';
       card.style.transform  = '';
+      card.style.opacity    = '';
+      card.style.boxShadow  = '';
+      card.style.transition = '';
       card.style.zIndex     = '';
       card.style.willChange = '';
       card.classList.remove('dragging');
