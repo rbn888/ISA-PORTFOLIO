@@ -769,9 +769,12 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 /* ── Market status indicator (emoji-based) ─────────── */
 .market-status {
   font-size: 12px;
-  opacity: 0.8;
+  opacity: 0.85;
   margin-top: 4px;
 }
+.market-status.open   { color: #22c55e; }
+.market-status.closed { color: #ef4444; }
+.market-status.crypto { color: #a855f7; }
 
 /* Gold-specific dot — kept for updateGoldTimestamps() back-compat */
 .gold-live-dot {

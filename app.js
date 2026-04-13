@@ -1735,44 +1735,42 @@ function animateCardValues() {
 }
 
 // ── Market status ──────────────────────────────────────────
+// ── Market status helpers ───────────────────────────────────
 function isStockMarketOpen() {
-  const now = new Date();
-  const day = now.getUTCDay(); // 0 = Sun, 6 = Sat
+  const now  = new Date();
+  const day  = now.getDay();   // local day: 0 = Sun, 6 = Sat
+  const hour = now.getHours(); // local hour
   if (day === 0 || day === 6) return false;
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  // NYSE 9:30–16:00 ET (EST = UTC−5) → 14:30–21:00 UTC ≈ CET 15:30–22:00
-  return mins >= 14 * 60 + 30 && mins < 21 * 60;
+  return hour >= 9 && hour < 17;
 }
 
-function getMarketStatus(asset) {
-  if (asset.type === 'cash') return null;
-
-  if (asset.type === 'crypto') {
-    return { dot: 'crypto247', label: t('live24') };
+// Returns the status string for a given asset type:
+//   'crypto'  → '24/7'
+//   'stock' / 'etf'  → 'open' | 'closed'
+//   anything else  → null (no badge)
+function getMarketStatus(type) {
+  if (type === 'crypto') return '24/7';
+  if (type === 'stock' || type === 'etf') {
+    return isStockMarketOpen() ? 'open' : 'closed';
   }
-
-  if (asset.type === 'stock' || asset.type === 'etf') {
-    return isStockMarketOpen()
-      ? { dot: 'live',   label: t('liveMarket') }
-      : { dot: 'closed', label: t('closed') };
-  }
-
   return null;
 }
 
-// Builds the status HTML snippet for a card.
-// Only rendered for crypto (24/7) and stock/ETF (open/closed).
+// Builds the status HTML for a card — only crypto and stock/ETF get a badge.
 function getStatusHtml(asset) {
-  // Only crypto and stock/ETF show market status on cards
   if (asset.type === 'cash' || asset.type === 'metal' || asset.type === 'real_estate') return '';
 
-  const status = getMarketStatus(asset);
+  const status = getMarketStatus(asset.type);
   if (!status) return '';
 
-  return `<div class="market-status">` +
-    `<span class="status-dot ${status.dot}"></span>` +
-    `<span class="status-label">${escHtml(status.label)}</span>` +
-    `</div>`;
+  const cls   = status === '24/7' ? 'crypto' : status;  // '24/7' → 'crypto'
+  const label = {
+    '24/7':   `🟣 24/7`,
+    'open':   `🟢 ${lang === 'es' ? 'Abierto' : 'Open'}`,
+    'closed': `🔴 ${lang === 'es' ? 'Cerrado' : 'Closed'}`,
+  }[status];
+
+  return `<div class="market-status ${cls}">${label}</div>`;
 }
 
 // ── Card drag & drop functions ──────────────────────────────
