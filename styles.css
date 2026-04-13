@@ -2480,10 +2480,8 @@ body.modal-open {
     border-bottom: 1px solid rgba(255,255,255,.055);
   }
   .hero-right {
-    flex: 1 1 0;            /* fill all remaining card height */
     display: flex;
     flex-direction: column;
-    min-height: 0;          /* allow shrink below content size */
     padding: 16px 20px 20px;
   }
   .summary-label {
@@ -2566,13 +2564,11 @@ body.modal-open {
     justify-content: flex-start;
   }
   .chart-wrap {
-    flex: 1 1 0;            /* grow to fill hero-right after the header */
-    height: 0;              /* flex-grow handles the actual height */
-    min-height: 240px;      /* floor — never smaller than this */
-    margin-top: 20px;
+    height: 220px;
+    min-height: 220px;
+    margin-top: 16px;
     overflow: hidden;
   }
-  /* canvas fills its flex container so Chart.js reads the correct dimensions */
   .chart-wrap canvas {
     width: 100% !important;
     height: 100% !important;
