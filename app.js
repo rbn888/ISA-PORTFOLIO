@@ -593,9 +593,12 @@ const updateDotEl    = document.getElementById('updateDot');
 const updateTextEl   = document.getElementById('updateText');
 
 // ── Card drag & drop order ──────────────────────────────────
-const CARD_ORDER_KEY = 'portfolio_card_order';
+const CARD_ORDER_KEY     = 'portfolio_card_order';
+const CAT_ORDER_KEY      = 'portfolio_cat_order';
+const CAT_DEFAULT_ORDER  = ['stock', 'etf', 'crypto', 'metal', 'real_estate', 'cash'];
 let _cardOrder = JSON.parse(localStorage.getItem(CARD_ORDER_KEY) || 'null') || [];
-let _dd = null; // active drag state
+let _catOrder  = JSON.parse(localStorage.getItem(CAT_ORDER_KEY)  || 'null') || [];
+let _dd = null; // active drag state (asset cards)
 
 // Show skeleton on total value while initial prices load
 if (assets.length > 0) totalValueEl.classList.add('skeleton');
@@ -2126,9 +2129,10 @@ function updateCategoryCards() {
     return;
   }
 
-  // Fixed ordered list — all 6 categories always rendered, even when empty
-  // Row 1: Acciones, Fondos/ETF, Cripto  |  Row 2: Metales, Inmuebles, Liquidez
-  const ALL_CATEGORIES = ['stock', 'etf', 'crypto', 'metal', 'real_estate', 'cash'];
+  // Ordered list — respects user's saved drag order
+  const ALL_CATEGORIES = _catOrder.length === CAT_DEFAULT_ORDER.length
+    ? _catOrder
+    : CAT_DEFAULT_ORDER;
 
   // Build a lookup from _donutDist so we can fill in live values where available
   const distMap = Object.fromEntries((_donutDist || []).map(d => [d.type, d]));
@@ -4815,6 +4819,133 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     function cancel() {
       clearTimeout(timer);
+      document.removeEventListener('touchmove',   onMove);
+      document.removeEventListener('touchend',    onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    }
+
+    document.addEventListener('touchmove',   onMove, { passive: false });
+    document.addEventListener('touchend',    onEnd,  { passive: true });
+    document.addEventListener('touchcancel', onEnd,  { passive: true });
+  }, { passive: true });
+})();
+
+// ── Cat-card drag & drop ────────────────────────────────────
+(function initCatCardDragDrop() {
+  const grid = document.getElementById('categoriesGrid');
+  if (!grid) return;
+
+  // Save & apply order
+  function saveCatOrder() {
+    _catOrder = [...grid.querySelectorAll('.cat-card[data-type]')].map(c => c.dataset.type);
+    localStorage.setItem(CAT_ORDER_KEY, JSON.stringify(_catOrder));
+  }
+
+  // Closest card to a point (ignores the dragged card itself)
+  function cardAtPoint(x, y, skip) {
+    return [...grid.querySelectorAll('.cat-card[data-type]:not(.cat-dragging)')]
+      .reduce((best, c) => {
+        const r = c.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const d  = Math.hypot(x - cx, y - cy);
+        return d < best.d ? { el: c, d } : best;
+      }, { el: null, d: Infinity }).el;
+  }
+
+  // ── Mouse drag (desktop) ──────────────────────────────────
+  grid.addEventListener('mousedown', e => {
+    const card = e.target.closest('.cat-card[data-type]');
+    if (!card) return;
+
+    let dragging = false;
+    const startX = e.clientX, startY = e.clientY;
+    let over = null;
+
+    const onMove = mv => {
+      if (!dragging) {
+        if (Math.hypot(mv.clientX - startX, mv.clientY - startY) < 6) return;
+        dragging = true;
+        card.classList.add('cat-dragging');
+      }
+      mv.preventDefault();
+      const near = cardAtPoint(mv.clientX, mv.clientY, card);
+      if (near && near !== over) {
+        if (over) over.classList.remove('cat-drag-over');
+        over = near;
+        over.classList.add('cat-drag-over');
+      }
+    };
+
+    const onUp = up => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      card.classList.remove('cat-dragging');
+      if (over) {
+        over.classList.remove('cat-drag-over');
+        const r = over.getBoundingClientRect();
+        const insertBefore = up.clientX < r.left + r.width / 2 && up.clientY < r.top + r.height / 2
+          ? over : over.nextSibling;
+        grid.insertBefore(card, insertBefore);
+        saveCatOrder();
+        updateCategoryCards();
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  });
+
+  // ── Touch drag (mobile, long-press 200ms) ─────────────────
+  grid.addEventListener('touchstart', e => {
+    const card = e.target.closest('.cat-card[data-type]');
+    if (!card || e.touches.length !== 1) return;
+
+    const t0 = e.touches[0];
+    const startX = t0.clientX, startY = t0.clientY;
+    let dragging = false;
+    let over = null;
+
+    const timer = setTimeout(() => {
+      dragging = true;
+      card.classList.add('cat-dragging');
+      if (navigator.vibrate) navigator.vibrate(22);
+    }, 200);
+
+    const onMove = mv => {
+      if (!dragging) {
+        if (Math.hypot(mv.touches[0].clientX - startX, mv.touches[0].clientY - startY) > 8) {
+          clearTimeout(timer);
+          cleanup();
+        }
+        return;
+      }
+      mv.preventDefault();
+      const t = mv.touches[0];
+      const near = cardAtPoint(t.clientX, t.clientY, card);
+      if (near && near !== over) {
+        if (over) over.classList.remove('cat-drag-over');
+        over = near;
+        over.classList.add('cat-drag-over');
+      }
+    };
+
+    const onEnd = ev => {
+      clearTimeout(timer);
+      cleanup();
+      card.classList.remove('cat-dragging');
+      if (!dragging) return;
+      if (over) {
+        over.classList.remove('cat-drag-over');
+        const t = ev.changedTouches[0];
+        const r = over.getBoundingClientRect();
+        const insertBefore = t.clientX < r.left + r.width / 2 ? over : over.nextSibling;
+        grid.insertBefore(card, insertBefore);
+        saveCatOrder();
+        updateCategoryCards();
+      }
+    };
+
+    function cleanup() {
       document.removeEventListener('touchmove',   onMove);
       document.removeEventListener('touchend',    onEnd);
       document.removeEventListener('touchcancel', onEnd);

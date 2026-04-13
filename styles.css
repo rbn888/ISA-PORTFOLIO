@@ -3928,7 +3928,24 @@ body.modal-open {
   .card--exiting      { animation: none !important; opacity: 0; }
 }
 
-/* ── Card Drag & Drop ───────────────────────────────────── */
+/* ── Cat-card drag & drop ───────────────────────────────── */
+.cat-card.cat-dragging {
+  opacity: 0.6;
+  transform: scale(1.03);
+  box-shadow: 0 16px 48px rgba(0,0,0,.5);
+  border-color: var(--border-hi);
+  z-index: 10;
+  cursor: grabbing;
+  transition: opacity 120ms, transform 120ms, box-shadow 120ms !important;
+}
+.cat-card.cat-drag-over {
+  border-color: rgba(79, 142, 247, 0.45);
+  border-style: dashed;
+  transform: scale(1.02);
+  transition: border-color 100ms, transform 100ms !important;
+}
+
+/* ── Asset-card Drag & Drop ─────────────────────────────── */
 .asset-card.card--dragging {
   box-shadow: 0 14px 44px rgba(0,0,0,.55), 0 4px 12px rgba(0,0,0,.28);
   border-color: var(--border-hi);
