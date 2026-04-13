@@ -3930,19 +3930,15 @@ body.modal-open {
 
 /* ── Cat-card drag & drop ───────────────────────────────── */
 .cat-card.cat-dragging {
-  opacity: 0.6;
-  transform: scale(1.03);
-  box-shadow: 0 16px 48px rgba(0,0,0,.5);
-  border-color: var(--border-hi);
-  z-index: 10;
+  opacity: 0.7;
+  transform: scale(1.02) !important;
   cursor: grabbing;
-  transition: opacity 120ms, transform 120ms, box-shadow 120ms !important;
+  transition: opacity 100ms, transform 100ms !important;
 }
 .cat-card.cat-drag-over {
-  border-color: rgba(79, 142, 247, 0.45);
-  border-style: dashed;
-  transform: scale(1.02);
-  transition: border-color 100ms, transform 100ms !important;
+  outline: 1px dashed rgba(255, 255, 255, 0.2);
+  transform: none !important;
+  transition: outline 80ms !important;
 }
 
 /* ── Asset-card Drag & Drop ─────────────────────────────── */

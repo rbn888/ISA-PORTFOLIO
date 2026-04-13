@@ -4830,119 +4830,113 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }, { passive: true });
 })();
 
-// ── Cat-card drag & drop ────────────────────────────────────
+// ── Cat-card drag & drop (swap-on-drop) ─────────────────────
 (function initCatCardDragDrop() {
   const grid = document.getElementById('categoriesGrid');
   if (!grid) return;
 
-  // Save & apply order
   function saveCatOrder() {
     _catOrder = [...grid.querySelectorAll('.cat-card[data-type]')].map(c => c.dataset.type);
     localStorage.setItem(CAT_ORDER_KEY, JSON.stringify(_catOrder));
   }
 
-  // Closest card to a point (ignores the dragged card itself)
-  function cardAtPoint(x, y, skip) {
-    return [...grid.querySelectorAll('.cat-card[data-type]:not(.cat-dragging)')]
-      .reduce((best, c) => {
-        const r = c.getBoundingClientRect();
-        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const d  = Math.hypot(x - cx, y - cy);
-        return d < best.d ? { el: c, d } : best;
-      }, { el: null, d: Infinity }).el;
+  // Swap two elements in the DOM
+  function swapCards(a, b) {
+    const aNext = a.nextSibling;
+    const aParent = a.parentNode;
+    b.parentNode.insertBefore(a, b);
+    aParent.insertBefore(b, aNext);
   }
 
-  // ── Mouse drag (desktop) ──────────────────────────────────
+  // Find which card the pointer is currently over
+  function cardUnderPoint(x, y, skip) {
+    return [...grid.querySelectorAll('.cat-card[data-type]')].find(c => {
+      if (c === skip) return false;
+      const r = c.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    }) || null;
+  }
+
+  function startDrag(card) {
+    card.classList.add('cat-dragging');
+    if (navigator.vibrate) navigator.vibrate(22);
+  }
+
+  function endDrag(card, target) {
+    card.classList.remove('cat-dragging');
+    if (target) {
+      target.classList.remove('cat-drag-over');
+      swapCards(card, target);
+      saveCatOrder();
+      updateCategoryCards();
+    }
+  }
+
+  // ── Mouse (desktop) ───────────────────────────────────────
   grid.addEventListener('mousedown', e => {
     const card = e.target.closest('.cat-card[data-type]');
     if (!card) return;
 
-    let dragging = false;
     const startX = e.clientX, startY = e.clientY;
-    let over = null;
+    let active = false, over = null;
 
     const onMove = mv => {
-      if (!dragging) {
-        if (Math.hypot(mv.clientX - startX, mv.clientY - startY) < 6) return;
-        dragging = true;
-        card.classList.add('cat-dragging');
+      if (!active) {
+        if (Math.hypot(mv.clientX - startX, mv.clientY - startY) < 8) return;
+        active = true;
+        startDrag(card);
       }
       mv.preventDefault();
-      const near = cardAtPoint(mv.clientX, mv.clientY, card);
-      if (near && near !== over) {
+      const target = cardUnderPoint(mv.clientX, mv.clientY, card);
+      if (target !== over) {
         if (over) over.classList.remove('cat-drag-over');
-        over = near;
-        over.classList.add('cat-drag-over');
+        over = target;
+        if (over) over.classList.add('cat-drag-over');
       }
     };
 
-    const onUp = up => {
+    const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup',   onUp);
-      card.classList.remove('cat-dragging');
-      if (over) {
-        over.classList.remove('cat-drag-over');
-        const r = over.getBoundingClientRect();
-        const insertBefore = up.clientX < r.left + r.width / 2 && up.clientY < r.top + r.height / 2
-          ? over : over.nextSibling;
-        grid.insertBefore(card, insertBefore);
-        saveCatOrder();
-        updateCategoryCards();
-      }
+      if (active) endDrag(card, over);
     };
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup',   onUp);
   });
 
-  // ── Touch drag (mobile, long-press 200ms) ─────────────────
+  // ── Touch (mobile, long-press 200ms) ──────────────────────
   grid.addEventListener('touchstart', e => {
     const card = e.target.closest('.cat-card[data-type]');
     if (!card || e.touches.length !== 1) return;
 
-    const t0 = e.touches[0];
-    const startX = t0.clientX, startY = t0.clientY;
-    let dragging = false;
-    let over = null;
+    const startX = e.touches[0].clientX, startY = e.touches[0].clientY;
+    let active = false, over = null;
 
     const timer = setTimeout(() => {
-      dragging = true;
-      card.classList.add('cat-dragging');
-      if (navigator.vibrate) navigator.vibrate(22);
+      active = true;
+      startDrag(card);
     }, 200);
 
     const onMove = mv => {
-      if (!dragging) {
-        if (Math.hypot(mv.touches[0].clientX - startX, mv.touches[0].clientY - startY) > 8) {
-          clearTimeout(timer);
-          cleanup();
-        }
+      const t = mv.touches[0];
+      if (!active) {
+        if (Math.hypot(t.clientX - startX, t.clientY - startY) > 8) { clearTimeout(timer); cleanup(); }
         return;
       }
       mv.preventDefault();
-      const t = mv.touches[0];
-      const near = cardAtPoint(t.clientX, t.clientY, card);
-      if (near && near !== over) {
+      const target = cardUnderPoint(t.clientX, t.clientY, card);
+      if (target !== over) {
         if (over) over.classList.remove('cat-drag-over');
-        over = near;
-        over.classList.add('cat-drag-over');
+        over = target;
+        if (over) over.classList.add('cat-drag-over');
       }
     };
 
-    const onEnd = ev => {
+    const onEnd = () => {
       clearTimeout(timer);
       cleanup();
-      card.classList.remove('cat-dragging');
-      if (!dragging) return;
-      if (over) {
-        over.classList.remove('cat-drag-over');
-        const t = ev.changedTouches[0];
-        const r = over.getBoundingClientRect();
-        const insertBefore = t.clientX < r.left + r.width / 2 ? over : over.nextSibling;
-        grid.insertBefore(card, insertBefore);
-        saveCatOrder();
-        updateCategoryCards();
-      }
+      if (active) endDrag(card, over);
     };
 
     function cleanup() {
