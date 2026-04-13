@@ -1192,9 +1192,12 @@ body.modal-open {
   width: 160px;
   height: 160px;
   flex-shrink: 0;
-  /* Prevent the canvas from sitting flush against the inner flex edge;
-     gives hovered arc segments visual room above the container */
   overflow: visible;
+}
+.donut-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 
 .donut-center-label {
@@ -2580,8 +2583,8 @@ body.modal-open {
     gap: 16px;
   }
   .donut-wrap {
-    width: 114px;
-    height: 114px;
+    width: min(180px, 50vw);
+    height: min(180px, 50vw);
     flex-shrink: 0;
   }
   .distribution-legend {

@@ -945,11 +945,10 @@ function initDonut() {
     },
     options: {
       responsive:          true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       cutout:              '70%',
       rotation:            -90,
-      // Padding inside the canvas so hoverOffset arcs never reach the edge and get clipped
-      layout: { padding: 14 },
+      layout: { padding: 6 },
       interaction: {
         mode:      'nearest',
         intersect: true,
@@ -1752,16 +1751,6 @@ function getMarketStatus(asset) {
     return { dot: 'crypto247', label: t('live24') };
   }
 
-  if (asset.type === 'metal') {
-    // Gold has its own precise updatedAt; other metals share lastRefreshAt
-    const updatedAt = (asset.ticker === 'XAU') ? goldPriceUpdatedAt : lastRefreshAt;
-    if (updatedAt === null) return { dot: 'delayed', label: t('estimatedPrice') };
-    const ageMins = Math.floor((Date.now() - updatedAt) / 60_000);
-    if (ageMins < 1)  return { dot: 'live',    label: t('updatedNow') };
-    if (ageMins < 10) return { dot: 'live',    label: t('updatedMins')(ageMins) };
-    return                   { dot: 'delayed', label: t('updatedMins')(ageMins) };
-  }
-
   if (asset.type === 'stock' || asset.type === 'etf') {
     return isStockMarketOpen()
       ? { dot: 'live',   label: t('liveMarket') }
@@ -1772,24 +1761,10 @@ function getMarketStatus(asset) {
 }
 
 // Builds the status HTML snippet for a card.
-// Gold keeps its dynamic .gold-price-ts structure so updateGoldTimestamps() still works.
-// All other types get a simple .status-dot + .status-label line.
+// Only rendered for crypto (24/7) and stock/ETF (open/closed).
 function getStatusHtml(asset) {
-  if (asset.type === 'cash') return '';
-
-  // Gold: dynamic inner elements (updated every 30 s by updateGoldTimestamps)
-  if (asset.ticker === 'XAU' && asset.karat) {
-    const tsText     = formatGoldTs();
-    const isLive     = goldPriceUpdatedAt !== null && (Date.now() - goldPriceUpdatedAt) < 600_000;
-    const changeText = formatGoldChange(goldChangePct);
-    const cls        = goldChangeCls(goldChangePct);
-    return `<div class="market-status gold-price-ts">` +
-      `<span class="gold-live-dot${isLive ? '' : ' stale'}"></span>` +
-      `<span class="js-gold-live">${tsText ? t('goldLive') : t('goldEstimated')}</span>` +
-      (changeText ? `<span class="js-gold-change gold-change ${cls}">${changeText} · </span>` : '') +
-      `<span class="js-gold-updated">${tsText || ''}</span>` +
-      `</div>`;
-  }
+  // Only crypto and stock/ETF show market status on cards
+  if (asset.type === 'cash' || asset.type === 'metal' || asset.type === 'real_estate') return '';
 
   const status = getMarketStatus(asset);
   if (!status) return '';
