@@ -4872,13 +4872,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const offX    = clientX   - rect.left;
     const offY    = clientY   - rect.top;
 
-    // Insert placeholder BEFORE card so it occupies the card's exact grid slot
-    const ph = document.createElement('div');
-    ph.className = 'cat-drag-ph';
-    ph.style.width  = cardW + 'px';
-    ph.style.height = cardH + 'px';
-    card.parentNode.insertBefore(ph, card);
-
     // Absolute positioning relative to container — no viewport drift
     Object.assign(card.style, {
       position:      'absolute',
@@ -4906,7 +4899,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.classList.add('dragging');
     if (navigator.vibrate) navigator.vibrate(22);
 
-    _drag = { card, ph, offX, offY, container };
+    _drag = { card, offX, offY, container, lastTarget: null };
   }
 
   function moveDrag(clientX, clientY) {
@@ -4919,26 +4912,27 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.style.left = (clientX - containerRect.left - _drag.offX) + 'px';
     card.style.top  = (clientY - containerRect.top  - _drag.offY) + 'px';
 
-    // ── Target detection — closest card by distance to center ───
-    let target = null, minDist = Infinity;
-    for (const el of [..._drag.container.querySelectorAll('.cat-card')].filter(el => el !== card && el !== ph)) {
-      const r  = el.getBoundingClientRect();
-      const dx = clientX - (r.left + r.width  / 2);
-      const dy = clientY - (r.top  + r.height / 2);
-      const d  = dx * dx + dy * dy;
-      if (d < minDist) { minDist = d; target = el; }
-    }
-    if (!target) return;
+    // ── Target detection — element directly under pointer ───
+    const el     = document.elementFromPoint(clientX, clientY);
+    const target = el?.closest('.cat-card');
+    if (!target || target === card) return;
 
-    ph.parentNode.insertBefore(ph, target);
+    if (_drag.lastTarget === target) return;
+    _drag.lastTarget = target;
+
+    // Direct swap: A ↔ B
+    const parent = card.parentNode;
+    const nextA  = card.nextSibling;
+    const nextB  = target.nextSibling;
+    parent.insertBefore(card,   nextB === card  ? target : nextB);
+    parent.insertBefore(target, nextA === target ? card   : nextA);
   }
 
   function endDrag() {
     if (!_drag) return;
-    const { card, ph } = _drag;
+    const { card } = _drag;
     _drag = null;
 
-    ph.replaceWith(card);
     card.style.position      = '';
     card.style.left          = '';
     card.style.top           = '';
