@@ -766,59 +766,11 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 /* ── Assets Section top spacing ────────────────────────── */
 .assets-section { margin-top: 24px; }
 
-/* ── Market status indicator (all asset types) ─────────── */
+/* ── Market status indicator (emoji-based) ─────────── */
 .market-status {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 5px;
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: .02em;
-  min-height: 14px; /* prevent layout shift between cards */
-  overflow: hidden; /* clip within the info column on narrow screens */
-  min-width: 0;     /* allow flex/grid cell to shrink below content width */
-}
-
-/* Dot variants */
-.status-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  flex-shrink: 0;
-  transition: background .3s;
-}
-.status-dot.live {
-  background: var(--green);
-  animation: pulse-dot-glow 2s ease-out infinite;
-}
-.status-dot.delayed {
-  background: rgba(243,156,18,.7); /* amber — not aggressive */
-}
-/* Cripto: soft purple, always-on */
-.status-dot.crypto247 {
-  background: rgba(148, 100, 216, .80);
-}
-/* Mercado cerrado: soft red (informativo, no alarmante) */
-.status-dot.closed {
-  background: rgba(200, 80, 80, .60);
-}
-
-.status-label {
-  color: var(--text-muted);
-  min-width: 0;         /* allow flex item to shrink */
-  flex-shrink: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: opacity .3s var(--ease-out);
-}
-/* Cerrado / cripto: ajuste de color del label */
-.status-dot.closed ~ .status-label    { opacity: .60; }
-.status-dot.crypto247 ~ .status-label { color: rgba(148, 100, 216, .70); }
-/* Otros estados desconocidos: atenuar label */
-.status-dot:not(.live):not(.delayed):not(.closed):not(.crypto247) ~ .status-label {
-  opacity: 0.55;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 4px;
 }
 
 /* Gold-specific dot — kept for updateGoldTimestamps() back-compat */
