@@ -4898,9 +4898,10 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       });
     });
 
+    card.classList.add('dragging');
     if (navigator.vibrate) navigator.vibrate(22);
 
-    _drag = { card, ph, offX, offY, lastTarget: null };
+    _drag = { card, ph, offX, offY };
   }
 
   function moveDrag(clientX, clientY) {
@@ -4913,11 +4914,19 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.style.top  = (clientY - _drag.offY) + 'px';
 
     // ── Target detection — closest card by distance to center ───
-    const target = getClosestCard(clientX, clientY);
-    if (!target || target === card || target === ph) return;
+    const cards = [...document.querySelectorAll('.cat-card:not(.dragging)')];
+    let target = null, minDist = Infinity;
+    for (const el of cards) {
+      const r  = el.getBoundingClientRect();
+      const dx = clientX - (r.left + r.width  / 2);
+      const dy = clientY - (r.top  + r.height / 2);
+      const d  = dx * dx + dy * dy;
+      if (d < minDist) { minDist = d; target = el; }
+    }
+    if (!target || target === ph) return;
 
-    const targetRect = target.getBoundingClientRect();
-    const before = clientY < targetRect.top + targetRect.height / 2;
+    const r = target.getBoundingClientRect();
+    const before = clientY < r.top + r.height / 2;
     ph.parentNode.insertBefore(ph, before ? target : target.nextSibling);
   }
 
@@ -4940,7 +4949,11 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     // After animation: restore card to normal DOM flow
     card.addEventListener('transitionend', () => {
       ph.replaceWith(card);
-      card.style.cssText = '';
+      card.style.pointerEvents = '';
+      card.style.width         = '';
+      card.style.height        = '';
+      card.style.cssText       = '';
+      card.classList.remove('dragging');
       saveCatOrder();
       // Suppress post-drag click from opening the category
       card.addEventListener('click', e => e.stopPropagation(), { once: true, capture: true });
