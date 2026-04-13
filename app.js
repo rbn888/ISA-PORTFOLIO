@@ -4857,6 +4857,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function initDrag(card, clientX, clientY) {
+    card.style.pointerEvents = 'none';
     _drag = { card, startX: clientX, startY: clientY, active: false, lastTarget: null, container: card.parentNode, offX: 0, offY: 0 };
   }
 
@@ -4878,16 +4879,15 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     // Absolute positioning relative to container — no viewport drift
     Object.assign(card.style, {
-      position:      'absolute',
-      left:          absLeft + 'px',
-      top:           absTop  + 'px',
-      width:         cardW   + 'px',
-      height:        cardH   + 'px',
-      margin:        '0',
-      transform:     'none',
-      pointerEvents: 'none',
-      willChange:    'left, top',
-      zIndex:        '9999',
+      position:  'absolute',
+      left:      absLeft + 'px',
+      top:       absTop  + 'px',
+      width:     cardW   + 'px',
+      height:    cardH   + 'px',
+      margin:    '0',
+      transform: 'none',
+      willChange: 'left, top',
+      zIndex:    '9999',
     });
 
     // Animate lift in next frame
@@ -4942,17 +4942,18 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const { card, active } = _drag;
     _drag = null;
 
+    card.style.pointerEvents = '';
+
     if (active) {
-      card.style.position      = '';
-      card.style.left          = '';
-      card.style.top           = '';
-      card.style.width         = '';
-      card.style.height        = '';
-      card.style.margin        = '';
-      card.style.transform     = '';
-      card.style.zIndex        = '';
-      card.style.pointerEvents = '';
-      card.style.willChange    = '';
+      card.style.position  = '';
+      card.style.left      = '';
+      card.style.top       = '';
+      card.style.width     = '';
+      card.style.height    = '';
+      card.style.margin    = '';
+      card.style.transform = '';
+      card.style.zIndex    = '';
+      card.style.willChange = '';
       card.classList.remove('dragging');
       saveCatOrder();
       // Block the click that fires after pointerup from triggering card actions
