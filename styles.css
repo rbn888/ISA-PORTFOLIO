@@ -1529,17 +1529,22 @@ body.modal-open {
   user-select: none;
   -webkit-user-select: none;
   transition: border-color var(--dur-med) var(--ease-premium),
-              transform var(--dur-med) var(--ease-premium),
-              opacity 200ms var(--ease-out);
+              transform     var(--dur-med) var(--ease-premium),
+              box-shadow    var(--dur-med) var(--ease-premium),
+              opacity       200ms var(--ease-out);
 }
 .cat-card:hover {
   border-color: var(--border-hi);
-  transform: translateY(-2px);
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
 }
 .cat-card:active,
 .cat-card.is-pressing {
   transform: scale(.98);
-  transition: transform var(--dur-tap) var(--ease-premium), opacity var(--dur-tap);
+  box-shadow: none;
+  transition: transform var(--dur-tap) var(--ease-premium),
+              box-shadow var(--dur-tap) var(--ease-premium),
+              opacity    var(--dur-tap);
 }
 
 /* Dim siblings when one card is hovered — focus effect */
