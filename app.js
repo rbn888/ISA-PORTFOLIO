@@ -4919,31 +4919,18 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.style.left = (clientX - containerRect.left - _drag.offX) + 'px';
     card.style.top  = (clientY - containerRect.top  - _drag.offY) + 'px';
 
-    // ── Target detection — element under pointer (card has pointer-events:none) ───
-    const target = document.elementFromPoint(clientX, clientY)?.closest('.cat-card');
-    if (!target || target === card || target === ph) return;
+    // ── Target detection — closest card by distance to center ───
+    let target = null, minDist = Infinity;
+    for (const el of [..._drag.container.querySelectorAll('.cat-card')].filter(el => el !== card && el !== ph)) {
+      const r  = el.getBoundingClientRect();
+      const dx = clientX - (r.left + r.width  / 2);
+      const dy = clientY - (r.top  + r.height / 2);
+      const d  = dx * dx + dy * dy;
+      if (d < minDist) { minDist = d; target = el; }
+    }
+    if (!target) return;
 
-    // Bounding check with tolerance — forgiving hit area
-    const r      = target.getBoundingClientRect();
-    const margin = 60;
-    if (clientX < r.left - margin || clientX > r.right  + margin ||
-        clientY < r.top  - margin || clientY > r.bottom + margin) return;
-
-    const middle    = r.top + r.height / 2;
-    const threshold = r.height * 0.25;
-
-    let before;
-    if      (clientY < middle - threshold) before = true;
-    else if (clientY > middle + threshold) before = false;
-    else    return; // dead zone — do nothing
-
-    // Skip if placeholder is already in the correct position
-    if (
-      ( before && target.previousSibling === ph) ||
-      (!before && target.nextSibling     === ph)
-    ) return;
-
-    ph.parentNode.insertBefore(ph, before ? target : target.nextSibling);
+    ph.parentNode.insertBefore(ph, target);
   }
 
   function endDrag() {
