@@ -4857,9 +4857,15 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function beginDrag(card, clientX, clientY) {
+    // Capture layout size BEFORE any style changes (offsetWidth excludes transforms)
+    const cardW = card.offsetWidth;
+    const cardH = card.offsetHeight;
+
     // Insert placeholder BEFORE card so it occupies the card's exact grid slot
     const ph = document.createElement('div');
     ph.className = 'cat-drag-ph';
+    ph.style.width  = cardW + 'px';
+    ph.style.height = cardH + 'px';
     card.parentNode.insertBefore(ph, card);
 
     // Step 1: position:fixed + z-index FIRST — establishes the correct coordinate system
@@ -4869,10 +4875,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     // Step 2: rect read AFTER position:fixed — no pre-fixed rect used anywhere
     const rect = card.getBoundingClientRect();
 
-    // Size placeholder from the authoritative rect
-    ph.style.width  = rect.width  + 'px';
-    ph.style.height = rect.height + 'px';
-
     // Step 3: offsets from post-fixed rect only
     const offX = clientX - rect.left;
     const offY = clientY - rect.top;
@@ -4881,8 +4883,8 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     Object.assign(card.style, {
       left:          (clientX - offX) + 'px',
       top:           (clientY - offY) + 'px',
-      width:         rect.width  + 'px',
-      height:        rect.height + 'px',
+      width:         cardW + 'px',
+      height:        cardH + 'px',
       margin:        '0',
       transform:     'none',
       pointerEvents: 'none',

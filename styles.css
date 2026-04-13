@@ -1507,7 +1507,10 @@ body.modal-open {
 
 .categories-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-auto-rows: 1fr;
+  grid-auto-flow: dense;
+  align-items: stretch;
   gap: 16px;
 }
 
@@ -1519,6 +1522,8 @@ body.modal-open {
   border-radius: 16px;
   padding: 20px 22px 18px;
   min-height: 130px;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -3936,7 +3941,7 @@ body.modal-open {
   background: rgba(255, 255, 255, 0.03);
   border: 1px dashed rgba(79, 142, 247, 0.2);
   pointer-events: none;
-  /* width is managed by grid; height is set inline */
+  visibility: hidden;
 }
 
 /* (transitions already defined on .cat-card above) */
