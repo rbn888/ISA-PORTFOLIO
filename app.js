@@ -598,7 +598,8 @@ const CAT_ORDER_KEY      = 'portfolio_cat_order';
 const CAT_DEFAULT_ORDER  = ['stock', 'etf', 'crypto', 'metal', 'real_estate', 'cash'];
 let _cardOrder = JSON.parse(localStorage.getItem(CARD_ORDER_KEY) || 'null') || [];
 let _catOrder  = JSON.parse(localStorage.getItem(CAT_ORDER_KEY)  || 'null') || [];
-let _dd = null; // active drag state (asset cards)
+let _dd = null;          // active drag state (asset cards)
+let justDragged = false; // blocks post-drag click from opening a card
 
 // Show skeleton on total value while initial prices load
 if (assets.length > 0) totalValueEl.classList.add('skeleton');
@@ -4926,13 +4927,12 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     e.preventDefault();
     e.stopPropagation();
 
-    // Suppress the synthetic click that fires after a drag (belt-and-suspenders)
-    card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
+    // Set global flag — the document capture listener will swallow any click
+    // that the browser fires in the next 100 ms as a result of this gesture
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 100);
 
     cleanup();
-
-    // Extra safety: keep started=true briefly so any late-firing event sees it
-    setTimeout(() => { drag.started = false; }, 50);
   }
 
   function onPointerDown(e) {
@@ -4961,4 +4961,13 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   document.addEventListener('pointerdown', onPointerDown);
+
+  // Global capture-phase click blocker — swallows any click the browser
+  // synthesises from a drag gesture before justDragged resets to false
+  document.addEventListener('click', e => {
+    if (justDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
 })();
