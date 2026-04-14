@@ -4875,6 +4875,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup',   onPointerUp);
+
+    // Restore scroll immediately after any drag interaction ends
+    document.body.style.touchAction = 'auto';
   }
 
   function onPointerMove(e) {
@@ -4888,6 +4891,11 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       if (dx > 6 || dy > 6) {
         clearTimeout(drag.pressTimer);
         drag.card = null;
+        // Remove listeners now — pointerup will fire but drag.card is null
+        // so without this the listeners would stay on window indefinitely
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup',   onPointerUp);
+        document.body.style.touchAction = 'auto';
       }
       return;
     }
@@ -4901,6 +4909,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     if (!drag.card) return;
 
     clearTimeout(drag.pressTimer);
+
+    // Release any pointer capture so the browser resumes normal touch routing
+    try { drag.card.releasePointerCapture(e.pointerId); } catch (_) {}
 
     const card = drag.card;
 
@@ -4935,6 +4946,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     setTimeout(() => { justDragged = false; }, 150);
 
     cleanup();
+
+    // Safety: ensure scroll is re-enabled even if cleanup had an edge case
+    setTimeout(() => { document.body.style.touchAction = 'auto'; }, 50);
   }
 
   function onPointerDown(e) {
@@ -4942,6 +4956,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     if (drag.card) return;             // interaction already in progress
     const card = e.target.closest('.cat-card');
     if (!card) return;
+
+    // Lock body scroll for the duration of the potential drag
+    document.body.style.touchAction = 'none';
 
     drag.card    = card;
     drag.startX  = e.clientX;
