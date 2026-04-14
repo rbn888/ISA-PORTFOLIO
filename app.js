@@ -4835,12 +4835,12 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   const grid = document.getElementById('categoriesGrid');
   if (!grid) return;
 
+  // active:    pointer is currently pressed (pointerdown → pointerup)
+  // isDragging: threshold crossed and card is floating
   const _drag = {
-    active: false, card: null, ph: null,
-    offX: 0, offY: 0, startX: 0, startY: 0, rect: null,
+    active: false, isDragging: false, card: null, ph: null,
+    offX: 0, offY: 0, startX: 0, startY: 0, rect: null, pointerId: null,
   };
-
-  const THRESHOLD = 8; // px — minimum movement before float starts
 
   function saveCatOrder() {
     _catOrder = [...grid.querySelectorAll('.cat-card[data-type]')].map(c => c.dataset.type);
@@ -4868,22 +4868,23 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     card.style.pointerEvents = 'none';
     card.classList.add('dragging');
 
-    _drag.active = true;
+    _drag.isDragging = true;
   }
 
   function endDrag(dropX, dropY) {
     const card = _drag.card;
     if (!card) return;
 
-    const wasDragging = _drag.active;
-
     // Find drop target while card is still pointer-transparent
     let target = null;
-    if (wasDragging && typeof dropX === 'number') {
+    if (typeof dropX === 'number') {
       const el = document.elementFromPoint(dropX, dropY);
       target = el?.closest('.cat-card[data-type]');
       if (target === card) target = null;
     }
+
+    // Release capture (auto-released on pointerup, but explicit is cleaner)
+    try { card.releasePointerCapture(_drag.pointerId); } catch (_) {}
 
     // Reset card styles
     card.style.position      = '';
@@ -4916,21 +4917,33 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     // Restore transition after layout snaps (avoids animated jump)
     requestAnimationFrame(() => { card.style.transition = ''; });
 
-    // Full state reset
-    _drag.active = false;
-    _drag.card   = null;
-    _drag.ph     = null;
-    _drag.offX   = 0;
-    _drag.offY   = 0;
-    _drag.startX = 0;
-    _drag.startY = 0;
-    _drag.rect   = null;
+    // Suppress synthetic click after a real drag (desktop)
+    card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
 
-    // Suppress the synthetic click that follows pointerup (desktop only;
-    // mobile click is already blocked by the touchstart handler below)
-    if (wasDragging) {
-      card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
-    }
+    // Full state reset
+    _drag.active     = false;
+    _drag.isDragging = false;
+    _drag.card       = null;
+    _drag.ph         = null;
+    _drag.offX       = 0;
+    _drag.offY       = 0;
+    _drag.startX     = 0;
+    _drag.startY     = 0;
+    _drag.rect       = null;
+    _drag.pointerId  = null;
+  }
+
+  function resetState() {
+    _drag.active     = false;
+    _drag.isDragging = false;
+    _drag.card       = null;
+    _drag.ph         = null;
+    _drag.offX       = 0;
+    _drag.offY       = 0;
+    _drag.startX     = 0;
+    _drag.startY     = 0;
+    _drag.rect       = null;
+    _drag.pointerId  = null;
   }
 
   function cleanup() {
@@ -4940,54 +4953,61 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function onPointerMove(e) {
-    const card = _drag.card;
-    if (!card) return;
+    if (!_drag.active) return;
 
-    if (!_drag.active) {
-      // Haven't crossed movement threshold yet — check now
-      if (Math.hypot(e.clientX - _drag.startX, e.clientY - _drag.startY) < THRESHOLD) return;
+    const dx = Math.abs(e.clientX - _drag.startX);
+    const dy = Math.abs(e.clientY - _drag.startY);
+
+    if (!_drag.isDragging && (dx > 5 || dy > 5)) {
       startFloat();
     }
 
+    if (!_drag.isDragging) return;
+
+    const card = _drag.card;
+    if (!card) return;
     card.style.left = (e.clientX - _drag.offX) + 'px';
     card.style.top  = (e.clientY - _drag.offY) + 'px';
   }
 
   function onPointerUp(e) {
     cleanup();
+    if (!_drag.isDragging) {
+      // Was a tap — just clean up; let touchend/click handlers navigate
+      resetState();
+      return;
+    }
     endDrag(e.clientX, e.clientY);
   }
 
   function onPointerCancel() {
     cleanup();
-    endDrag(); // cancelled — card returns to original position, no swap
+    endDrag(); // restore card to original position, no swap
   }
 
   function onPointerDown(e) {
-    if (_drag.card) return;            // already pending or dragging
+    if (_drag.active) return;
     const card = e.target.closest('.cat-card');
     if (!card) return;
 
-    const rect   = card.getBoundingClientRect();
-    _drag.card   = card;
-    _drag.offX   = e.clientX - rect.left;
-    _drag.offY   = e.clientY - rect.top;
-    _drag.startX = e.clientX;
-    _drag.startY = e.clientY;
-    _drag.rect   = rect;
+    const rect         = card.getBoundingClientRect();
+    _drag.active       = true;
+    _drag.isDragging   = false;
+    _drag.card         = card;
+    _drag.offX         = e.clientX - rect.left;
+    _drag.offY         = e.clientY - rect.top;
+    _drag.startX       = e.clientX;
+    _drag.startY       = e.clientY;
+    _drag.rect         = rect;
+    _drag.pointerId    = e.pointerId;
 
-    // Capture pointer — events keep firing on grid even if finger strays off element
-    grid.setPointerCapture(e.pointerId);
+    // Capture to card (not grid) so click events still target the card element
+    card.setPointerCapture(e.pointerId);
 
     grid.addEventListener('pointermove',   onPointerMove);
     grid.addEventListener('pointerup',     onPointerUp);
     grid.addEventListener('pointercancel', onPointerCancel);
   }
-
-  // Prevent iOS long-press zoom / magnifier / callout on cat-cards
-  document.addEventListener('touchstart', e => {
-    if (e.target.closest('.cat-card')) e.preventDefault();
-  }, { passive: false });
 
   grid.addEventListener('pointerdown', onPointerDown);
 })();
