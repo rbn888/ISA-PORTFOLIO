@@ -4992,7 +4992,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       card.style.pointerEvents        = 'none';
       card.classList.add('dragging');
       if (navigator.vibrate) navigator.vibrate(10);
-    }, 220);
+    }, 2000); // 2 s hold required — prevents accidental drag during scroll
   }
 
   function onTouchMove(e) {
@@ -5002,28 +5002,16 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const dx = touch.clientX - drag.startX;
     const dy = touch.clientY - drag.startY;
 
+    // Any movement before the hold completes → cancel drag, let browser scroll
     if (!drag.active) {
-      // Vertical dominant → user is scrolling, cancel drag entirely
-      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
         clearTimeout(drag.pressTimer);
         drag.card = null;
-        return;
       }
-      // Horizontal dominant → activate drag immediately without waiting for hold
-      if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) {
-        clearTimeout(drag.pressTimer);
-        drag.active                     = true;
-        document.body.style.touchAction = 'none';
-        drag.card.style.zIndex          = '9999';
-        drag.card.style.transition      = 'none';
-        drag.card.style.pointerEvents   = 'none';
-        drag.card.classList.add('dragging');
-        if (navigator.vibrate) navigator.vibrate(10);
-      }
-      return; // activated or undecided — next move event will render the card
+      return;
     }
 
-    // drag.active — track the card
+    // Hold confirmed — track the card
     drag.started = true;
     e.preventDefault();
     drag.card.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
