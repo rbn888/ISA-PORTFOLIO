@@ -4830,201 +4830,125 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }, { passive: true });
 })();
 
-// ── Cat-card drag & drop (floating card) ────────────────────
+// ── Cat-card drag & drop ────────────────────────────────────
 (function initCatCardDragDrop() {
   const grid = document.getElementById('categoriesGrid');
   if (!grid) return;
-
-  // active:     180 ms hold timer has fired → drag is armed
-  // isDragging: threshold crossed and card is floating
-  const _drag = {
-    active: false, isDragging: false, card: null, ph: null,
-    pressTimer: null, offX: 0, offY: 0, startX: 0, startY: 0,
-    rect: null, pointerId: null,
-  };
 
   function saveCatOrder() {
     _catOrder = [...grid.querySelectorAll('.cat-card[data-type]')].map(c => c.dataset.type);
     localStorage.setItem(CAT_ORDER_KEY, JSON.stringify(_catOrder));
   }
 
-  function startFloat() {
-    const { card, rect } = _drag;
-
-    const ph           = document.createElement('div');
-    ph.className       = 'cat-drag-ph';
-    ph.style.width     = rect.width  + 'px';
-    ph.style.height    = rect.height + 'px';
-    card.parentNode.insertBefore(ph, card);
-    _drag.ph = ph;
-
-    card.style.position      = 'fixed';
-    card.style.left          = rect.left + 'px';
-    card.style.top           = rect.top  + 'px';
-    card.style.width         = rect.width  + 'px';
-    card.style.height        = rect.height + 'px';
-    card.style.margin        = '0';
-    card.style.zIndex        = '9999';
-    card.style.transition    = 'none';
-    card.style.pointerEvents = 'none';
-    card.classList.add('dragging');
-
-    _drag.isDragging = true;
-  }
-
-  function endDrag(dropX, dropY) {
-    const card = _drag.card;
-    if (!card) return;
-
-    // Find drop target while card is still pointer-transparent
-    let target = null;
-    if (typeof dropX === 'number') {
-      const el = document.elementFromPoint(dropX, dropY);
-      target = el?.closest('.cat-card[data-type]');
-      if (target === card) target = null;
-    }
-
-    // Release capture (auto-released on pointerup, but explicit is cleaner)
-    try { card.releasePointerCapture(_drag.pointerId); } catch (_) {}
-
-    // Reset card styles
-    card.style.position      = '';
-    card.style.left          = '';
-    card.style.top           = '';
-    card.style.width         = '';
-    card.style.height        = '';
-    card.style.margin        = '';
-    card.style.zIndex        = '';
-    card.style.transition    = 'none';
-    card.style.pointerEvents = '';
-    card.classList.remove('dragging');
-
-    // Restore card to placeholder position, then remove placeholder
-    const ph = _drag.ph;
-    if (ph && ph.parentNode) {
-      ph.parentNode.insertBefore(card, ph);
-      ph.remove();
-    }
-
-    // Swap with drop target
-    if (target) {
-      const nextA = card.nextSibling;
-      const nextB = target.nextSibling;
-      grid.insertBefore(card,   nextB);
-      grid.insertBefore(target, nextA);
-      saveCatOrder();
-    }
-
-    // Restore transition after layout snaps (avoids animated jump)
-    requestAnimationFrame(() => { card.style.transition = ''; });
-
-    // Suppress synthetic click after a real drag (desktop)
-    card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
-
-    // Full state reset
-    _drag.active     = false;
-    _drag.isDragging = false;
-    _drag.card       = null;
-    _drag.ph         = null;
-    _drag.pressTimer = null;
-    _drag.offX       = 0;
-    _drag.offY       = 0;
-    _drag.startX     = 0;
-    _drag.startY     = 0;
-    _drag.rect       = null;
-    _drag.pointerId  = null;
-  }
-
-  function resetState() {
-    _drag.active     = false;
-    _drag.isDragging = false;
-    _drag.card       = null;
-    _drag.ph         = null;
-    _drag.pressTimer = null;
-    _drag.offX       = 0;
-    _drag.offY       = 0;
-    _drag.startX     = 0;
-    _drag.startY     = 0;
-    _drag.rect       = null;
-    _drag.pointerId  = null;
-  }
+  // active:  hold timer has fired, drag is armed
+  // started: card has actually moved (real drag, not a tap)
+  let drag = {
+    active: false,
+    started: false,
+    card: null,
+    startX: 0,
+    startY: 0,
+    pressTimer: null,
+  };
 
   function cleanup() {
-    grid.removeEventListener('pointermove',   onPointerMove);
-    grid.removeEventListener('pointerup',     onPointerUp);
-    grid.removeEventListener('pointercancel', onPointerCancel);
+    if (!drag.card) return;
+
+    drag.card.style.transform     = '';
+    drag.card.style.zIndex        = '';
+    drag.card.style.transition    = '';
+    drag.card.style.pointerEvents = '';
+    drag.card.classList.remove('dragging');
+
+    drag = {
+      active: false,
+      started: false,
+      card: null,
+      startX: 0,
+      startY: 0,
+      pressTimer: null,
+    };
+
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup',   onPointerUp);
   }
 
   function onPointerMove(e) {
-    if (!_drag.card) return;
+    if (!drag.card) return;
 
-    const dx = Math.abs(e.clientX - _drag.startX);
-    const dy = Math.abs(e.clientY - _drag.startY);
+    const dx = Math.abs(e.clientX - drag.startX);
+    const dy = Math.abs(e.clientY - drag.startY);
 
-    // Moved before the hold timer fired → user is scrolling, not dragging
-    if (!_drag.active && (dx > 5 || dy > 5)) {
-      clearTimeout(_drag.pressTimer);
+    if (!drag.active) {
+      // Moved before hold completed → treat as scroll/tap, cancel drag
+      if (dx > 6 || dy > 6) {
+        clearTimeout(drag.pressTimer);
+        drag.card = null;
+      }
       return;
     }
 
-    if (!_drag.active) return;  // still waiting for hold to complete
-
-    // Hold complete — start floating on first movement past threshold
-    if (!_drag.isDragging && (dx > 5 || dy > 5)) {
-      startFloat();
-    }
-
-    if (!_drag.isDragging) return;
-
-    const card = _drag.card;
-    if (!card) return;
-    card.style.left = (e.clientX - _drag.offX) + 'px';
-    card.style.top  = (e.clientY - _drag.offY) + 'px';
+    drag.started = true;
+    drag.card.style.transform =
+      `translate(${e.clientX - drag.startX}px, ${e.clientY - drag.startY}px) scale(1.03)`;
   }
 
   function onPointerUp(e) {
-    clearTimeout(_drag.pressTimer);
-    cleanup();
-    if (!_drag.isDragging) {
-      // Was a tap — clean up; let touchend/click handlers navigate
-      resetState();
+    if (!drag.card) return;
+
+    clearTimeout(drag.pressTimer);
+
+    const card = drag.card;
+
+    if (!drag.started) {
+      // Tap — let existing touchend/click handlers open the card
+      cleanup();
       return;
     }
-    endDrag(e.clientX, e.clientY);
-  }
 
-  function onPointerCancel() {
-    clearTimeout(_drag.pressTimer);
+    // Real drag — find drop target and swap
+    const el     = document.elementFromPoint(e.clientX, e.clientY);
+    const target = el?.closest('.cat-card[data-type]');
+
+    if (target && target !== card) {
+      const parent = card.parentNode;
+      const nextA  = card.nextSibling;
+      const nextB  = target.nextSibling;
+      parent.insertBefore(card,   nextB);
+      parent.insertBefore(target, nextA);
+      saveCatOrder();
+    }
+
+    // Suppress the synthetic click that fires after a drag
+    card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
+
     cleanup();
-    endDrag(); // restore card to original position, no swap
   }
 
   function onPointerDown(e) {
-    if (_drag.card) return;            // interaction already in progress
+    if (activeCategory) return;        // disabled in category detail view
+    if (drag.card) return;             // interaction already in progress
     const card = e.target.closest('.cat-card');
     if (!card) return;
 
-    const rect         = card.getBoundingClientRect();
-    _drag.active       = false;        // armed by timer, not immediately
-    _drag.isDragging   = false;
-    _drag.card         = card;
-    _drag.offX         = e.clientX - rect.left;
-    _drag.offY         = e.clientY - rect.top;
-    _drag.startX       = e.clientX;
-    _drag.startY       = e.clientY;
-    _drag.rect         = rect;
-    _drag.pointerId    = e.pointerId;
+    drag.card    = card;
+    drag.startX  = e.clientX;
+    drag.startY  = e.clientY;
+    drag.started = false;
+    drag.active  = false;
 
-    // Arm drag after 180 ms hold — short taps never activate it
-    _drag.pressTimer = setTimeout(() => { _drag.active = true; }, 180);
+    // Arm drag after 180 ms hold — short taps never trigger drag
+    drag.pressTimer = setTimeout(() => {
+      drag.active               = true;
+      card.style.zIndex         = '9999';
+      card.style.transition     = 'none';
+      card.style.pointerEvents  = 'none';
+      card.classList.add('dragging');
+    }, 180);
 
-    // Capture to card (not grid) so click events still target the card element
-    card.setPointerCapture(e.pointerId);
-
-    grid.addEventListener('pointermove',   onPointerMove);
-    grid.addEventListener('pointerup',     onPointerUp);
-    grid.addEventListener('pointercancel', onPointerCancel);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup',   onPointerUp);
   }
 
-  grid.addEventListener('pointerdown', onPointerDown);
+  document.addEventListener('pointerdown', onPointerDown);
 })();
