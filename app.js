@@ -4952,12 +4952,31 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   const isMobile = 'ontouchstart' in window;
 
-  // ── Touch path (mobile) — all listeners passive so scroll is never blocked ──
+  // ── Touch path (mobile) ────────────────────────────────────────────────────
+
+  // Hard reset — always clears state regardless of intermediate failures
+  function resetDrag() {
+    clearTimeout(drag.pressTimer);
+    if (drag.card) {
+      drag.card.style.transform     = '';
+      drag.card.style.zIndex        = '';
+      drag.card.style.transition    = '';
+      drag.card.style.boxShadow     = '';
+      drag.card.style.pointerEvents = '';
+      drag.card.classList.remove('dragging');
+    }
+    drag.active  = false;
+    drag.started = false;
+    drag.card    = null;
+    document.body.style.touchAction = 'auto';
+  }
 
   function onTouchStart(e) {
     if (activeCategory) return;
+    if (drag.active) return;          // guard: another drag already armed
+    drag.card = null;                 // clear any stale reference before starting
     const card = e.target.closest('.cat-card');
-    if (!card || drag.card) return;
+    if (!card) return;
     const touch = e.touches[0];
     drag.card    = card;
     drag.startX  = touch.clientX;
@@ -4978,11 +4997,11 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   function onTouchMove(e) {
     if (!drag.card) return;
-    if (!drag.active) return;   // still in hold-timer window — let browser scroll
+    if (!drag.active) return;         // still in hold-timer window — let browser scroll
 
     clearTimeout(drag.pressTimer);
     drag.started = true;
-    e.preventDefault();         // block scroll while card is being dragged
+    e.preventDefault();               // block scroll while card is being dragged
 
     const touch = e.touches[0];
     const dx = touch.clientX - drag.startX;
@@ -5008,7 +5027,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       justDragged = true;
       setTimeout(() => { justDragged = false; }, 150);
     }
-    cleanup();
+    resetDrag();
   }
 
   // ── Pointer path (desktop) ──────────────────────────────────────────────────
@@ -5048,9 +5067,10 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   // ── Register whichever event set matches the device ────────────────────────
   if (isMobile) {
-    document.addEventListener('touchstart', onTouchStart, { passive: true });
-    document.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    document.addEventListener('touchend',   onTouchEnd);
+    document.addEventListener('touchstart',  onTouchStart, { passive: true });
+    document.addEventListener('touchmove',   onTouchMove,  { passive: false });
+    document.addEventListener('touchend',    onTouchEnd);
+    document.addEventListener('touchcancel', resetDrag);
   } else {
     document.addEventListener('pointerdown', onPointerDown);
   }
