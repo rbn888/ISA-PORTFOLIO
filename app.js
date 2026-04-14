@@ -4835,11 +4835,12 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   const grid = document.getElementById('categoriesGrid');
   if (!grid) return;
 
-  // active:    pointer is currently pressed (pointerdown → pointerup)
+  // active:     180 ms hold timer has fired → drag is armed
   // isDragging: threshold crossed and card is floating
   const _drag = {
     active: false, isDragging: false, card: null, ph: null,
-    offX: 0, offY: 0, startX: 0, startY: 0, rect: null, pointerId: null,
+    pressTimer: null, offX: 0, offY: 0, startX: 0, startY: 0,
+    rect: null, pointerId: null,
   };
 
   function saveCatOrder() {
@@ -4925,6 +4926,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     _drag.isDragging = false;
     _drag.card       = null;
     _drag.ph         = null;
+    _drag.pressTimer = null;
     _drag.offX       = 0;
     _drag.offY       = 0;
     _drag.startX     = 0;
@@ -4938,6 +4940,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     _drag.isDragging = false;
     _drag.card       = null;
     _drag.ph         = null;
+    _drag.pressTimer = null;
     _drag.offX       = 0;
     _drag.offY       = 0;
     _drag.startX     = 0;
@@ -4953,11 +4956,20 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function onPointerMove(e) {
-    if (!_drag.active) return;
+    if (!_drag.card) return;
 
     const dx = Math.abs(e.clientX - _drag.startX);
     const dy = Math.abs(e.clientY - _drag.startY);
 
+    // Moved before the hold timer fired → user is scrolling, not dragging
+    if (!_drag.active && (dx > 5 || dy > 5)) {
+      clearTimeout(_drag.pressTimer);
+      return;
+    }
+
+    if (!_drag.active) return;  // still waiting for hold to complete
+
+    // Hold complete — start floating on first movement past threshold
     if (!_drag.isDragging && (dx > 5 || dy > 5)) {
       startFloat();
     }
@@ -4971,9 +4983,10 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function onPointerUp(e) {
+    clearTimeout(_drag.pressTimer);
     cleanup();
     if (!_drag.isDragging) {
-      // Was a tap — just clean up; let touchend/click handlers navigate
+      // Was a tap — clean up; let touchend/click handlers navigate
       resetState();
       return;
     }
@@ -4981,17 +4994,18 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function onPointerCancel() {
+    clearTimeout(_drag.pressTimer);
     cleanup();
     endDrag(); // restore card to original position, no swap
   }
 
   function onPointerDown(e) {
-    if (_drag.active) return;
+    if (_drag.card) return;            // interaction already in progress
     const card = e.target.closest('.cat-card');
     if (!card) return;
 
     const rect         = card.getBoundingClientRect();
-    _drag.active       = true;
+    _drag.active       = false;        // armed by timer, not immediately
     _drag.isDragging   = false;
     _drag.card         = card;
     _drag.offX         = e.clientX - rect.left;
@@ -5000,6 +5014,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     _drag.startY       = e.clientY;
     _drag.rect         = rect;
     _drag.pointerId    = e.pointerId;
+
+    // Arm drag after 180 ms hold — short taps never activate it
+    _drag.pressTimer = setTimeout(() => { _drag.active = true; }, 180);
 
     // Capture to card (not grid) so click events still target the card element
     card.setPointerCapture(e.pointerId);
