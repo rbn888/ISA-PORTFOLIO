@@ -61,6 +61,13 @@ select:focus-visible {
   /* Brand */
   --aurix-blue:       #2bc8f2;
   --aurix-blue-light: #4a82f0;
+  /* Category palette */
+  --color-crypto:      #2563EB;
+  --color-real-estate: #7C3AED;
+  --color-funds:       #0891B2;
+  --color-stocks:      #EA580C;
+  --color-cash:        #16A34A;
+  --color-metals:      #CA8A04;
 }
 
 body {
