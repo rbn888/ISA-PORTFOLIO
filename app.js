@@ -4857,6 +4857,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     drag.card.style.transform     = '';
     drag.card.style.zIndex        = '';
     drag.card.style.transition    = '';
+    drag.card.style.boxShadow     = '';
     drag.card.style.pointerEvents = '';
     drag.card.classList.remove('dragging');
 
@@ -4890,7 +4891,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
     drag.started = true;
     drag.card.style.transform =
-      `translate(${e.clientX - drag.startX}px, ${e.clientY - drag.startY}px) scale(1.03)`;
+      `translate(${e.clientX - drag.startX}px, ${e.clientY - drag.startY}px) scale(1.05)`;
   }
 
   function onPointerUp(e) {
@@ -4906,8 +4907,10 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       return;
     }
 
-    // Real drag — find drop target and swap
+    // Real drag — ensure card is transparent so elementFromPoint sees through it
+    card.style.pointerEvents = 'none';
     const el     = document.elementFromPoint(e.clientX, e.clientY);
+    card.style.pointerEvents = '';
     const target = el?.closest('.cat-card[data-type]');
 
     if (target && target !== card) {
