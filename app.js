@@ -2222,10 +2222,12 @@ function updateCategoryCards() {
     // touchend: fire action if finger didn't scroll away
     btn.addEventListener('touchend', (e) => {
       btn.classList.remove('is-pressing');
-      if (_tapOk) {
+      if (_tapOk && !justDragged) {
         _tapOk = false;
         e.preventDefault(); // prevent ghost click
         setActiveCategory(btn.dataset.type);
+      } else {
+        _tapOk = false;
       }
     });
 
@@ -2235,7 +2237,7 @@ function updateCategoryCards() {
     });
 
     // click: fallback for desktop / non-touch
-    btn.addEventListener('click', () => setActiveCategory(btn.dataset.type));
+    btn.addEventListener('click', () => { if (!justDragged) setActiveCategory(btn.dataset.type); });
   });
 }
 
@@ -4930,7 +4932,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     // Set global flag — the document capture listener will swallow any click
     // that the browser fires in the next 100 ms as a result of this gesture
     justDragged = true;
-    setTimeout(() => { justDragged = false; }, 100);
+    setTimeout(() => { justDragged = false; }, 150);
 
     cleanup();
   }
@@ -4962,12 +4964,14 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 
   document.addEventListener('pointerdown', onPointerDown);
 
-  // Global capture-phase click blocker — swallows any click the browser
-  // synthesises from a drag gesture before justDragged resets to false
-  document.addEventListener('click', e => {
-    if (justDragged) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, true);
+  // Per-card click guard — blocks any synthetic click on a cat-card
+  // that the browser fires within 150 ms of a drag gesture ending
+  grid.querySelectorAll('.cat-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (justDragged) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+  });
 })();
