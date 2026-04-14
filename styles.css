@@ -1,7 +1,12 @@
 /* ── Reset & Base ──────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+button:active { transform: scale(0.96); opacity: 0.85; }
 a      { -webkit-tap-highlight-color: transparent; }
 
 /* ── Keyboard focus ring ────────────────────────────────── */
@@ -2854,6 +2859,17 @@ body.modal-open {
   animation: cat-card-arrive .46s var(--ease-out);
 }
 
+/* Staggered fade-up entrance — JS adds .cat-card--visible one by one */
+.categories-grid .cat-card {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.categories-grid .cat-card.cat-card--visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
 /* Suppress hover transforms while entrance sequence is running */
 .app--animating .hero-card:hover,
 .app--animating .distribution-section:hover,
@@ -2865,6 +2881,9 @@ body.modal-open {
 @media (prefers-reduced-motion: reduce) {
   .balance-glow-pulse { animation: none; }
   .cat-card--arrive   { animation: none; }
+  /* Skip stagger — show all cards immediately */
+  .categories-grid .cat-card          { opacity: 1; transform: none; }
+  .categories-grid .cat-card.cat-card--visible { transition: none; }
   .chart-wrap--drawing::after { animation: none; opacity: 0; }
   .cc-wave-bar, .cc-metal-shine, .cc-bldg, .cc-flow, .cc-ticker-big,
   .cc-ticker-secondary, .cc-micro-bar, .cc-signal-ring { animation: none; }

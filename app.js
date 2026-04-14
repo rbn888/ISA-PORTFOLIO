@@ -2204,6 +2204,13 @@ function updateCategoryCards() {
     btn.style.setProperty('--vi', i);
   });
 
+  // Staggered fade-up entrance — each card reveals 80 ms after the previous
+  requestAnimationFrame(() => {
+    grid.querySelectorAll('.cat-card').forEach((card, i) => {
+      setTimeout(() => card.classList.add('cat-card--visible'), i * 80);
+    });
+  });
+
   grid.querySelectorAll('.cat-card').forEach(btn => {
     let _tapOk = false;
 
