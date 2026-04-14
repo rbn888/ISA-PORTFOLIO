@@ -1519,9 +1519,9 @@ body.modal-open {
 .cat-card {
   position: relative;
   overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 18px;
   padding: 20px 22px 18px;
   min-height: 130px;
   width: 100%;
@@ -1536,6 +1536,11 @@ body.modal-open {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.05);
   transition: border-color var(--dur-med) var(--ease-premium),
               transform     var(--dur-med) var(--ease-premium),
               box-shadow    var(--dur-med) var(--ease-premium),
@@ -1544,18 +1549,21 @@ body.modal-open {
 .cat-card.dragging {
   transition: none !important;
   z-index: 1000;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.35),
+              inset 0 1px 0 rgba(255,255,255,0.05);
   cursor: grabbing;
 }
 .cat-card:hover {
-  border-color: var(--border-hi);
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  border-color: rgba(255,255,255,0.10);
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.22),
+              inset 0 1px 0 rgba(255,255,255,0.07);
 }
 .cat-card:active,
 .cat-card.is-pressing {
-  transform: scale(.98);
-  box-shadow: none;
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12),
+              inset 0 1px 0 rgba(255,255,255,0.04);
   transition: transform var(--dur-tap) var(--ease-premium),
               box-shadow var(--dur-tap) var(--ease-premium),
               opacity    var(--dur-tap);
