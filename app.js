@@ -4835,63 +4835,159 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   const grid = document.getElementById('categoriesGrid');
   if (!grid) return;
 
+  const _drag = {
+    active: false, card: null, ph: null,
+    offX: 0, offY: 0, startX: 0, startY: 0, rect: null,
+  };
+
+  const THRESHOLD = 8; // px — minimum movement before float starts
+
   function saveCatOrder() {
     _catOrder = [...grid.querySelectorAll('.cat-card[data-type]')].map(c => c.dataset.type);
     localStorage.setItem(CAT_ORDER_KEY, JSON.stringify(_catOrder));
   }
 
-  let drag = null;
+  function startFloat() {
+    const { card, rect } = _drag;
 
-  function onPointerDown(e) {
-    const card = e.target.closest('.cat-card');
+    const ph           = document.createElement('div');
+    ph.className       = 'cat-drag-ph';
+    ph.style.width     = rect.width  + 'px';
+    ph.style.height    = rect.height + 'px';
+    card.parentNode.insertBefore(ph, card);
+    _drag.ph = ph;
+
+    card.style.position      = 'fixed';
+    card.style.left          = rect.left + 'px';
+    card.style.top           = rect.top  + 'px';
+    card.style.width         = rect.width  + 'px';
+    card.style.height        = rect.height + 'px';
+    card.style.margin        = '0';
+    card.style.zIndex        = '9999';
+    card.style.transition    = 'none';
+    card.style.pointerEvents = 'none';
+    card.classList.add('dragging');
+
+    _drag.active = true;
+  }
+
+  function endDrag(dropX, dropY) {
+    const card = _drag.card;
     if (!card) return;
 
-    drag = { card, startX: e.clientX, startY: e.clientY, dx: 0, dy: 0 };
+    const wasDragging = _drag.active;
 
+    // Find drop target while card is still pointer-transparent
+    let target = null;
+    if (wasDragging && typeof dropX === 'number') {
+      const el = document.elementFromPoint(dropX, dropY);
+      target = el?.closest('.cat-card[data-type]');
+      if (target === card) target = null;
+    }
+
+    // Reset card styles
+    card.style.position      = '';
+    card.style.left          = '';
+    card.style.top           = '';
+    card.style.width         = '';
+    card.style.height        = '';
+    card.style.margin        = '';
+    card.style.zIndex        = '';
     card.style.transition    = 'none';
-    card.style.zIndex        = '9999';
-    card.style.pointerEvents = 'none';
+    card.style.pointerEvents = '';
+    card.classList.remove('dragging');
 
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup',   onPointerUp);
-  }
+    // Restore card to placeholder position, then remove placeholder
+    const ph = _drag.ph;
+    if (ph && ph.parentNode) {
+      ph.parentNode.insertBefore(card, ph);
+      ph.remove();
+    }
 
-  function onPointerMove(e) {
-    if (!drag) return;
-    drag.dx = e.clientX - drag.startX;
-    drag.dy = e.clientY - drag.startY;
-    drag.card.style.transform = `translate(${drag.dx}px, ${drag.dy}px) scale(1.02)`;
-  }
-
-  function onPointerUp(e) {
-    if (!drag) return;
-    const { card } = drag;
-
-    const el     = document.elementFromPoint(e.clientX, e.clientY);
-    const target = el?.closest('.cat-card');
-
-    if (target && target !== card) {
-      const parent = card.parentNode;
-      const nextA  = card.nextSibling;
-      const nextB  = target.nextSibling;
-      parent.insertBefore(card,   nextB);
-      parent.insertBefore(target, nextA);
+    // Swap with drop target
+    if (target) {
+      const nextA = card.nextSibling;
+      const nextB = target.nextSibling;
+      grid.insertBefore(card,   nextB);
+      grid.insertBefore(target, nextA);
       saveCatOrder();
     }
 
-    card.style.transform     = '';
-    card.style.transition    = '';
-    card.style.zIndex        = '';
-    card.style.pointerEvents = '';
+    // Restore transition after layout snaps (avoids animated jump)
+    requestAnimationFrame(() => { card.style.transition = ''; });
 
-    drag = null;
+    // Full state reset
+    _drag.active = false;
+    _drag.card   = null;
+    _drag.ph     = null;
+    _drag.offX   = 0;
+    _drag.offY   = 0;
+    _drag.startX = 0;
+    _drag.startY = 0;
+    _drag.rect   = null;
 
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointerup',   onPointerUp);
-
-    // Suppress the click that fires after pointerup on a button element
-    card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
+    // Suppress the synthetic click that follows pointerup (desktop only;
+    // mobile click is already blocked by the touchstart handler below)
+    if (wasDragging) {
+      card.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
+    }
   }
+
+  function cleanup() {
+    grid.removeEventListener('pointermove',   onPointerMove);
+    grid.removeEventListener('pointerup',     onPointerUp);
+    grid.removeEventListener('pointercancel', onPointerCancel);
+  }
+
+  function onPointerMove(e) {
+    const card = _drag.card;
+    if (!card) return;
+
+    if (!_drag.active) {
+      // Haven't crossed movement threshold yet — check now
+      if (Math.hypot(e.clientX - _drag.startX, e.clientY - _drag.startY) < THRESHOLD) return;
+      startFloat();
+    }
+
+    card.style.left = (e.clientX - _drag.offX) + 'px';
+    card.style.top  = (e.clientY - _drag.offY) + 'px';
+  }
+
+  function onPointerUp(e) {
+    cleanup();
+    endDrag(e.clientX, e.clientY);
+  }
+
+  function onPointerCancel() {
+    cleanup();
+    endDrag(); // cancelled — card returns to original position, no swap
+  }
+
+  function onPointerDown(e) {
+    if (_drag.card) return;            // already pending or dragging
+    const card = e.target.closest('.cat-card');
+    if (!card) return;
+
+    const rect   = card.getBoundingClientRect();
+    _drag.card   = card;
+    _drag.offX   = e.clientX - rect.left;
+    _drag.offY   = e.clientY - rect.top;
+    _drag.startX = e.clientX;
+    _drag.startY = e.clientY;
+    _drag.rect   = rect;
+
+    // Capture pointer — events keep firing on grid even if finger strays off element
+    grid.setPointerCapture(e.pointerId);
+
+    grid.addEventListener('pointermove',   onPointerMove);
+    grid.addEventListener('pointerup',     onPointerUp);
+    grid.addEventListener('pointercancel', onPointerCancel);
+  }
+
+  // Prevent iOS long-press zoom / magnifier / callout on cat-cards
+  document.addEventListener('touchstart', e => {
+    if (e.target.closest('.cat-card')) e.preventDefault();
+  }, { passive: false });
 
   grid.addEventListener('pointerdown', onPointerDown);
 })();

@@ -1530,7 +1530,8 @@ body.modal-open {
   gap: 5px;
   cursor: pointer;
   text-align: left;
-  touch-action: manipulation;
+  touch-action: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
