@@ -1735,40 +1735,26 @@ body.modal-open {
   bottom: 10px;
   right: 10px;
   display: flex;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 6px;
-  width: auto !important;
-  max-width: none !important;
   pointer-events: none;
-  background: none !important;
-  box-shadow: none !important;
+  background: none;
+  box-shadow: none;
 }
 
 .cat-card-visual img {
-  display: inline-block !important;
-  flex: 0 0 auto !important;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
   object-fit: contain;
-  opacity: 0;
-  transform: scale(0.85);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.cat-card-visual img.loaded {
+  border-radius: 50%;
   opacity: 1;
-  transform: scale(1);
+  transform: none;
 }
-
-.cat-card-visual img:hover { transform: scale(1.1); opacity: 1; }
 
 .logo-fallback {
-  display: inline-flex !important;
-  flex: 0 0 auto !important;
+  display: inline-flex;
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -2703,7 +2689,7 @@ body.modal-open {
   .categories-grid .cat-card.cat-card--visible { transition: none; }
   .chart-wrap--drawing::after { animation: none; opacity: 0; }
   .hero-card::before { animation: none; }
-  .cat-card-visual img { opacity: 1 !important; transform: scale(1) !important; transition: none !important; }
+  .cat-card-visual img { opacity: 1; transform: none; }
   .chart-wrap::after { animation: none; opacity: 0; }
   .logo-block .logo-aurix { animation: none; }
   /* Strip transitions for reduced-motion users */
