@@ -518,6 +518,7 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  cursor: pointer;
   padding: 18px 20px 18px 18px;
   display: grid;
   grid-template-columns: auto 1fr minmax(160px, auto) auto;
@@ -3320,6 +3321,7 @@ body.modal-open {
   display: grid;
   grid-template-columns: 42px 1fr auto;
   align-items: center;
+  cursor: pointer;
   gap: 0 14px;
   padding: 13px 18px;
   border-bottom: 1px solid rgba(255,255,255,.06);
