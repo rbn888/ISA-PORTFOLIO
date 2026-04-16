@@ -1338,6 +1338,42 @@ function processSeries(data) {
   }
 }
 
+// ── Live-source quality gate ──────────────────────────────────────────────
+// Returns true only when the raw live data is clean enough to trust:
+//   • enough points (≥ 10)
+//   • <20% duplicate timestamps
+//   • no consecutive value spike > 50%
+//   • no single gap > 10× the median inter-point gap
+function isValidSource(data) {
+  if (!Array.isArray(data) || data.length < 10) return false;
+
+  const pts = data
+    .filter(p => p && typeof p.ts === 'number' && typeof p.value === 'number' && isFinite(p.value))
+    .sort((a, b) => a.ts - b.ts);
+
+  if (pts.length < 10) return false;
+
+  // Duplicate-dominance check
+  const uniqueCount = new Set(pts.map(p => p.ts)).size;
+  if (uniqueCount / pts.length < 0.8) return false;
+
+  // Spike and gap checks (single pass)
+  const gaps = [];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1];
+    const curr = pts[i];
+    if (prev.value > 0 && Math.abs(curr.value - prev.value) / prev.value > 0.5) return false;
+    gaps.push(curr.ts - prev.ts);
+  }
+
+  // Large-gap check: reject if max gap > 10× median gap
+  gaps.sort((a, b) => a - b);
+  const medianGap = gaps[Math.floor(gaps.length / 2)];
+  if (medianGap > 0 && gaps[gaps.length - 1] > medianGap * 10) return false;
+
+  return true;
+}
+
 function getChartData(range) {
   const now = Date.now();
 
@@ -1356,10 +1392,11 @@ function getChartData(range) {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   };
 
-  // 1. Choose source
+  // 1. Choose source — prefer live only when it passes the quality gate
+  const liveData = window._liveHistory && window._liveHistory[range];
   const source =
-    (window._liveHistory && Array.isArray(window._liveHistory[range]) && window._liveHistory[range].length > 0)
-      ? window._liveHistory[range]
+    (Array.isArray(liveData) && liveData.length >= 10 && isValidSource(liveData))
+      ? liveData
       : portfolioHistory;
 
   if (!Array.isArray(source) || source.length < 2) return null;
