@@ -1289,7 +1289,7 @@ function downsample(data, maxPoints = 120) {
 }
 
 // ── Single unified data pipeline ─────────────────────────────────────────
-// Validate → dedupe → sort → normalize (±10%) → smooth (3-pt MA).
+// Validate → dedupe → sort → hard outlier filter (drop ±50% spikes).
 // Downsampling and time-filtering are done by the caller (getChartData).
 // Returns [{ts, value}] or null.
 function processSeries(data) {
@@ -1313,26 +1313,19 @@ function processSeries(data) {
     // 3. Sort ascending
     const sorted = deduped.sort((a, b) => a.ts - b.ts);
 
-    // 4. Normalize — soft-clamp each step to ±10% of the previous accepted value
-    const normalized = [];
-    for (let i = 0; i < sorted.length; i++) {
-      if (i === 0) { normalized.push(sorted[i]); continue; }
-      const prev     = normalized[i - 1];
-      const maxDelta = prev.value * 0.1;
-      const delta    = sorted[i].value - prev.value;
-      const value    = Math.abs(delta) > maxDelta
-        ? prev.value + Math.sign(delta) * maxDelta
-        : sorted[i].value;
-      normalized.push({ ...sorted[i], value });
+    // 4. Hard outlier filter — drop any point that is more than 2× or less
+    //    than 0.5× the previous accepted value.  Unlike a soft clamp this
+    //    discards the bad point entirely rather than dragging the series.
+    const cleaned = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev  = cleaned[cleaned.length - 1];
+      const ratio = sorted[i].value / prev.value;
+      if (ratio > 1.5 || ratio < 0.5) continue; // drop spike
+      cleaned.push(sorted[i]);
     }
+    if (cleaned.length < 2) return null;
 
-    // 5. Smooth — 3-point moving average; endpoints are preserved
-    const smoothed = normalized.map((p, i, arr) => {
-      if (i === 0 || i === arr.length - 1) return p;
-      return { ...p, value: (arr[i - 1].value + p.value + arr[i + 1].value) / 3 };
-    });
-
-    return smoothed;
+    return cleaned;
   } catch {
     return null;
   }
@@ -1392,12 +1385,8 @@ function getChartData(range) {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   };
 
-  // 1. Choose source — prefer live only when it passes the quality gate
-  const liveData = window._liveHistory && window._liveHistory[range];
-  const source =
-    (Array.isArray(liveData) && liveData.length >= 10 && isValidSource(liveData))
-      ? liveData
-      : portfolioHistory;
+  // 1. Source — local history only (live data disabled until spike root cause resolved)
+  const source = portfolioHistory;
 
   if (!Array.isArray(source) || source.length < 2) return null;
 
