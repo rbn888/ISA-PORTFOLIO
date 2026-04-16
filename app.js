@@ -4678,7 +4678,6 @@ render(true);
     portfolioHistory = generateSimulatedHistory(val);
     saveHistory();
   }
-  recordSnapshot();
 })();
 
 initChart();
