@@ -1414,15 +1414,45 @@ function getChartData(range) {
   const processed = processSeries(source);
   if (!processed || processed.length < 2) return null;
 
-  // 3. Filter to the requested time window AFTER processing
-  const filtered = range === 'all'
-    ? processed
-    : processed.filter(p => p.ts >= now - ms[range]);
+  // 3. Build output — time-grid for windowed ranges, downsample for 'all'
+  let final;
+  if (range === 'all') {
+    const filtered = processed.filter(p => p.ts >= 0); // all points
+    if (filtered.length < 2) return null;
+    final = downsample(filtered, MAX_POINTS['all'] || 250);
+  } else {
+    // Time-grid normalization: create a fixed, evenly-spaced timeline and
+    // fill each slot with the last known value (carry-forward).  This makes
+    // the chart deterministic (same grid every render) and eliminates steps
+    // caused by sparse snapshot windows.
+    const duration  = ms[range];
+    const points    = MAX_POINTS[range] || 120;
+    const gridStart = now - duration;
+    const step      = duration / points;
 
-  if (filtered.length < 2) return null;
+    let di        = 0;
+    let lastValue = null;
+    const grid    = [];
 
-  // 4. Downsample after filtering
-  const final = downsample(filtered, MAX_POINTS[range] || 120);
+    for (let i = 0; i <= points; i++) {
+      const t = gridStart + i * step;
+      // Advance to consume all processed points up to this grid tick
+      while (di < processed.length && processed[di].ts <= t) {
+        lastValue = processed[di].value;
+        di++;
+      }
+      if (lastValue !== null) grid.push({ ts: t, value: lastValue });
+    }
+
+    if (grid.length < 2) {
+      // Grid produced too few points (very sparse data) — fall back to simple filter
+      const filtered = processed.filter(p => p.ts >= gridStart);
+      if (filtered.length < 2) return null;
+      final = downsample(filtered, points);
+    } else {
+      final = grid;
+    }
+  }
 
   return {
     labels: final.map(p => fmt(p.ts)),
@@ -1432,6 +1462,9 @@ function getChartData(range) {
 
 function updateChart(animate = false) {
   if (!portfolioChart) return;
+  // Guarantee the last history point reflects the current portfolio value
+  // before we read chart data — satisfies the "last value = live total" rule.
+  recordSnapshot(false);
   const data = getChartData(activeRange);
 
   if (!data) {
