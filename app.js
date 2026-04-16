@@ -1819,54 +1819,56 @@ async function refreshPrices() {
   // ── 1. Save rollback snapshot ─────────────────────────────────────────
   const rollback = assets.map(a => ({ price: a.price, prevPrice: a.prevPrice, change24h: a.change24h }));
 
-  try {
-    // ── 2. Fetch all prices WITHOUT touching assets ────────────────────
-    // Promise.all: if CoinGecko throws (rate-limit / network), the whole
-    // update is aborted and the catch restores the rollback state.
-    const [cryptoPrices, marketPrices] = await Promise.all([
-      cryptos.length
-        ? fetchLivePrices([...new Set(cryptos.map(a => a.coinId))])
-        : Promise.resolve({}),
-      marketAssets.length
-        ? collectMarketPriceData(marketAssets)
-        : Promise.resolve({}),
-    ]);
+  // ── 2. Fetch prices independently — one source failing won't abort the other
+  const [cryptoResult, marketResult] = await Promise.allSettled([
+    cryptos.length
+      ? fetchLivePrices([...new Set(cryptos.map(a => a.coinId))])
+      : Promise.resolve({}),
+    marketAssets.length
+      ? collectMarketPriceData(marketAssets)
+      : Promise.resolve({}),
+  ]);
 
-    // ── 3. Apply atomically ───────────────────────────────────────────
-    assets.forEach(a => {
-      if (a.type === 'crypto' && a.coinId) {
-        const d = cryptoPrices[a.coinId];
-        if (!d) return;
-        if (d.usd !== a.price) { a.prevPrice = a.price; a.price = d.usd; }
-        a.change24h = d.usd_24h_change ?? a.change24h;
-      } else if (a.marketSymbol && marketPrices[a.marketSymbol]) {
-        const m = marketPrices[a.marketSymbol];
-        if (m.price !== a.price) { a.prevPrice = a.price; a.price = m.price; }
-        if (m.change24h != null) {
-          a.change24h = m.change24h;
-          if (a.marketSymbol === 'GC=F') goldChangePct = m.change24h;
-        }
-      }
-    });
+  const cryptoSuccess = cryptoResult.status === 'fulfilled' && cryptoResult.value;
+  const marketSuccess = marketResult.status === 'fulfilled' && marketResult.value;
 
-    // ── 4. Persist, render ────────────────────────────────────────────
-    save();
-    lastRefreshAt = Date.now();
-    render();
-    setUpdateStatus('ok');
-
-  } catch (err) {
-    console.error('[refreshPrices] catch:', err);
-    // ── 5. Rollback — restore exact previous state ────────────────────
-    // DO NOT call onPortfolioChange — no history point is written.
+  // ── 3. Rollback only if both sources failed ───────────────────────────
+  if (!cryptoSuccess && !marketSuccess) {
+    console.error('[refreshPrices] both sources failed:', cryptoResult.reason, marketResult.reason);
     assets.forEach((a, i) => {
       a.price     = rollback[i].price;
       a.prevPrice = rollback[i].prevPrice;
       a.change24h = rollback[i].change24h;
     });
-    setUpdateStatus(err.message === 'rate_limit' ? 'rate_limit' : 'error');
+    setUpdateStatus('error');
     return;
   }
+
+  // ── 4. Apply whichever sources succeeded ─────────────────────────────
+  const cryptoPrices = cryptoSuccess ? cryptoResult.value : {};
+  const marketPrices = marketSuccess ? marketResult.value : {};
+
+  assets.forEach(a => {
+    if (a.type === 'crypto' && a.coinId) {
+      const d = cryptoPrices[a.coinId];
+      if (!d) return;
+      if (d.usd !== a.price) { a.prevPrice = a.price; a.price = d.usd; }
+      a.change24h = d.usd_24h_change ?? a.change24h;
+    } else if (a.marketSymbol && marketPrices[a.marketSymbol]) {
+      const m = marketPrices[a.marketSymbol];
+      if (m.price !== a.price) { a.prevPrice = a.price; a.price = m.price; }
+      if (m.change24h != null) {
+        a.change24h = m.change24h;
+        if (a.marketSymbol === 'GC=F') goldChangePct = m.change24h;
+      }
+    }
+  });
+
+  // ── 5. Persist, render ────────────────────────────────────────────────
+  save();
+  lastRefreshAt = Date.now();
+  render();
+  setUpdateStatus('ok');
 
   // Runs only on success — chart errors must never affect price status or rollback
   try { onPortfolioChange(); } catch { /* chart errors stay contained */ }
