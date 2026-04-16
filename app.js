@@ -1380,7 +1380,7 @@ function getChartData(range) {
 
   return {
     labels: final.map(p => fmt(p.ts)),
-    values: final.map(p => p.value),
+    values: final.map(p => toBase(p.value, 'USD')),
   };
 }
 
