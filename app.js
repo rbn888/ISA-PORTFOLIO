@@ -1270,10 +1270,6 @@ function initChart() {
 function getChartData(range) {
   const now = Date.now();
   const ms  = { '24h': 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000, '1y': 365 * 86_400_000 };
-  // Prefer live CoinGecko data (set by services/history.js) when available.
-  const src = (window._liveHistory && window._liveHistory[range]) || portfolioHistory;
-  const pts = range === 'all' ? [...src] : src.filter(p => p.ts >= now - ms[range]);
-  if (pts.length < 2) return null;
 
   const fmt = ts => {
     const d = new Date(ts);
@@ -1283,7 +1279,34 @@ function getChartData(range) {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   };
 
-  return { labels: pts.map(p => fmt(p.ts)), values: pts.map(p => toBase(p.value, 'USD')) };
+  // Build a {labels, values} result from a pre-sorted, pre-filtered point array.
+  const toResult  = arr => ({ labels: arr.map(p => fmt(p.ts)), values: arr.map(p => toBase(p.value, 'USD')) });
+  // Filter to the active time window; 'all' keeps every point.
+  const filterPts = arr => range === 'all' ? arr : arr.filter(p => p.ts >= now - ms[range]);
+
+  // ── Live data path ──────────────────────────────────────────────────────
+  // Only trust window._liveHistory[range] when it is a well-formed, dense
+  // array.  An empty array, a partially-filled stub, or entries missing ts/
+  // value all silently fall through to local history below.
+  const live = window._liveHistory && window._liveHistory[range];
+  const isValidLive = Array.isArray(live) &&
+                      live.length > 20 &&
+                      live.every(p => p && p.ts && p.value !== undefined);
+
+  if (isValidLive) {
+    // Sort a *copy* — never mutate the shared live-history cache.
+    const pts = filterPts([...live].sort((a, b) => a.ts - b.ts));
+    if (pts.length >= 2) return toResult(pts);
+    // Live series valid overall but too sparse for this range window —
+    // fall through to local history so the chart isn't left blank.
+  }
+
+  // ── Local history fallback ──────────────────────────────────────────────
+  // Sort a copy here too — portfolioHistory is a shared mutable array and
+  // callers must not see unexpected reordering as a side-effect.
+  const pts = filterPts([...portfolioHistory].sort((a, b) => a.ts - b.ts));
+  if (pts.length < 2) return null;
+  return toResult(pts);
 }
 
 function updateChart(animate = false) {
