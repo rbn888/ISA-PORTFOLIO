@@ -768,6 +768,21 @@ function avgBuyPrice(asset) {
   return totalQty > 0 ? totalCost / totalQty : null;
 }
 
+// Derives costBasis from buy transactions (sum of qty × price).
+// Returns null when no transactions exist so legacy costBasis is preserved.
+function computeCostBasisFromTransactions(asset) {
+  const buys = (asset.transactions || []).filter(tx => tx.type === 'buy');
+  if (!buys.length) return null;
+  return buys.reduce((sum, tx) => sum + tx.qty * tx.price, 0);
+}
+
+// Syncs asset.costBasis from buy transactions when they exist.
+// No-op for assets with no transaction history (real estate, cash, legacy).
+function syncCostBasisFromTransactions(asset) {
+  const computed = computeCostBasisFromTransactions(asset);
+  if (computed !== null) asset.costBasis = computed;
+}
+
 function totalCostBasisBase() {
   return assets.reduce((sum, a) => {
     if (a.type === 'cash' || a.type === 'real_estate') return sum;
@@ -2618,6 +2633,7 @@ function renderDetailHero(type, typeAssets) {
 
 // ── Render ─────────────────────────────────────────────────
 function render(animate = false) {
+  assets.forEach(syncCostBasisFromTransactions);
   countUpTotalValue(totalValueBase());
   updatePerformance();
   assetCountEl.textContent = t('assetCount')(assets.length);
@@ -4721,6 +4737,7 @@ const assetDetailOverlay = document.getElementById('assetDetailOverlay');
 function openAssetDetailModal(assetId) {
   const asset = assets.find(a => a.id === assetId);
   if (!asset) return;
+  syncCostBasisFromTransactions(asset);
 
   const isRE   = asset.type === 'real_estate';
   const isCash = asset.type === 'cash';
