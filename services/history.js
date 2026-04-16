@@ -16,7 +16,9 @@
 'use strict';
 
 // Shared cross-script cache exposed on window so getChartData() can read it.
-window._liveHistory = window._liveHistory || {};
+window._liveHistory       = window._liveHistory       || {};
+// "ok" | "fallback" | null — set after each fetch so callers can inspect.
+window._liveHistoryStatus = window._liveHistoryStatus || null;
 
 // ── Range → CoinGecko "days" parameter ───────────────────────────────────
 // 'all' is intentionally absent — it uses cost-basis comparison, not a
@@ -87,6 +89,23 @@ function removeOutliers(data) {
   return cleaned;
 }
 
+// ── Series-level validation gate ─────────────────────────────────────────
+// Returns false if the data is too sparse OR if any consecutive pair still
+// contains a >50% jump.  After removeOutliers the second condition should
+// never fire; the length check catches cases where too many points were
+// dropped, leaving a series too thin to render meaningfully.
+function isValidSeries(data) {
+  if (!data || data.length < 10) return false;
+  for (let i = 1; i < data.length; i++) {
+    const prev = data[i - 1];
+    const curr = data[i];
+    if (!prev.value || !curr.value) return false;
+    const change = Math.abs(curr.value - prev.value) / prev.value;
+    if (change > 0.5) return false;
+  }
+  return true;
+}
+
 // ── Compute absolute and % PnL over a data series ─────────────────────────
 function calculatePnL(data) {
   if (!data || data.length < 2) return null;
@@ -109,25 +128,40 @@ async function fetchPortfolioHistory(range) {
   const cryptos = assets.filter(a => a.type === 'crypto' && a.coinId && a.qty > 0);
   if (!cryptos.length) return null;
 
-  const results = await Promise.allSettled(
-    cryptos.map(async a => {
-      const prices = await fetchHistory(a.coinId, days);
-      // Sort ascending before mapping so normalizeTime buckets fill correctly.
-      prices.sort((a, b) => a[0] - b[0]);
-      return prices.map(([time, price]) => ({ time, value: price * a.qty }));
-    })
-  );
-
-  const fulfilled = results
-    .filter(r => r.status === 'fulfilled' && r.value.length > 0)
-    .map(r => r.value);
+  let fulfilled;
+  try {
+    const results = await Promise.allSettled(
+      cryptos.map(async a => {
+        const prices = await fetchHistory(a.coinId, days);
+        // Sort ascending before mapping so normalizeTime buckets fill correctly.
+        prices.sort((a, b) => a[0] - b[0]);
+        return prices.map(([time, price]) => ({ time, value: price * a.qty }));
+      })
+    );
+    fulfilled = results
+      .filter(r => r.status === 'fulfilled' && r.value.length > 0)
+      .map(r => r.value);
+  } catch (e) {
+    console.warn('History fetch failed', e);
+    return null;
+  }
 
   if (!fulfilled.length) return null;
 
-  const merged  = mergeHistories(fulfilled);
-  const cleaned = removeOutliers(merged);
-  // Safety fallback: if spike removal discarded too many points, use raw merge.
-  return cleaned.length >= 10 ? cleaned : merged;
+  const raw     = mergeHistories(fulfilled);
+  const cleaned = removeOutliers(raw);
+
+  // Validation gate: only use the cleaned series if it passes the full check.
+  // If it does not (too sparse, or residual spikes), fall back to the raw merge
+  // so the chart still renders something rather than silently going blank.
+  if (isValidSeries(cleaned)) {
+    window._liveHistoryStatus = 'ok';
+    return cleaned;
+  }
+
+  console.warn('[history] Invalid chart data — using fallback');
+  window._liveHistoryStatus = 'fallback';
+  return raw.length >= 2 ? raw : null;
 }
 
 // ── Load history for a range, cache it, and refresh the chart ─────────────
