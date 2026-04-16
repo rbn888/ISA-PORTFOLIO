@@ -1837,23 +1837,39 @@ async function refreshPrices() {
       hasMarket ? refreshMarketPrices() : Promise.resolve(),
     ]);
 
-    // Apply crypto prices
-    const priceData = results[0].status === 'fulfilled' ? results[0].value : {};
-    cryptos.forEach(a => {
-      const data = priceData[a.coinId];
-      if (!data) return;
-      if (data.usd !== a.price) {
-        a.prevPrice = a.price;
-        a.price     = data.usd;
-      }
-      a.change24h = data.usd_24h_change ?? null;
-    });
+    // Apply crypto prices only when the fetch actually succeeded.
+    // A rejected result means stale prices stay in memory — do not overwrite.
+    const cryptoResult = results[0];
+    const cryptoFailed = cryptos.length > 0 && cryptoResult.status === 'rejected';
 
+    if (cryptoResult.status === 'fulfilled') {
+      const priceData = cryptoResult.value || {};
+      cryptos.forEach(a => {
+        const data = priceData[a.coinId];
+        if (!data) return;
+        if (data.usd !== a.price) {
+          a.prevPrice = a.price;
+          a.price     = data.usd;
+        }
+        a.change24h = data.usd_24h_change ?? null;
+      });
+    }
+
+    // Always persist and re-render so market-price updates (handled inside
+    // refreshMarketPrices) are reflected even when crypto fails.
     save();
     lastRefreshAt = Date.now();
     render();
-    setUpdateStatus('ok');
-    onPortfolioChange();
+
+    if (cryptoFailed) {
+      // Error is VISUAL ONLY — history is not touched, existing values kept.
+      const reason = cryptoResult.reason;
+      setUpdateStatus(reason?.message === 'rate_limit' ? 'rate_limit' : 'error');
+    } else {
+      // All prices are fresh — record snapshot and update chart.
+      setUpdateStatus('ok');
+      onPortfolioChange();
+    }
   } catch (err) {
     setUpdateStatus(err.message === 'rate_limit' ? 'rate_limit' : 'error');
   }
