@@ -1390,13 +1390,28 @@ function getChartData(range) {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   };
 
-  // 1. Source — local history only (live data disabled until spike root cause resolved)
-  const source = portfolioHistory;
+  // 1. Normalise source — defensive copy, discard invalid entries, sort ascending.
+  //    portfolioHistory is treated as read-only; we never mutate it here.
+  //    This guarantees processSeries always receives the same ordered input
+  //    regardless of when or where the chart is rendered.
+  if (!Array.isArray(portfolioHistory) || portfolioHistory.length < 2) return null;
 
-  if (!Array.isArray(source) || source.length < 2) return null;
+  const source = portfolioHistory
+    .filter(p => p && typeof p.ts === 'number' && typeof p.value === 'number' && isFinite(p.value) && p.value > 0)
+    .sort((a, b) => a.ts - b.ts);
 
-  // 2. Process the FULL dataset first (normalization works best on full history)
-  const processed = processSeries([...source]);
+  if (source.length < 2) return null;
+
+  // Diagnostic logging — confirms the input is stable across reloads.
+  // Remove once charts are confirmed stable.
+  console.debug('[chart] history snapshot —',
+    'len:', source.length,
+    '| first:', new Date(source[0].ts).toISOString(),
+    '| last:', new Date(source[source.length - 1].ts).toISOString()
+  );
+
+  // 2. Process the full normalised dataset
+  const processed = processSeries(source);
   if (!processed || processed.length < 2) return null;
 
   // 3. Filter to the requested time window AFTER processing
