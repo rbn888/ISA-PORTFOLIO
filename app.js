@@ -1267,6 +1267,28 @@ function initChart() {
   canvas.addEventListener('touchend',   _hideTooltip, { passive: true });
 }
 
+// ── Per-range display-point limits ───────────────────────────────────────
+const MAX_POINTS = { '24h': 80, '7d': 120, '30d': 150, '1y': 200, 'all': 250 };
+
+// ── Downsample to at most maxPoints via bucket-averaging ──────────────────
+// Groups consecutive data into equal-sized buckets and averages ts + value
+// within each bucket.  Reduces visual noise while preserving trend shape.
+// A 288-point 24h series becomes 80 evenly-spaced averaged candles.
+function downsample(data, maxPoints = 120) {
+  if (!data || data.length <= maxPoints) return data;
+  const bucketSize = Math.floor(data.length / maxPoints);
+  const result     = [];
+  for (let i = 0; i < data.length; i += bucketSize) {
+    const bucket = data.slice(i, i + bucketSize);
+    const sum    = bucket.reduce(
+      (acc, p) => { acc.ts += p.ts; acc.value += p.value; return acc; },
+      { ts: 0, value: 0 }
+    );
+    result.push({ ts: sum.ts / bucket.length, value: sum.value / bucket.length });
+  }
+  return result;
+}
+
 function getChartData(range) {
   const now = Date.now();
   const ms  = { '24h': 86_400_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000, '1y': 365 * 86_400_000 };
@@ -1325,7 +1347,8 @@ function getChartData(range) {
         return { ...p, value: (arr[i - 1].value + p.value + arr[i + 1].value) / 3 };
       });
 
-      const pts = filterPts(smoothed);
+      // 5. Downsample — reduce to range-specific max points after smoothing.
+      const pts = filterPts(downsample(smoothed, MAX_POINTS[range] || 120));
       if (pts.length >= 2) return toResult(pts);
       // Valid but too sparse for this range window — fall through below.
     } catch {
@@ -1336,7 +1359,7 @@ function getChartData(range) {
   // ── Local history fallback ──────────────────────────────────────────────
   // Sort a copy here too — portfolioHistory is a shared mutable array and
   // callers must not see unexpected reordering as a side-effect.
-  const pts = filterPts([...portfolioHistory].sort((a, b) => a.ts - b.ts));
+  const pts = filterPts(downsample([...portfolioHistory].sort((a, b) => a.ts - b.ts), MAX_POINTS[range] || 120));
   if (pts.length < 2) return null;
   return toResult(pts);
 }
