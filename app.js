@@ -1294,11 +1294,43 @@ function getChartData(range) {
                       live.every(p => p && p.ts && p.value !== undefined);
 
   if (isValidLive) {
-    // Sort a *copy* — never mutate the shared live-history cache.
-    const pts = filterPts([...live].sort((a, b) => a.ts - b.ts));
-    if (pts.length >= 2) return toResult(pts);
-    // Live series valid overall but too sparse for this range window —
-    // fall through to local history so the chart isn't left blank.
+    try {
+      // 1. Dedupe — if the same timestamp appears more than once, keep the last write.
+      const deduped = Object.values(
+        [...live].reduce((acc, p) => { acc[p.ts] = p; return acc; }, {})
+      );
+
+      // 2. Sort ascending by timestamp.
+      const sorted = deduped.sort((a, b) => a.ts - b.ts);
+
+      // 3. Normalize — cap each step at ±5% of the previous accepted value.
+      //    Carries state via `prev` so that clamped values propagate correctly
+      //    (a plain .map over the original array would only see unclamped neighbours).
+      const normalized = [];
+      for (let i = 0; i < sorted.length; i++) {
+        if (i === 0) { normalized.push(sorted[i]); continue; }
+        const prev     = normalized[i - 1];
+        const maxDelta = prev.value * 0.05;
+        const delta    = sorted[i].value - prev.value;
+        const value    = Math.abs(delta) > maxDelta
+          ? prev.value + Math.sign(delta) * maxDelta
+          : sorted[i].value;
+        normalized.push({ ...sorted[i], value });
+      }
+
+      // 4. Smooth — 3-point moving average; endpoints kept as-is to preserve
+      //    the true start/end values that drive PnL calculations.
+      const smoothed = normalized.map((p, i, arr) => {
+        if (i === 0 || i === arr.length - 1) return p;
+        return { ...p, value: (arr[i - 1].value + p.value + arr[i + 1].value) / 3 };
+      });
+
+      const pts = filterPts(smoothed);
+      if (pts.length >= 2) return toResult(pts);
+      // Valid but too sparse for this range window — fall through below.
+    } catch {
+      // Any processing error falls through to local history.
+    }
   }
 
   // ── Local history fallback ──────────────────────────────────────────────
