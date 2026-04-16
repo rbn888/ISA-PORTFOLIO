@@ -1312,7 +1312,7 @@ function downsample(data, maxPoints = 120) {
 
 // ── Single unified data pipeline ─────────────────────────────────────────
 // Pure, stateless, deterministic.  Same input always produces same output.
-// Steps: validate → dedupe → sort → hard outlier filter.
+// Steps: validate → dedupe → sort.
 // Downsampling and time-filtering are done by the caller (getChartData).
 // NEVER returns null — falls back to the input dataset if processing fails.
 function processSeries(data) {
@@ -1338,19 +1338,7 @@ function processSeries(data) {
     // 3. Sort ascending — explicit copy so no intermediate array is mutated
     const sorted = [...deduped].sort((a, b) => a.ts - b.ts);
 
-    // 4. Hard outlier filter — drop any point whose value is more than 3×
-    //    or less than 0.33× the last accepted value.  The corrupt point is
-    //    discarded entirely; the series continues from the previous good point.
-    const cleaned = [sorted[0]];
-    for (let i = 1; i < sorted.length; i++) {
-      const ratio = sorted[i].value / cleaned[cleaned.length - 1].value;
-      if (ratio > 3 || ratio < 0.3) continue; // discard spike
-      cleaned.push(sorted[i]);
-    }
-
-    // Fallback: if the filter removed too many points, return the sorted
-    // (validated, deduped) series rather than an unusably short result.
-    return cleaned.length >= 2 ? cleaned : sorted;
+    return sorted;
 
   } catch {
     // Pipeline error — return original data so the chart always renders.
@@ -1358,41 +1346,6 @@ function processSeries(data) {
   }
 }
 
-// ── Live-source quality gate ──────────────────────────────────────────────
-// Returns true only when the raw live data is clean enough to trust:
-//   • enough points (≥ 10)
-//   • <20% duplicate timestamps
-//   • no consecutive value spike > 50%
-//   • no single gap > 10× the median inter-point gap
-function isValidSource(data) {
-  if (!Array.isArray(data) || data.length < 10) return false;
-
-  const pts = data
-    .filter(p => p && typeof p.ts === 'number' && typeof p.value === 'number' && isFinite(p.value))
-    .sort((a, b) => a.ts - b.ts);
-
-  if (pts.length < 10) return false;
-
-  // Duplicate-dominance check
-  const uniqueCount = new Set(pts.map(p => p.ts)).size;
-  if (uniqueCount / pts.length < 0.8) return false;
-
-  // Spike and gap checks (single pass)
-  const gaps = [];
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1];
-    const curr = pts[i];
-    if (prev.value > 0 && Math.abs(curr.value - prev.value) / prev.value > 0.5) return false;
-    gaps.push(curr.ts - prev.ts);
-  }
-
-  // Large-gap check: reject if max gap > 10× median gap
-  gaps.sort((a, b) => a - b);
-  const medianGap = gaps[Math.floor(gaps.length / 2)];
-  if (medianGap > 0 && gaps[gaps.length - 1] > medianGap * 10) return false;
-
-  return true;
-}
 
 function getChartData(range) {
   const now = Date.now();
@@ -1416,13 +1369,14 @@ function getChartData(range) {
   //    portfolioHistory is treated as read-only; we never mutate it here.
   //    This guarantees processSeries always receives the same ordered input
   //    regardless of when or where the chart is rendered.
-  if (!Array.isArray(portfolioHistory) || portfolioHistory.length < 2) return null;
+  const _empty = { labels: [], values: [] };
+  if (!Array.isArray(portfolioHistory) || portfolioHistory.length < 2) return _empty;
 
   const source = portfolioHistory
     .filter(p => p && typeof p.ts === 'number' && typeof p.value === 'number' && isFinite(p.value) && p.value > 0)
     .sort((a, b) => a.ts - b.ts);
 
-  if (source.length < 2) return null;
+  if (source.length < 2) return _empty;
 
   // Diagnostic logging — confirms the input is stable across reloads.
   // Remove once charts are confirmed stable.
@@ -1434,13 +1388,13 @@ function getChartData(range) {
 
   // 2. Process the full normalised dataset
   const processed = processSeries(source);
-  if (!processed || processed.length < 2) return null;
+  if (!processed || processed.length < 2) return _empty;
 
   // 3. Build output — time-grid for windowed ranges, downsample for 'all'
   let final;
   if (range === 'all') {
     const filtered = processed.filter(p => p.ts >= 0); // all points
-    if (filtered.length < 2) return null;
+    if (filtered.length < 2) return _empty;
     final = downsample(filtered, MAX_POINTS['all'] || 250);
   } else {
     // Time-grid normalization: create a fixed, evenly-spaced timeline and
@@ -1469,7 +1423,7 @@ function getChartData(range) {
     if (grid.length < 2) {
       // Grid produced too few points (very sparse data) — fall back to simple filter
       const filtered = processed.filter(p => p.ts >= gridStart);
-      if (filtered.length < 2) return null;
+      if (filtered.length < 2) return _empty;
       final = downsample(filtered, points);
     } else {
       final = grid;
@@ -1489,7 +1443,7 @@ function updateChart(animate = false) {
   recordSnapshot(true); // force-sync last history point to current prices before reading
   const data = getChartData(activeRange);
 
-  if (!data) {
+  if (!data.values.length) {
     chartChangeEl.textContent = '';
     chartNoDataEl.style.display = '';
     portfolioChart.data.labels = [];
@@ -1788,46 +1742,6 @@ function setUpdateStatus(state) {
   updateTextEl.textContent = msg[state] ?? '';
 }
 
-async function refreshMarketPrices() {
-  const marketAssets = assets.filter(a =>
-    (a.type === 'stock' || a.type === 'etf' || a.type === 'metal' || a.type === 'other') && a.marketSymbol
-  );
-  if (!marketAssets.length) return;
-
-  await Promise.allSettled(
-    marketAssets.map(async a => {
-      try {
-        let price         = null;
-        let previousClose = null;
-
-        if (a.marketSymbol === 'GC=F') {
-          // Gold: dedicated source chain (exchangerate.host → Yahoo → fallback)
-          price = await fetchGoldSpotPrice();
-        } else {
-          const data = await fetchYahooData(a.marketSymbol);
-          price         = data?.price         ?? null;
-          previousClose = data?.previousClose ?? null;
-        }
-
-        if (price) {
-          if (price !== a.price) { a.prevPrice = a.price; a.price = price; }
-          if (previousClose && previousClose > 0) {
-            a.change24h = ((price - previousClose) / previousClose) * 100;
-          } else if (a.change24h === null) {
-            const fb = getFallbackData(a.marketSymbol);
-            if (fb) a.change24h = fb.change24h;
-          }
-        } else if (a.change24h === null) {
-          const fb = getFallbackData(a.marketSymbol);
-          if (fb) a.change24h = fb.change24h;
-        }
-        // Sync gold change % to global so live indicator can read it without DOM queries
-        if (a.marketSymbol === 'GC=F' && a.change24h !== null) goldChangePct = a.change24h;
-        // If all sources fail: keep existing stored price — no change, no error
-      } catch { /* skip */ }
-    })
-  );
-}
 
 // ── Collect market prices WITHOUT mutating assets ────────────────────────
 // Returns { [marketSymbol]: { price, change24h } } for all assets that
@@ -1924,12 +1838,11 @@ async function refreshPrices() {
       }
     });
 
-    // ── 4. Persist, render, record snapshot ───────────────────────────
+    // ── 4. Persist, render ────────────────────────────────────────────
     save();
     lastRefreshAt = Date.now();
     render();
     setUpdateStatus('ok');
-    onPortfolioChange();
 
   } catch (err) {
     // ── 5. Rollback — restore exact previous state ────────────────────
@@ -1940,7 +1853,11 @@ async function refreshPrices() {
       a.change24h = rollback[i].change24h;
     });
     setUpdateStatus(err.message === 'rate_limit' ? 'rate_limit' : 'error');
+    return;
   }
+
+  // Runs only on success — chart errors must never affect price status or rollback
+  try { onPortfolioChange(); } catch { /* chart errors stay contained */ }
 }
 
 // ── Animated count-up for total value ─────────────────────
