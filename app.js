@@ -353,7 +353,7 @@ function switchLang(newLang) {
 // ── State ──────────────────────────────────────────────────
 const STORAGE_KEY    = 'portfolio_assets';
 const COINGECKO      = 'https://api.coingecko.com/api/v3';
-const TWELVE_API_KEY = 'f0f3f9deb5b947d8a6ce5e16b51d5bfc';
+const TWELVE_API_KEY = '55e1f0fb31714f0d91081bd8e4e664c9';
 
 // ── Fallback prices (used when APIs are unavailable) ──────
 const FALLBACK_PRICES = {
