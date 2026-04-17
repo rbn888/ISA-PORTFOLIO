@@ -3646,32 +3646,65 @@ function startIntuitiveLoop() {
 
 startIntuitiveLoop();
 
-const ambientPhrases = {
-  en: [
-    'Markets move in cycles.',
-    'Stability often goes unnoticed.',
-    'Growth is not always immediate.',
-    'Time reveals structure.',
-    'Small changes accumulate.',
-    'Risk is rarely obvious.',
-    'Movement does not imply direction.',
-    'Patience compounds silently.',
-    'Every position tells a story.',
-    'Structure precedes returns.',
-  ],
-  es: [
-    'Los mercados se mueven en ciclos.',
-    'La estabilidad suele pasar desapercibida.',
-    'El crecimiento no siempre es inmediato.',
-    'El tiempo revela la estructura.',
-    'Los pequeños cambios se acumulan.',
-    'El riesgo rara vez es obvio.',
-    'El movimiento no implica dirección.',
-    'La paciencia compone en silencio.',
-    'Cada posición cuenta una historia.',
-    'La estructura precede a los retornos.',
-  ],
-};
+function getPortfolioData() {
+  const total = assets.reduce((s, a) => s + (a.value || 0), 0);
+  const cryptoVal    = assets.filter(a => a.type === 'crypto').reduce((s, a) => s + (a.value || 0), 0);
+  const liquidityVal = assets.filter(a => a.type === 'cash').reduce((s, a) => s + (a.value || 0), 0);
+  const cryptoPct    = total > 0 ? cryptoVal / total : 0;
+  const liquidityPct = total > 0 ? liquidityVal / total : 0;
+  const sorted       = [...assets].sort((a, b) => (b.value || 0) - (a.value || 0));
+  const topPct       = total > 0 && sorted.length ? (sorted[0].value || 0) / total : 0;
+  return { total, cryptoPct, liquidityPct, topAsset: sorted[0], topPct, assets };
+}
+
+function generateAmbientPhrase() {
+  const data    = getPortfolioData();
+  const isEs    = lang === 'es';
+  const phrases = [];
+  const recent  = typeof getRecentTransactions === 'function' ? getRecentTransactions() : [];
+
+  if (data.cryptoPct > 0.6) {
+    phrases.push(
+      isEs ? 'Una parte importante de tu cartera se mueve al mismo tiempo.'
+           : 'A significant part of your portfolio moves together.'
+    );
+  }
+  if (data.liquidityPct < 0.1 && data.total > 0) {
+    phrases.push(
+      isEs ? 'Poca liquidez disponible en este momento.'
+           : 'Liquidity is limited right now.'
+    );
+  }
+  if (data.topPct > 0.5 && data.topAsset) {
+    phrases.push(
+      isEs ? `${data.topAsset.name} domina tu cartera.`
+           : `${data.topAsset.name} dominates your portfolio.`
+    );
+  }
+  if (recent && recent.length > 0) {
+    phrases.push(
+      isEs ? 'Actividad reciente registrada en tu cartera.'
+           : 'Recent activity recorded in your portfolio.'
+    );
+  }
+  if (phrases.length === 0) {
+    const fallbacks = isEs ? [
+      'La estructura se vuelve visible con el tiempo.',
+      'La paciencia compone en silencio.',
+      'Los mercados se mueven en ciclos.',
+      'El tiempo revela la estructura.',
+      'El riesgo rara vez es obvio.',
+    ] : [
+      'Structure becomes visible with time.',
+      'Patience compounds silently.',
+      'Markets move in cycles.',
+      'Time reveals structure.',
+      'Risk is rarely obvious.',
+    ];
+    phrases.push(...fallbacks);
+  }
+  return phrases[Math.floor(Math.random() * phrases.length)];
+}
 
 function initAmbientLayer() {
   if (document.querySelector('.ambient-text-layer')) return;
@@ -3683,8 +3716,7 @@ function initAmbientLayer() {
 function spawnAmbientText() {
   const layer = document.querySelector('.ambient-text-layer');
   if (!layer) return;
-  const pool   = ambientPhrases[lang] || ambientPhrases.en;
-  const phrase = pool[Math.floor(Math.random() * pool.length)];
+  const phrase = generateAmbientPhrase();
   const el     = document.createElement('div');
   el.className   = 'ambient-text';
   el.textContent = phrase;
@@ -3694,8 +3726,19 @@ function spawnAmbientText() {
   setTimeout(() => { el.remove(); }, 12000);
 }
 
+function startAmbientIntelligence() {
+  function loop() {
+    const delay = 4000 + Math.random() * 4000;
+    setTimeout(() => {
+      if (Math.random() > 0.5) spawnAmbientText();
+      loop();
+    }, delay);
+  }
+  loop();
+}
+
 initAmbientLayer();
-setInterval(() => { if (Math.random() > 0.6) spawnAmbientText(); }, 4000);
+startAmbientIntelligence();
 
 function animateGel() {
   _currentX += (_targetX - _currentX) * 0.1;
