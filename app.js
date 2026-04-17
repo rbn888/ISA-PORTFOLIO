@@ -2949,10 +2949,89 @@ function generateTemporalInsights() {
   return insights;
 }
 
+function detectRepetition() {
+  const es    = lang === 'es';
+  const txs   = getAllTransactions();
+  const count = {};
+  txs.forEach(tx => { if (tx.type === 'buy') count[tx.assetName] = (count[tx.assetName] || 0) + 1; });
+  for (const name in count) {
+    if (count[name] >= 3) {
+      return {
+        text: es
+          ? `Has incrementado tu posición en ${escHtml(name)} en varias ocasiones.`
+          : `You have increased your position in ${escHtml(name)} multiple times over time.`,
+        priority: 2,
+      };
+    }
+  }
+  return null;
+}
+
+function detectOveractivity() {
+  const es     = lang === 'es';
+  const txs    = getAllTransactions();
+  const recent = txs.filter(tx => Date.now() - tx.ts < 3 * 24 * 60 * 60 * 1000);
+  if (recent.length >= 5) {
+    return {
+      text: es
+        ? 'Has sido bastante activo recientemente. Puede valer la pena asegurarte de que tus decisiones sigan alineadas con tu estrategia general.'
+        : 'You have been quite active recently. It might be worth ensuring your decisions remain aligned with your broader strategy.',
+      priority: 2,
+    };
+  }
+  return null;
+}
+
+function detectConfidenceRisk() {
+  const es            = lang === 'es';
+  const pnl           = getPortfolioPnL();
+  const concentration = getTopAssetExposure();
+  if (pnl > 40 && concentration > 50) {
+    return {
+      text: es
+        ? 'Una parte significativa de tu cartera ha rendido bien y está concentrada. Puede valer la pena considerar cómo esto afecta el riesgo general.'
+        : 'A significant portion of your portfolio has performed well and is concentrated. It may be worth considering how this affects overall risk.',
+      priority: 1,
+    };
+  }
+  return null;
+}
+
+function detectInactivityAfterGrowth() {
+  const es  = lang === 'es';
+  const txs = getAllTransactions();
+  if (!txs.length) return null;
+  const days = getDaysSince(txs[0].ts);
+  const pnl  = getPortfolioPnL();
+  if (pnl > 30 && days > 10) {
+    return {
+      text: es
+        ? 'Tu cartera ha tenido un buen rendimiento, mientras que la actividad ha sido limitada. Puede valer la pena revisar tu posicionamiento actual.'
+        : 'Your portfolio has seen strong performance, while activity has remained limited. It may be worth reviewing your current positioning.',
+      priority: 2,
+    };
+  }
+  return null;
+}
+
+function generateBehaviorInsights() {
+  const insights = [];
+  const repetition = detectRepetition();
+  if (repetition) insights.push(repetition);
+  const overactivity = detectOveractivity();
+  if (overactivity) insights.push(overactivity);
+  const confidence = detectConfidenceRisk();
+  if (confidence) insights.push(confidence);
+  const inactivity = detectInactivityAfterGrowth();
+  if (inactivity) insights.push(inactivity);
+  return insights;
+}
+
 function generateInsights() {
   const base     = generateBaseInsights();
   const temporal = generateTemporalInsights();
-  const all      = [...base, ...temporal];
+  const behavior = generateBehaviorInsights();
+  const all      = [...base, ...temporal, ...behavior];
   all.sort((a, b) => a.priority - b.priority);
 
   const filtered = all.filter(i => !wasRecentlyShown(i.text));
