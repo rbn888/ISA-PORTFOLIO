@@ -2769,36 +2769,73 @@ function renderInsightsHistory(txs) {
     </div>`;
 }
 
+function getTotalPortfolioValue() {
+  return assets.reduce((sum, a) => sum + a.qty * a.price, 0);
+}
+
 function generateInsights() {
-  const es       = lang === 'es';
-  const messages = [];
+  const es         = lang === 'es';
+  const insights   = [];
+  const txs        = getAllTransactions();
+  const totalValue = getTotalPortfolioValue();
 
-  const concentration   = getTopAssetExposure();
-  const diversification = getDiversificationScore();
-  const pnl             = getPortfolioPnL();
-  const recentActivity  = getRecentTransactions().length;
+  if (!assets.length) {
+    return [es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.'];
+  }
 
-  if (concentration > 50) messages.push(es
-    ? 'Pareces tener una exposición significativa a un solo activo. Puede valer la pena considerar cómo esto afecta tu riesgo global.'
-    : 'You seem to be significantly exposed to a single asset. You may want to consider how this affects your overall risk.');
+  // 1. Single-asset concentration
+  let maxAsset = null, maxValue = 0;
+  assets.forEach(a => {
+    const val = a.qty * a.price;
+    if (val > maxValue) { maxValue = val; maxAsset = a; }
+  });
+  if (totalValue > 0 && (maxValue / totalValue) * 100 > 50) insights.push(es
+    ? 'Una gran parte de tu cartera depende de un único activo.'
+    : 'A large part of your portfolio depends on a single asset.');
 
-  if (diversification <= 2) messages.push(es
-    ? 'Tu cartera está relativamente concentrada. Una diversificación más amplia podría ayudar a equilibrar el riesgo con el tiempo.'
-    : 'Your portfolio is relatively concentrated. A broader diversification could help balance risk over time.');
+  // 2. Category exposure
+  const byType = {};
+  assets.forEach(a => { byType[a.type] = (byType[a.type] || 0) + a.qty * a.price; });
+  for (const type in byType) {
+    if (totalValue > 0 && (byType[type] / totalValue) * 100 > 60) {
+      const label = (T[lang].typeMeta && T[lang].typeMeta[type]) || type;
+      insights.push(es
+        ? `Una parte importante de tu cartera está concentrada en ${label}.`
+        : `A large part of your portfolio is concentrated in ${label}.`);
+      break;
+    }
+  }
 
-  if (pnl < -20) messages.push(es
-    ? 'Tu cartera ha experimentado un descenso notable. Podría valer la pena revisar tu exposición y horizonte temporal.'
-    : 'Your portfolio has experienced a noticeable decline. It might be worth reviewing your exposure and time horizon.');
+  // 3. Strong performer (>50% gain)
+  let strongPerformer = null;
+  assets.forEach(a => {
+    if (!a.costBasis || a.costBasis <= 0) return;
+    const pnl = ((a.qty * a.price - a.costBasis) / a.costBasis) * 100;
+    if (pnl > 50) strongPerformer = a;
+  });
+  if (strongPerformer) insights.push(es
+    ? `${escHtml(strongPerformer.name)} ha tenido un crecimiento notable respecto a tu precio de entrada.`
+    : `${escHtml(strongPerformer.name)} has seen strong growth compared to your entry price.`);
 
-  if (recentActivity > 5) messages.push(es
-    ? 'Has estado bastante activo recientemente. Puede ser útil asegurarte de que tus decisiones siguen alineadas con una estrategia a largo plazo.'
-    : 'You\'ve been quite active recently. You may want to ensure your decisions remain aligned with a long-term strategy.');
+  // 4. Low liquidity (<10% cash)
+  const liquidity = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty, 0);
+  if (totalValue > 0 && liquidity / totalValue < 0.1) insights.push(es
+    ? 'Una parte relativamente pequeña de tu cartera está en liquidez.'
+    : 'A relatively small portion of your portfolio is held in liquidity.');
 
-  if (!messages.length) messages.push(es
-    ? 'Tu cartera parece estable. Puede ser conveniente revisarla periódicamente para asegurarte de que sigue alineada con tus objetivos.'
-    : 'Your portfolio appears stable. It may be worth reviewing it periodically to ensure it remains aligned with your objectives.');
+  // 5. Recent activity
+  if (txs.length) {
+    const last = txs[0];
+    insights.push(last.type === 'buy'
+      ? (es ? `Recientemente aumentaste tu posición en ${escHtml(last.assetName)}.`   : `You recently increased your position in ${escHtml(last.assetName)}.`)
+      : (es ? `Recientemente redujiste tu posición en ${escHtml(last.assetName)}.`    : `You recently reduced your position in ${escHtml(last.assetName)}.`));
+  }
 
-  return messages.slice(0, 3);
+  if (!insights.length) insights.push(es
+    ? 'Tu cartera parece equilibrada. Puede ser conveniente revisarla periódicamente.'
+    : 'Your portfolio appears balanced. It may be worth reviewing it periodically.');
+
+  return insights.slice(0, 3);
 }
 
 function getTopAssetExposure() {
