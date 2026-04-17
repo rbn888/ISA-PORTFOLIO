@@ -3509,14 +3509,42 @@ function animateMonster(elOrb, elText) {
 
 function applySubtleVariation(el) {
   if (!el || el.classList.contains('active')) return;
-  const scale      = 1 + Math.random() * 0.01;
   const brightness = 0.95 + Math.random() * 0.1;
-  el.style.transform = `scale(${scale})`;
-  el.style.filter    = `brightness(${brightness})`;
-  setTimeout(() => { el.style.transform = ''; el.style.filter = ''; }, 2000);
+  el.style.filter = `brightness(${brightness})`;
+  setTimeout(() => { el.style.filter = ''; }, 2000);
 }
 
 setInterval(() => { applySubtleVariation(document.querySelector('.monster-orb')); }, 10000);
+
+let _mouseX = 0.5;
+let _mouseY = 0.5;
+
+document.addEventListener('mousemove', e => {
+  _mouseX = e.clientX / window.innerWidth;
+  _mouseY = e.clientY / window.innerHeight;
+});
+
+function applyOrbInteraction() {
+  const orb = document.querySelector('.monster-orb');
+  if (!orb || orb.classList.contains('active')) return;
+  const moveX  = (_mouseX - 0.5) * 10;
+  const moveY  = (_mouseY - 0.5) * 10;
+  const lightX = 20 + _mouseX * 60;
+  const lightY = 20 + _mouseY * 60;
+  orb.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.015)`;
+  orb.style.background = `
+    radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255,255,255,0.15), transparent 40%),
+    radial-gradient(circle at 30% 30%, rgba(120,160,255,0.6), transparent 40%),
+    radial-gradient(circle at center, #05070f, #000)
+  `;
+}
+
+function startAmbientLoop() {
+  function loop() { applyOrbInteraction(); requestAnimationFrame(loop); }
+  loop();
+}
+
+startAmbientLoop();
 
 function startInsightRotation() {
   if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
