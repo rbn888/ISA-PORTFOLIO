@@ -752,13 +752,12 @@ function totalValueBase() { return toBase(totalValueUSD(), 'USD'); }
 
 // ── P&L calculations ────────────────────────────────────────
 function assetPnLBase(asset) {
-  if (asset.type === 'cash' || asset.type === 'real_estate') return null;
-  const costBasis = asset.costBasis;
-  if (costBasis == null || costBasis <= 0) return null;
-  const curr = (asset.assetCurrency || 'USD').toUpperCase();
-  const currentNative = assetNativeValue(asset);
-  const pnlNative = currentNative - costBasis;
-  return { abs: toBase(pnlNative, curr), pct: (pnlNative / costBasis) * 100 };
+  const value = asset.qty * asset.price;
+  const cost  = asset.costBasis || 0;
+  if (!cost || cost <= 0) return { abs: 0, pct: 0 };
+  const abs = value - cost;
+  const pct = (abs / cost) * 100;
+  return { abs, pct };
 }
 
 function avgBuyPrice(asset) {
