@@ -3102,24 +3102,32 @@ function getNextInsight() {
   return insight.text;
 }
 
-function updateMonsterText(el, newText) {
-  if (!el) return;
-  const line = el.querySelector('.monster-line');
-  if (!line) return;
-  line.classList.add('fade-out');
+function updateMonsterText(lineEl, newText) {
+  if (!lineEl) return;
+  lineEl.classList.add('fade-out');
   setTimeout(() => {
-    line.textContent = newText;
-    line.classList.remove('fade-out');
-    line.classList.add('fade-in');
-    setTimeout(() => { line.classList.remove('fade-in'); }, 800);
+    lineEl.textContent = newText;
+    lineEl.classList.remove('fade-out');
+    lineEl.classList.add('fade-in');
+    setTimeout(() => { lineEl.classList.remove('fade-in'); }, 800);
   }, 600);
+}
+
+function animateMonster(elOrb, elText) {
+  if (!elOrb || !elText) return;
+  elOrb.classList.add('thinking');
+  setTimeout(() => {
+    elOrb.classList.remove('thinking');
+    updateMonsterText(elText, getNextInsight());
+  }, 900);
 }
 
 function startInsightRotation() {
   if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
-  const el = document.getElementById('monsterMsg');
-  setTimeout(() => { updateMonsterText(el, getNextInsight()); }, 800);
-  _insightInterval = setInterval(() => { updateMonsterText(el, getNextInsight()); }, 7000);
+  const orb  = () => document.querySelector('.monster-orb');
+  const line = () => document.querySelector('.monster-line');
+  setTimeout(() => { animateMonster(orb(), line()); }, 1000);
+  _insightInterval = setInterval(() => { animateMonster(orb(), line()); }, 7000);
 }
 
 function getTopAssetExposure() {
