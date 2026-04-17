@@ -153,6 +153,11 @@ const T = {
     manualCurrLabel:  'Moneda',
     manualPriceLabel: 'Precio por unidad',
     manualPriceOptional: ' (opcional)',
+    // Bottom nav
+    tabHome:     'Inicio',
+    tabInsights: 'Insights',
+    tabMarket:   'Mercado',
+    tabProfile:  'Perfil',
     // Beta screen
     exit: 'Salir',
   },
@@ -304,6 +309,11 @@ const T = {
     reName: 'Property name', reValueLabel: 'Value (in base currency)',
     reRentLabel: 'Monthly rent', reRentHint: 'Optional — leave 0 if not applicable',
     rentPerMonth: '/mo',
+    // Bottom nav
+    tabHome:     'Home',
+    tabInsights: 'Insights',
+    tabMarket:   'Market',
+    tabProfile:  'Profile',
     // Beta screen
     exit: 'Exit',
   },
@@ -2701,9 +2711,13 @@ function renderDetailHero(type, typeAssets) {
 }
 
 // ── Bottom nav ─────────────────────────────────────────────
+const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
+
 function updateBottomNavActive() {
   document.querySelectorAll('#bottomNav .bn-tab[data-tab]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === currentTab);
+    const span = btn.querySelector('span');
+    if (span) span.textContent = T[lang][TAB_KEYS[btn.dataset.tab]] || btn.dataset.tab;
   });
 }
 
