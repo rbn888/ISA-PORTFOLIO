@@ -4889,6 +4889,7 @@ function openAssetDetailModal(assetId) {
 function closeAssetDetailModal() {
   assetDetailOverlay.classList.remove('open');
   document.body.classList.remove('modal-open');
+  render();
 }
 
 document.getElementById('adClose').addEventListener('click', closeAssetDetailModal);
