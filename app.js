@@ -3498,6 +3498,7 @@ function animateMonster(elOrb, elText) {
   if (!elOrb || !elText) return;
   const next = getNextInsight();
   const tone = getInsightTone(next);
+  microPulse(elOrb);
   setMonsterTone(elOrb, tone);
   elOrb.classList.add('active');
   setTimeout(() => {
@@ -3516,13 +3517,68 @@ function applySubtleVariation(el) {
 
 setInterval(() => { applySubtleVariation(document.querySelector('.monster-orb')); }, 10000);
 
-let _mouseX = 0.5;
-let _mouseY = 0.5;
+let _mouseX    = 0.5;
+let _mouseY    = 0.5;
+let _pulseScale = 1;
 
 document.addEventListener('mousemove', e => {
   _mouseX = e.clientX / window.innerWidth;
   _mouseY = e.clientY / window.innerHeight;
 });
+
+function microPulse(el) {
+  if (!el) return;
+  _pulseScale = 1.02;
+  setTimeout(() => { _pulseScale = 1; }, 600);
+}
+
+setInterval(() => {
+  const el = document.querySelector('.monster-orb');
+  if (!el || el.classList.contains('active')) return;
+  if (Math.random() > 0.7) microPulse(el);
+}, 5000);
+
+function getMarketMood() {
+  if (!assets.length) return 'neutral';
+  let total = 0, weightedChange = 0;
+  assets.forEach(a => {
+    const v = a.qty * a.price;
+    total          += v;
+    weightedChange += v * (a.change24h || 0);
+  });
+  const avg = total ? weightedChange / total : 0;
+  if (avg >  3) return 'bullish';
+  if (avg < -3) return 'bearish';
+  return 'neutral';
+}
+
+function applyMarketMood(el) {
+  const mood = getMarketMood();
+  if (mood === 'bullish')      el.style.boxShadow = '0 0 60px rgba(0,255,180,0.25)';
+  else if (mood === 'bearish') el.style.boxShadow = '0 0 60px rgba(255,120,120,0.2)';
+  else                         el.style.boxShadow = '0 0 40px rgba(120,160,255,0.2)';
+}
+
+function getVolatility() {
+  if (!assets.length) return 0;
+  return assets.reduce((s, a) => s + Math.abs(a.change24h || 0), 0) / assets.length;
+}
+
+function applyVolatility(el) {
+  const speed = Math.min(Math.max(getVolatility() / 10, 0.5), 2);
+  el.style.transition = `all ${(2 / speed).toFixed(1)}s ease`;
+}
+
+function startMarketAwareness() {
+  setInterval(() => {
+    const el = document.querySelector('.monster-orb');
+    if (!el) return;
+    applyMarketMood(el);
+    applyVolatility(el);
+  }, 4000);
+}
+
+startMarketAwareness();
 
 function applyOrbInteraction() {
   const orb = document.querySelector('.monster-orb');
@@ -3531,7 +3587,7 @@ function applyOrbInteraction() {
   const moveY  = (_mouseY - 0.5) * 10;
   const lightX = 20 + _mouseX * 60;
   const lightY = 20 + _mouseY * 60;
-  orb.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.015)`;
+  orb.style.transform = `translate(${moveX}px, ${moveY}px) scale(${(1.015 * _pulseScale).toFixed(4)})`;
   orb.style.background = `
     radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255,255,255,0.15), transparent 40%),
     radial-gradient(circle at 30% 30%, rgba(120,160,255,0.6), transparent 40%),
