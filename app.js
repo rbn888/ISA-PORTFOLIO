@@ -3115,11 +3115,11 @@ function updateMonsterText(lineEl, newText) {
 
 function animateMonster(elOrb, elText) {
   if (!elOrb || !elText) return;
-  elOrb.classList.add('thinking');
+  elOrb.classList.add('active');
   setTimeout(() => {
-    elOrb.classList.remove('thinking');
     updateMonsterText(elText, getNextInsight());
-  }, 900);
+    setTimeout(() => { elOrb.classList.remove('active'); }, 1200);
+  }, 600);
 }
 
 function startInsightRotation() {
