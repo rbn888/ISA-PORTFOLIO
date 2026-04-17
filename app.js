@@ -2728,8 +2728,8 @@ function getAllTransactions() {
 }
 
 function renderTxRow(tx) {
-  const total    = tx.qty * tx.price;
-  const date     = new Date(tx.ts).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-GB');
+  const total     = tx.qty * tx.price;
+  const date      = new Date(tx.ts).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-GB');
   const typeLabel = tx.type === 'buy' ? 'BUY' : 'SELL';
   return `
     <div class="tx-row">
@@ -2739,22 +2739,41 @@ function renderTxRow(tx) {
         <div class="tx-date">${date}</div>
       </div>
       <div class="tx-right">
-        <div class="tx-qty">${formatQty(tx.qty)} ${escHtml(tx.assetSymbol)}</div>
-        <div class="tx-price">@ ${formatCurrency(tx.price, tx.assetCurrency)}</div>
+        <div class="tx-main">${formatQty(tx.qty)} ${escHtml(tx.assetSymbol)}</div>
+        <div class="tx-sub">@ ${formatCurrency(tx.price, tx.assetCurrency)}</div>
         <div class="tx-total">${formatCurrency(total, tx.assetCurrency)}</div>
       </div>
     </div>`;
 }
 
-function renderInsights() {
-  const txs = getAllTransactions();
+function renderInsightsHero() {
+  return `
+    <div class="insights-hero">
+      <div class="insights-orb"></div>
+      <div class="insights-text">
+        <h2>Insights</h2>
+        <p>Analyzing your portfolio...</p>
+      </div>
+    </div>`;
+}
+
+function renderInsightsHistory(txs) {
   if (!txs.length) {
-    return `<div class="insights-empty"><h2>Insights</h2><p>No transactions yet</p></div>`;
+    return `<div class="insights-history-empty">No transactions yet</div>`;
   }
   return `
-    <div class="insights-screen">
-      <h2>History</h2>
+    <div class="insights-history">
+      <div class="insights-history-header">History</div>
       <div class="ins-tx-list">${txs.map(renderTxRow).join('')}</div>
+    </div>`;
+}
+
+function renderInsights() {
+  const txs = getAllTransactions();
+  return `
+    <div class="insights-screen">
+      ${renderInsightsHero()}
+      ${renderInsightsHistory(txs)}
     </div>`;
 }
 

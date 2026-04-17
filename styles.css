@@ -4154,20 +4154,48 @@ main { padding-bottom: 72px; }
 }
 
 /* ── Insights tab ──────────────────────────────────────── */
-.insights-screen,
-.insights-empty {
-  padding: 20px 16px 80px;
+.insights-screen {
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
 }
-.insights-screen h2,
-.insights-empty h2 {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 0 0 16px;
+
+.insights-hero {
+  padding: 24px 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
-.insights-empty p { color: #555; font-size: 14px; }
+.insights-orb {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #5b8cff 0%, transparent 70%);
+  animation: ins-pulse 2s ease-in-out infinite;
+}
+@keyframes ins-pulse {
+  0%   { opacity: .6; transform: scale(1);   }
+  50%  { opacity: 1;  transform: scale(1.1); }
+  100% { opacity: .6; transform: scale(1);   }
+}
+.insights-text h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.insights-text p  { font-size: 13px; color: #888; margin: 0; }
+
+.insights-history { padding: 0 16px 80px; }
+.insights-history-header {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #555;
+  margin-bottom: 4px;
+}
+.insights-history-empty {
+  padding: 24px 16px;
+  font-size: 13px;
+  color: #555;
+}
 
 .ins-tx-list { display: flex; flex-direction: column; }
 
@@ -4175,7 +4203,7 @@ main { padding-bottom: 72px; }
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 12px 0;
+  padding: 14px 0;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .tx-left  { display: flex; flex-direction: column; gap: 3px; }
@@ -4186,6 +4214,6 @@ main { padding-bottom: 72px; }
 .tx-type.sell  { color: #f44336; }
 .tx-asset      { font-size: 13px; color: #ddd; }
 .tx-date       { font-size: 11px; color: #555; }
-.tx-qty        { font-size: 13px; font-weight: 600; color: #fff; }
-.tx-price      { font-size: 11px; color: #555; }
+.tx-main       { font-size: 13px; font-weight: 600; color: #fff; }
+.tx-sub        { font-size: 11px; color: #555; }
 .tx-total      { font-size: 13px; color: #aaa; }
