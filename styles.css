@@ -3270,6 +3270,18 @@ body.modal-open {
   margin-top: 6px;
 }
 
+.detail-hero-pnl {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+  margin-top: 5px;
+}
+.detail-hero-pnl.up   { color: var(--green); }
+.detail-hero-pnl.down { color: var(--red); }
+.detail-hero-pnl.flat { color: var(--text-muted); }
+
 /* Chart container — canvas fills the full height */
 .detail-chart-wrap {
   height: 82px;

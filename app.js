@@ -2588,6 +2588,7 @@ function renderDetailHero(type, typeAssets) {
         <div class="detail-hero-value"></div>
         <span class="detail-hero-change"></span>
         <span class="detail-hero-pct"></span>
+        <span class="detail-hero-pnl"></span>
       </div>
       <div class="detail-chart-wrap"><canvas id="detailChartCanvas"></canvas></div>`;
     const hdr = document.querySelector('#assetsSection .section-header');
@@ -2625,6 +2626,26 @@ function renderDetailHero(type, typeAssets) {
     pctEl.textContent = `${((totalValue / portfolioTotal) * 100).toFixed(1)}% of portfolio`;
   } else {
     pctEl.textContent = '';
+  }
+
+  const categoryPnLAbs = typeAssets.reduce((s, a) => {
+    const p = assetPnLBase(a);
+    return p ? s + p.abs : s;
+  }, 0);
+  const categoryCostBasis = typeAssets.reduce((s, a) => {
+    if (a.costBasis == null || a.costBasis <= 0 || a.type === 'cash' || a.type === 'real_estate') return s;
+    return s + toBase(a.costBasis, (a.assetCurrency || 'USD').toUpperCase());
+  }, 0);
+  const pnlEl = heroEl.querySelector('.detail-hero-pnl');
+  if (categoryCostBasis > 0) {
+    const pnlPct = (categoryPnLAbs / categoryCostBasis) * 100;
+    const sign = categoryPnLAbs >= 0 ? '+' : '−';
+    const cls  = categoryPnLAbs > 0 ? 'up' : categoryPnLAbs < 0 ? 'down' : 'flat';
+    pnlEl.textContent = `${sign}${formatBase(Math.abs(categoryPnLAbs))} (${sign}${Math.abs(pnlPct).toFixed(1)}%)`;
+    pnlEl.className   = `detail-hero-pnl ${cls}`;
+    pnlEl.style.display = '';
+  } else {
+    pnlEl.style.display = 'none';
   }
 
   // Re-build sparkline only when the category changes (not on every price tick)
