@@ -4171,17 +4171,37 @@ main { padding-bottom: 72px; }
 }
 .monster-container { margin-bottom: 20px; }
 .monster-orb {
-  width: 90px;
-  height: 90px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
-  background: radial-gradient(circle, #5b8cff, #1e2a5a);
-  box-shadow: 0 0 40px rgba(91,140,255,0.6);
-  animation: monsterPulse 2.5s ease-in-out infinite;
+  transition: all .6s ease;
 }
-@keyframes monsterPulse {
-  0%   { transform: scale(1);    opacity: .8; }
-  50%  { transform: scale(1.15); opacity: 1;  }
-  100% { transform: scale(1);    opacity: .8; }
+.monster-orb.bad {
+  background: radial-gradient(circle, #ff3b3b, #5a0000);
+  box-shadow: 0 0 30px rgba(255,0,0,.6);
+  animation: pulseSlow 3s infinite;
+}
+.monster-orb.neutral {
+  background: radial-gradient(circle, #4da3ff, #001f4d);
+  box-shadow: 0 0 25px rgba(0,120,255,.5);
+  animation: breathe 4s infinite;
+}
+.monster-orb.good {
+  background: radial-gradient(circle, #00ff99, #003322);
+  box-shadow: 0 0 35px rgba(0,255,150,.7);
+  animation: pulseFast 1.5s infinite;
+}
+@keyframes pulseSlow {
+  0%,100% { transform: scale(1);    opacity: .8; }
+  50%     { transform: scale(1.05); opacity: 1;  }
+}
+@keyframes breathe {
+  0%,100% { transform: scale(1);    }
+  50%     { transform: scale(1.08); }
+}
+@keyframes pulseFast {
+  0%,100% { transform: scale(1);    }
+  50%     { transform: scale(1.15); }
 }
 .monster-message { max-width: 320px; }
 .monster-line { font-size: 15px; color: #fff; font-weight: 500; margin: 6px 0; }

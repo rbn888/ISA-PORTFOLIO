@@ -2816,6 +2816,23 @@ function generateInsights() {
   return results.slice(0, 3);
 }
 
+function getPortfolioPerformance() {
+  let totalValue = 0, totalCost = 0;
+  assets.forEach(a => {
+    totalValue += a.qty * a.price;
+    totalCost  += a.costBasis || 0;
+  });
+  if (!totalCost) return 0;
+  return ((totalValue - totalCost) / totalCost) * 100;
+}
+
+function getMonsterState() {
+  const pnl = getPortfolioPerformance();
+  if (pnl < -20) return 'bad';
+  if (pnl <   5) return 'neutral';
+  return 'good';
+}
+
 function toggleAllTx() {
   showAllTx = !showAllTx;
   switchTab('insights');
@@ -2823,11 +2840,12 @@ function toggleAllTx() {
 
 function renderInsights() {
   const insights = generateInsights();
+  const state    = getMonsterState();
   return `
     <div class="insights-screen">
       <div class="insights-hero">
         <div class="monster-container">
-          <div class="monster-orb"></div>
+          <div class="monster-orb ${state}"></div>
         </div>
         <div class="monster-message">
           ${insights.map(i => `<div class="monster-line">${i}</div>`).join('')}
