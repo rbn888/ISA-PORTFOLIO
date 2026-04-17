@@ -2824,13 +2824,15 @@ function renderInsights() {
        ${txs.length > 5 ? `<div class="tx-view-all" onclick="toggleAllTx()">${label}</div>` : ''}`
     : `<div class="insights-history-empty">No transactions yet</div>`;
 
+  const insights = generateInsights();
   return `
     <div class="insights-screen">
       <div class="insights-hero">
-        <div class="insights-orb"></div>
-        <div class="insights-text">
-          <h2>Insights</h2>
-          ${generateInsights().map(i => `<p>${i}</p>`).join('')}
+        <div class="monster-container">
+          <div class="monster-orb"></div>
+        </div>
+        <div class="monster-message">
+          ${insights.map(i => `<div class="monster-line">${i}</div>`).join('')}
         </div>
       </div>
       <div class="insights-history">

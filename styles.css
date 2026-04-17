@@ -4161,28 +4161,30 @@ main { padding-bottom: 72px; }
 }
 
 .insights-hero {
-  padding: 24px 16px 20px;
+  padding: 60px 20px 40px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  text-align: center;
 }
-.insights-orb {
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
+.monster-container { margin-bottom: 20px; }
+.monster-orb {
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
-  background: radial-gradient(circle, #5b8cff 0%, transparent 70%);
-  animation: ins-pulse 2s ease-in-out infinite;
+  background: radial-gradient(circle, #5b8cff, #1e2a5a);
+  box-shadow: 0 0 40px rgba(91,140,255,0.6);
+  animation: monsterPulse 2.5s ease-in-out infinite;
 }
-@keyframes ins-pulse {
-  0%   { opacity: .6; transform: scale(1);   }
-  50%  { opacity: 1;  transform: scale(1.1); }
-  100% { opacity: .6; transform: scale(1);   }
+@keyframes monsterPulse {
+  0%   { transform: scale(1);    opacity: .8; }
+  50%  { transform: scale(1.15); opacity: 1;  }
+  100% { transform: scale(1);    opacity: .8; }
 }
-.insights-text h2 { font-size: 18px; font-weight: 700; margin: 0 0 6px; }
-.insights-text p  { font-size: 13px; color: #aaa; margin: 2px 0; }
+.monster-message { max-width: 320px; }
+.monster-line { font-size: 15px; color: #fff; font-weight: 500; margin: 6px 0; }
 
-.insights-history { padding: 0 16px 80px; }
+.insights-history { padding: 0 16px 80px; opacity: .75; }
 .insights-history-header {
   font-size: 12px;
   font-weight: 600;
