@@ -3137,13 +3137,60 @@ function adaptInsight(text) {
   return text;
 }
 
+const DECISION_KEY = 'aurix_decisions';
+
+function getDecisions() {
+  try { return JSON.parse(localStorage.getItem(DECISION_KEY)) || []; } catch { return []; }
+}
+
+function saveDecisions(data) {
+  try { localStorage.setItem(DECISION_KEY, JSON.stringify(data)); } catch {}
+}
+
+function recordBuy(tx, marketContext = {}) {
+  const decisions = getDecisions();
+  decisions.push({
+    asset:   tx.assetName || tx.asset || '',
+    price:   tx.price,
+    ts:      tx.ts || Date.now(),
+    context: { trend: marketContext.trend || 'unknown' },
+  });
+  saveDecisions(decisions.slice(-100));
+}
+
+function detectBehaviorPatterns() {
+  const decisions = getDecisions();
+  if (decisions.length < 3) return null;
+  let buysInUptrend = 0;
+  decisions.forEach(d => { if (d.context.trend === 'up') buysInUptrend++; });
+  const ratio = buysInUptrend / decisions.length;
+  if (ratio > 0.7) return { type: 'buying_high', strength: ratio };
+  return null;
+}
+
+function generateDecisionInsight() {
+  const es      = lang === 'es';
+  const pattern = detectBehaviorPatterns();
+  if (!pattern) return null;
+  if (pattern.type === 'buying_high') {
+    return {
+      text: es
+        ? 'Algunas de tus compras recientes se realizaron durante movimientos alcistas. Observar el timing a lo largo del tiempo puede aportar una perspectiva útil.'
+        : 'Some of your recent purchases were made during upward price movements. Observing timing over time can provide useful perspective.',
+      priority: 2,
+    };
+  }
+  return null;
+}
+
 function generateInsights() {
   const profile  = buildUserProfile();
   analyzeBehavior();
   const base     = generateBaseInsights();
   const temporal = generateTemporalInsights();
   const behavior = generateBehaviorInsights();
-  const all      = [...base, ...temporal, ...behavior];
+  const decision = generateDecisionInsight();
+  const all      = [...base, ...temporal, ...behavior, ...(decision ? [decision] : [])];
   all.sort((a, b) => a.priority - b.priority);
 
   const filtered = all.filter(i => !wasRecentlyShown(i.text));
@@ -5374,7 +5421,9 @@ function addTransaction(assetId, type, qty, price) {
   const asset = assets.find(a => a.id === assetId);
   if (!asset) return;
   if (!asset.transactions) asset.transactions = [];
-  asset.transactions.push({ type, qty, price, ts: Date.now() });
+  const tx = { type, qty, price, ts: Date.now(), assetName: asset.name };
+  asset.transactions.push(tx);
+  if (type === 'buy') recordBuy(tx);
   save();
 }
 
