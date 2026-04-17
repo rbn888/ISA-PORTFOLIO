@@ -668,6 +668,20 @@ function parseLocalFloat(str) {
   return parseFloat(str.replace(/\./g, '').replace(',', '.'));
 }
 
+// Handles both European ("2.446,77") and standard ("2446.77") price strings.
+// parseLocalFloat breaks standard format by treating the decimal dot as thousands separator.
+function normalizePriceInput(value) {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  let v = String(value).trim();
+  if (v.includes(',') && v.includes('.')) {
+    v = v.replace(/\./g, '').replace(',', '.');
+  } else if (v.includes(',')) {
+    v = v.replace(',', '.');
+  }
+  return Number(v) || 0;
+}
+
 // Attach live thousand-separator formatting to a text input
 function attachFormatter(input, allowDecimals) {
   input.addEventListener('input', () => {
@@ -4786,7 +4800,7 @@ txForm.addEventListener('submit', e => {
   e.preventDefault();
   if (!_txAssetId) return;
   const qty   = parseLocalFloat(txQtyInput.value);
-  const price = parseLocalFloat(txPriceInput.value);
+  const price = normalizePriceInput(txPriceInput.value);
   if (isNaN(qty)   || qty   <= 0) { txQtyInput.focus();   return; }
   if (isNaN(price) || price <= 0) { txPriceInput.focus(); return; }
 
