@@ -969,9 +969,36 @@ let _donutDist     = [];
 let activeCategory = null; // persistent category filter ('crypto', 'metal', …, or null)
 let currentTab       = 'home';
 let showAllTx        = false;
-let lastInsightIndex = 0;
-let lastInsightsCache = [];
+let insightIndex = 0;
+let insightCache = [];
 let _insightInterval  = null;
+
+const MEMORY_KEY = 'aurix_insights_memory';
+
+function getMemory() {
+  try { return JSON.parse(localStorage.getItem(MEMORY_KEY)) || []; } catch { return []; }
+}
+
+function saveMemory(arr) {
+  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(arr)); } catch {}
+}
+
+function wasRecentlyShown(text, days = 2) {
+  const memory = getMemory();
+  const limit  = days * 24 * 60 * 60 * 1000;
+  const now    = Date.now();
+  return memory.some(m => m.text === text && (now - m.ts < limit));
+}
+
+function storeInsight(text) {
+  const memory = getMemory();
+  memory.push({ text, ts: Date.now() });
+  saveMemory(memory.slice(-50));
+}
+
+function hasEnoughHistory() {
+  return getAllTransactions().length >= 5;
+}
 
 function getDistribution() {
   const totUSD = totalValueUSD();
@@ -2776,15 +2803,14 @@ function getTotalPortfolioValue() {
   return assets.reduce((sum, a) => sum + a.qty * a.price, 0);
 }
 
-function generateInsights() {
+function generateBaseInsights() {
   const es         = lang === 'es';
   const insights   = [];
   const txs        = getAllTransactions();
   const totalValue = getTotalPortfolioValue();
 
   if (!assets.length) {
-    lastInsightsCache = [{ text: es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.', priority: 4 }];
-    return lastInsightsCache;
+    return [{ text: es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.', priority: 4 }];
   }
 
   // 1. Single-asset concentration (priority 1)
@@ -2838,28 +2864,116 @@ function generateInsights() {
     });
   }
 
+  // 6. Enough transaction history — priority 3
+  if (hasEnoughHistory()) insights.push({
+    text: es ? 'Ya tienes suficiente historial para obtener insights más precisos.' : 'You now have enough history for more accurate insights.',
+    priority: 3,
+  });
+
   if (!insights.length) insights.push({
     text: es ? 'Tu cartera parece equilibrada. Puede ser conveniente revisarla periódicamente.' : 'Your portfolio appears balanced. It may be worth reviewing it periodically.',
     priority: 4,
   });
 
-  insights.sort((a, b) => a.priority - b.priority);
-  lastInsightsCache = insights;
   return insights;
 }
 
+function getDaysSince(ts) {
+  return (Date.now() - ts) / (1000 * 60 * 60 * 24);
+}
+
+function buildAssetTimeline(asset) {
+  if (!asset.transactions || !asset.transactions.length) return null;
+  const buys = asset.transactions.filter(tx => tx.type === 'buy');
+  if (!buys.length || !asset.qty || asset.qty <= 0 || !asset.costBasis) return null;
+  return {
+    firstTs:      buys[0].ts,
+    lastTs:       buys[buys.length - 1].ts,
+    avgEntry:     asset.costBasis / asset.qty,
+    currentPrice: asset.price,
+  };
+}
+
+function detectRunUp(asset) {
+  const es       = lang === 'es';
+  const timeline = buildAssetTimeline(asset);
+  if (!timeline || timeline.avgEntry <= 0) return null;
+  const growth = ((timeline.currentPrice - timeline.avgEntry) / timeline.avgEntry) * 100;
+  const days   = getDaysSince(timeline.firstTs);
+  if (growth > 80 && days < 60) {
+    return es
+      ? `${escHtml(asset.name)} ha subido significativamente en un período relativamente corto.`
+      : `${escHtml(asset.name)} has increased significantly over a relatively short period.`;
+  }
+  return null;
+}
+
+function detectStabilization(asset) {
+  const es       = lang === 'es';
+  const timeline = buildAssetTimeline(asset);
+  if (!timeline || timeline.avgEntry <= 0) return null;
+  const growth       = ((timeline.currentPrice - timeline.avgEntry) / timeline.avgEntry) * 100;
+  const daysSinceLast = getDaysSince(timeline.lastTs);
+  if (growth > 50 && daysSinceLast > 7) {
+    return es
+      ? `${escHtml(asset.name)} mostró un fuerte crecimiento pasado, aunque el movimiento reciente parece más estable.`
+      : `${escHtml(asset.name)} has shown strong past growth, although recent movement appears more stable.`;
+  }
+  return null;
+}
+
+function detectAccumulation(asset) {
+  const es   = lang === 'es';
+  if (!asset.transactions) return null;
+  const buys = asset.transactions.filter(tx => tx.type === 'buy');
+  if (buys.length >= 3) {
+    return es
+      ? `Has incrementado tu posición en ${escHtml(asset.name)} en varias ocasiones.`
+      : `You have increased your position in ${escHtml(asset.name)} multiple times over time.`;
+  }
+  return null;
+}
+
+function generateTemporalInsights() {
+  const insights = [];
+  assets.forEach(asset => {
+    const runUp = detectRunUp(asset);
+    if (runUp) insights.push({ text: runUp, priority: 2 });
+
+    const stable = detectStabilization(asset);
+    if (stable) insights.push({ text: stable, priority: 3 });
+
+    const acc = detectAccumulation(asset);
+    if (acc) insights.push({ text: acc, priority: 3 });
+  });
+  return insights;
+}
+
+function generateInsights() {
+  const base     = generateBaseInsights();
+  const temporal = generateTemporalInsights();
+  const all      = [...base, ...temporal];
+  all.sort((a, b) => a.priority - b.priority);
+
+  const filtered = all.filter(i => !wasRecentlyShown(i.text));
+  const pool     = filtered.length ? filtered : all;
+  insightCache   = pool.slice(0, 5);
+  return insightCache;
+}
+
 function getNextInsight() {
-  const pool = lastInsightsCache.length ? lastInsightsCache : generateInsights();
+  const pool = insightCache.length ? insightCache : generateInsights();
   if (!pool.length) return '';
-  const insight = pool[lastInsightIndex % pool.length];
-  lastInsightIndex++;
+  const insight = pool[insightIndex % pool.length];
+  insightIndex++;
+  storeInsight(insight.text);
   return insight.text;
 }
 
 function startInsightRotation(updateFn) {
   if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
   updateFn(getNextInsight());
-  _insightInterval = setInterval(() => updateFn(getNextInsight()), 5000);
+  _insightInterval = setInterval(() => { updateFn(getNextInsight()); }, 6000);
 }
 
 function getTopAssetExposure() {
