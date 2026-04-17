@@ -967,8 +967,11 @@ const donutCenterSubEl      = document.getElementById('donutCenterSub');
 let _donutHoverIdx = -1;   // ephemeral hover (index into _donutDist)
 let _donutDist     = [];
 let activeCategory = null; // persistent category filter ('crypto', 'metal', …, or null)
-let currentTab     = 'home';
-let showAllTx      = false;
+let currentTab       = 'home';
+let showAllTx        = false;
+let lastInsightIndex = 0;
+let lastInsightsCache = [];
+let _insightInterval  = null;
 
 function getDistribution() {
   const totUSD = totalValueUSD();
@@ -2780,62 +2783,83 @@ function generateInsights() {
   const totalValue = getTotalPortfolioValue();
 
   if (!assets.length) {
-    return [es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.'];
+    lastInsightsCache = [{ text: es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.', priority: 4 }];
+    return lastInsightsCache;
   }
 
-  // 1. Single-asset concentration
-  let maxAsset = null, maxValue = 0;
-  assets.forEach(a => {
-    const val = a.qty * a.price;
-    if (val > maxValue) { maxValue = val; maxAsset = a; }
+  // 1. Single-asset concentration (priority 1)
+  let maxValue = 0;
+  assets.forEach(a => { const v = a.qty * a.price; if (v > maxValue) maxValue = v; });
+  if (totalValue > 0 && (maxValue / totalValue) * 100 > 50) insights.push({
+    text: es ? 'Una gran parte de tu cartera depende de un único activo.' : 'A large part of your portfolio depends on a single asset.',
+    priority: 1,
   });
-  if (totalValue > 0 && (maxValue / totalValue) * 100 > 50) insights.push(es
-    ? 'Una gran parte de tu cartera depende de un único activo.'
-    : 'A large part of your portfolio depends on a single asset.');
 
-  // 2. Category exposure
+  // 2. Category exposure (priority 1)
   const byType = {};
   assets.forEach(a => { byType[a.type] = (byType[a.type] || 0) + a.qty * a.price; });
   for (const type in byType) {
     if (totalValue > 0 && (byType[type] / totalValue) * 100 > 60) {
       const label = (T[lang].typeMeta && T[lang].typeMeta[type]) || type;
-      insights.push(es
-        ? `Una parte importante de tu cartera está concentrada en ${label}.`
-        : `A large part of your portfolio is concentrated in ${label}.`);
+      insights.push({
+        text: es ? `Una parte importante de tu cartera está concentrada en ${label}.` : `A large part of your portfolio is concentrated in ${label}.`,
+        priority: 1,
+      });
       break;
     }
   }
 
-  // 3. Strong performer (>50% gain)
+  // 3. Strong performer — priority 2
   let strongPerformer = null;
   assets.forEach(a => {
     if (!a.costBasis || a.costBasis <= 0) return;
-    const pnl = ((a.qty * a.price - a.costBasis) / a.costBasis) * 100;
-    if (pnl > 50) strongPerformer = a;
+    if (((a.qty * a.price - a.costBasis) / a.costBasis) * 100 > 50) strongPerformer = a;
   });
-  if (strongPerformer) insights.push(es
-    ? `${escHtml(strongPerformer.name)} ha tenido un crecimiento notable respecto a tu precio de entrada.`
-    : `${escHtml(strongPerformer.name)} has seen strong growth compared to your entry price.`);
+  if (strongPerformer) insights.push({
+    text: es ? `${escHtml(strongPerformer.name)} ha tenido un crecimiento notable respecto a tu precio de entrada.` : `${escHtml(strongPerformer.name)} has seen strong growth compared to your entry price.`,
+    priority: 2,
+  });
 
-  // 4. Low liquidity (<10% cash)
+  // 4. Low liquidity — priority 2
   const liquidity = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty, 0);
-  if (totalValue > 0 && liquidity / totalValue < 0.1) insights.push(es
-    ? 'Una parte relativamente pequeña de tu cartera está en liquidez.'
-    : 'A relatively small portion of your portfolio is held in liquidity.');
+  if (totalValue > 0 && liquidity / totalValue < 0.1) insights.push({
+    text: es ? 'Una parte relativamente pequeña de tu cartera está en liquidez.' : 'A relatively small portion of your portfolio is held in liquidity.',
+    priority: 2,
+  });
 
-  // 5. Recent activity
+  // 5. Recent activity — priority 3
   if (txs.length) {
     const last = txs[0];
-    insights.push(last.type === 'buy'
-      ? (es ? `Recientemente aumentaste tu posición en ${escHtml(last.assetName)}.`   : `You recently increased your position in ${escHtml(last.assetName)}.`)
-      : (es ? `Recientemente redujiste tu posición en ${escHtml(last.assetName)}.`    : `You recently reduced your position in ${escHtml(last.assetName)}.`));
+    insights.push({
+      text: last.type === 'buy'
+        ? (es ? `Recientemente aumentaste tu posición en ${escHtml(last.assetName)}.` : `You recently increased your position in ${escHtml(last.assetName)}.`)
+        : (es ? `Recientemente redujiste tu posición en ${escHtml(last.assetName)}.`  : `You recently reduced your position in ${escHtml(last.assetName)}.`),
+      priority: 3,
+    });
   }
 
-  if (!insights.length) insights.push(es
-    ? 'Tu cartera parece equilibrada. Puede ser conveniente revisarla periódicamente.'
-    : 'Your portfolio appears balanced. It may be worth reviewing it periodically.');
+  if (!insights.length) insights.push({
+    text: es ? 'Tu cartera parece equilibrada. Puede ser conveniente revisarla periódicamente.' : 'Your portfolio appears balanced. It may be worth reviewing it periodically.',
+    priority: 4,
+  });
 
-  return insights.slice(0, 3);
+  insights.sort((a, b) => a.priority - b.priority);
+  lastInsightsCache = insights;
+  return insights;
+}
+
+function getNextInsight() {
+  const pool = lastInsightsCache.length ? lastInsightsCache : generateInsights();
+  if (!pool.length) return '';
+  const insight = pool[lastInsightIndex % pool.length];
+  lastInsightIndex++;
+  return insight.text;
+}
+
+function startInsightRotation(updateFn) {
+  if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
+  updateFn(getNextInsight());
+  _insightInterval = setInterval(() => updateFn(getNextInsight()), 5000);
 }
 
 function getTopAssetExposure() {
@@ -2881,14 +2905,15 @@ function toggleAllTx() {
 function renderInsights() {
   const insights = generateInsights();
   const state    = getMonsterState();
+  const first    = insights[0] ? insights[0].text : '';
   return `
     <div class="insights-screen">
       <div class="insights-hero">
         <div class="monster-container">
           <div class="monster-orb ${state}"></div>
         </div>
-        <div class="monster-message">
-          ${insights.map(i => `<div class="monster-line">${i}</div>`).join('')}
+        <div class="monster-message" id="monsterMsg">
+          <div class="monster-line">${first}</div>
         </div>
       </div>
     </div>`;
@@ -2907,6 +2932,7 @@ function updateBottomNavActive() {
 
 function switchTab(tab) {
   currentTab = tab;
+  if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
   const mainEl      = document.querySelector('main');
   const placeholder = document.getElementById('tabPlaceholder');
   if (tab === 'home') {
@@ -2919,6 +2945,12 @@ function switchTab(tab) {
       ? renderInsights()
       : `<p class="placeholder-label">${tab.charAt(0).toUpperCase() + tab.slice(1)}</p>`;
     placeholder.style.display = '';
+    if (tab === 'insights') {
+      startInsightRotation(text => {
+        const el = document.getElementById('monsterMsg');
+        if (el) el.innerHTML = `<div class="monster-line">${text}</div>`;
+      });
+    }
     updateBottomNavActive();
   }
 }
