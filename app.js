@@ -4782,9 +4782,11 @@ txForm.addEventListener('submit', e => {
       openAssetDetailModal(editedAssetId);
     }
   } else {
+    const addedAssetId = _txAssetId;
     addTransaction(_txAssetId, txTypeHidden.value, qty, price);
     render();
     closeTxModal();
+    openAssetDetailModal(addedAssetId);
   }
 });
 
