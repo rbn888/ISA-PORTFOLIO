@@ -3660,12 +3660,41 @@ function startAmbientLoop() {
 
 startAmbientLoop();
 
+function getCurrentContext() {
+  return currentTab || 'home';
+}
+
+function applyContext(el) {
+  el.classList.remove('ctx-home', 'ctx-asset', 'ctx-insights', 'ctx-market');
+  el.classList.add(`ctx-${getCurrentContext()}`);
+}
+
+function getContextTiming() {
+  const ctx = getCurrentContext();
+  if (ctx === 'insights') return 5000;
+  if (ctx === 'asset')    return 7000;
+  if (ctx === 'market')   return 9000;
+  return 8000;
+}
+
+let _rotationActive = false;
+
 function startInsightRotation() {
-  if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
+  if (_insightInterval) { clearTimeout(_insightInterval); _insightInterval = null; }
+  _rotationActive = true;
   const orb  = () => document.querySelector('.monster-orb');
   const line = () => document.querySelector('.monster-line');
-  setTimeout(() => { animateMonster(orb(), line()); }, 1000);
-  _insightInterval = setInterval(() => { animateMonster(orb(), line()); }, 7000);
+  const o = orb();
+  if (o) applyContext(o);
+  setTimeout(() => { if (_rotationActive) animateMonster(orb(), line()); }, 1000);
+  function loop() {
+    if (!_rotationActive) return;
+    _insightInterval = setTimeout(() => {
+      animateMonster(orb(), line());
+      loop();
+    }, getContextTiming());
+  }
+  loop();
 }
 
 function getTopAssetExposure() {
@@ -3736,7 +3765,8 @@ function updateBottomNavActive() {
 
 function switchTab(tab) {
   currentTab = tab;
-  if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
+  _rotationActive = false;
+  if (_insightInterval) { clearTimeout(_insightInterval); _insightInterval = null; }
   const mainEl      = document.querySelector('main');
   const placeholder = document.getElementById('tabPlaceholder');
   if (tab === 'home') {

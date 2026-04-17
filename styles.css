@@ -4241,6 +4241,10 @@ main { padding-bottom: 72px; }
   filter: brightness(1.2);
   animation-play-state: paused;
 }
+.monster-orb.ctx-home     { opacity: 0.9; }
+.monster-orb.ctx-insights { opacity: 1; }
+.monster-orb.ctx-asset    { filter: brightness(1.05); }
+.monster-orb.ctx-market   { opacity: 0.85; }
 @keyframes idleLuxury {
   0%   { transform: scale(1);     }
   50%  { transform: scale(1.015); }
