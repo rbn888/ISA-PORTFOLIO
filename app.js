@@ -783,6 +783,14 @@ function syncCostBasisFromTransactions(asset) {
   if (computed !== null) asset.costBasis = computed;
 }
 
+function migrateLegacyAssetToTransactions(asset) {
+  if (asset.transactions && asset.transactions.length) return;
+  if (!asset.qty || asset.qty <= 0) return;
+  if (!asset.costBasis || asset.costBasis <= 0) return;
+  const avgPrice = asset.costBasis / asset.qty;
+  asset.transactions = [{ type: 'buy', qty: asset.qty, price: avgPrice, ts: Date.now() }];
+}
+
 function syncQtyFromTransactions(asset) {
   if (!asset.transactions || !asset.transactions.length) return;
   let qty = 0;
@@ -2666,8 +2674,11 @@ function renderDetailHero(type, typeAssets) {
 
 // ── Render ─────────────────────────────────────────────────
 function render(animate = false) {
-  assets.forEach(syncQtyFromTransactions);
-  assets.forEach(syncCostBasisFromTransactions);
+  assets.forEach(asset => {
+    migrateLegacyAssetToTransactions(asset);
+    syncQtyFromTransactions(asset);
+    syncCostBasisFromTransactions(asset);
+  });
   countUpTotalValue(totalValueBase());
   updatePerformance();
   assetCountEl.textContent = t('assetCount')(assets.length);
