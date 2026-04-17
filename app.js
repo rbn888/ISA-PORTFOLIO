@@ -3027,7 +3027,60 @@ function generateBehaviorInsights() {
   return insights;
 }
 
+const PROFILE_KEY = 'aurix_user_profile';
+
+function getProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; } catch { return {}; }
+}
+
+function saveProfile(profile) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {}
+}
+
+function buildUserProfile() {
+  const txs       = getAllTransactions();
+  const now       = Date.now();
+  const recentTxs = txs.filter(tx => now - tx.ts < 7 * 24 * 60 * 60 * 1000);
+  const profile   = {};
+
+  if (recentTxs.length > 5)      profile.activity = 'high';
+  else if (recentTxs.length > 2) profile.activity = 'medium';
+  else                           profile.activity = 'low';
+
+  if (assets.length <= 2)      profile.diversification = 'low';
+  else if (assets.length <= 5) profile.diversification = 'medium';
+  else                         profile.diversification = 'high';
+
+  const concentration = getTopAssetExposure();
+  if (concentration > 60)      profile.risk = 'high';
+  else if (concentration > 30) profile.risk = 'medium';
+  else                         profile.risk = 'low';
+
+  saveProfile(profile);
+  return profile;
+}
+
+function adaptMessage(text, profile) {
+  const es = lang === 'es';
+  let result = text;
+
+  if (profile.risk === 'high') {
+    result = es
+      ? result.replace('puede valer la pena considerar', 'puede valer la pena considerar cuidadosamente')
+      : result.replace('may want to consider', 'may want to carefully consider');
+  }
+
+  if (profile.diversification === 'low') {
+    result += es
+      ? ' Una estructura más equilibrada podría ser beneficiosa a largo plazo.'
+      : ' A more balanced structure could be beneficial over time.';
+  }
+
+  return result;
+}
+
 function generateInsights() {
+  const profile  = buildUserProfile();
   const base     = generateBaseInsights();
   const temporal = generateTemporalInsights();
   const behavior = generateBehaviorInsights();
@@ -3036,7 +3089,7 @@ function generateInsights() {
 
   const filtered = all.filter(i => !wasRecentlyShown(i.text));
   const pool     = filtered.length ? filtered : all;
-  insightCache   = pool.slice(0, 5);
+  insightCache   = pool.slice(0, 5).map(i => ({ ...i, text: adaptMessage(i.text, profile) }));
   return insightCache;
 }
 
