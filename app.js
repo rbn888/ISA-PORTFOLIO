@@ -776,11 +776,16 @@ function computeCostBasisFromTransactions(asset) {
   return buys.reduce((sum, tx) => sum + tx.qty * tx.price, 0);
 }
 
-// Syncs asset.costBasis from buy transactions when they exist.
-// No-op for assets with no transaction history (real estate, cash, legacy).
 function syncCostBasisFromTransactions(asset) {
-  const computed = computeCostBasisFromTransactions(asset);
-  if (computed !== null) asset.costBasis = computed;
+  if (!asset.transactions || !asset.transactions.length) return;
+  let totalCost = 0;
+  for (const tx of asset.transactions) {
+    const qty   = Number(tx.qty)   || 0;
+    const price = Number(tx.price) || 0;
+    if (tx.type === 'buy')  totalCost += qty * price;
+    if (tx.type === 'sell') totalCost -= qty * price;
+  }
+  asset.costBasis = Math.max(0, totalCost);
 }
 
 function migrateLegacyAssetToTransactions(asset) {
@@ -2889,7 +2894,7 @@ function render(animate = false) {
       const avg         = avgBuyPrice(asset);
       const totalBought = buys.reduce((s, tx) => s + tx.qty, 0);
       const avgFmt      = avg != null ? formatCurrency(avg, assetCurr) : '—';
-      return `<div class="dar-tx-info">∅ ${avgFmt} · ${formatQty(totalBought)} ${lang === 'es' ? 'comprado' : 'bought'}</div>`;
+      return `<div class="dar-tx-info">∅ ${avgFmt}</div>`;
     })();
 
     // ── Premium detail row (category drill-down view) ────────
