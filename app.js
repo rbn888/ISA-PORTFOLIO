@@ -2769,6 +2769,47 @@ function renderInsightsHistory(txs) {
     </div>`;
 }
 
+function generateInsights() {
+  if (!assets.length) return ['Start adding assets to get insights'];
+
+  const totalValue = assets.reduce((s, a) => s + a.qty * a.price, 0);
+  const results    = [];
+
+  // 1. Category concentration
+  const byType = {};
+  assets.forEach(a => {
+    const val = a.qty * a.price;
+    byType[a.type] = (byType[a.type] || 0) + val;
+  });
+  let topType = null, topVal = 0;
+  for (const type in byType) {
+    if (byType[type] > topVal) { topVal = byType[type]; topType = type; }
+  }
+  if (topType && totalValue > 0) {
+    const pct = ((topVal / totalValue) * 100).toFixed(0);
+    const label = (TYPE_META[topType] && T[lang].typeMeta[topType]) || topType;
+    if (pct > 60) results.push(`You are heavily exposed to ${label} (${pct}%)`);
+  }
+
+  // 2. Top asset by value
+  let topAsset = null, topAssetVal = 0;
+  assets.forEach(a => {
+    const val = a.qty * a.price;
+    if (val > topAssetVal) { topAssetVal = val; topAsset = a; }
+  });
+  if (topAsset) results.push(`Most of your portfolio is in ${escHtml(topAsset.name)}`);
+
+  // 3. Recent activity
+  const txs = getAllTransactions();
+  if (txs.length) {
+    const last = txs[0];
+    const verb = last.type === 'buy' ? 'bought' : 'sold';
+    results.push(`You recently ${verb} ${escHtml(last.assetName)}`);
+  }
+
+  return results.slice(0, 3);
+}
+
 function toggleAllTx() {
   showAllTx = !showAllTx;
   switchTab('insights');
@@ -2789,7 +2830,7 @@ function renderInsights() {
         <div class="insights-orb"></div>
         <div class="insights-text">
           <h2>Insights</h2>
-          <p>Preparing your analysis...</p>
+          ${generateInsights().map(i => `<p>${i}</p>`).join('')}
         </div>
       </div>
       <div class="insights-history">

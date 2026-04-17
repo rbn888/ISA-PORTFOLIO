@@ -4179,8 +4179,8 @@ main { padding-bottom: 72px; }
   50%  { opacity: 1;  transform: scale(1.1); }
   100% { opacity: .6; transform: scale(1);   }
 }
-.insights-text h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
-.insights-text p  { font-size: 13px; color: #888; margin: 0; }
+.insights-text h2 { font-size: 18px; font-weight: 700; margin: 0 0 6px; }
+.insights-text p  { font-size: 13px; color: #aaa; margin: 2px 0; }
 
 .insights-history { padding: 0 16px 80px; }
 .insights-history-header {
