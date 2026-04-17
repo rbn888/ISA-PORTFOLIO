@@ -2710,6 +2710,54 @@ function renderDetailHero(type, typeAssets) {
   }
 }
 
+// ── Insights tab ───────────────────────────────────────────
+function getAllTransactions() {
+  const all = [];
+  assets.forEach(asset => {
+    (asset.transactions || []).forEach(tx => {
+      all.push({
+        ...tx,
+        assetName:     asset.name,
+        assetSymbol:   asset.ticker || '',
+        assetCurrency: (asset.assetCurrency || 'USD').toUpperCase(),
+        assetId:       asset.id,
+      });
+    });
+  });
+  return all.sort((a, b) => b.ts - a.ts);
+}
+
+function renderTxRow(tx) {
+  const total    = tx.qty * tx.price;
+  const date     = new Date(tx.ts).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-GB');
+  const typeLabel = tx.type === 'buy' ? 'BUY' : 'SELL';
+  return `
+    <div class="tx-row">
+      <div class="tx-left">
+        <div class="tx-type ${tx.type}">${typeLabel}</div>
+        <div class="tx-asset">${escHtml(tx.assetName)}</div>
+        <div class="tx-date">${date}</div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-qty">${formatQty(tx.qty)} ${escHtml(tx.assetSymbol)}</div>
+        <div class="tx-price">@ ${formatCurrency(tx.price, tx.assetCurrency)}</div>
+        <div class="tx-total">${formatCurrency(total, tx.assetCurrency)}</div>
+      </div>
+    </div>`;
+}
+
+function renderInsights() {
+  const txs = getAllTransactions();
+  if (!txs.length) {
+    return `<div class="insights-empty"><h2>Insights</h2><p>No transactions yet</p></div>`;
+  }
+  return `
+    <div class="insights-screen">
+      <h2>History</h2>
+      <div class="ins-tx-list">${txs.map(renderTxRow).join('')}</div>
+    </div>`;
+}
+
 // ── Bottom nav ─────────────────────────────────────────────
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
 
@@ -2730,8 +2778,10 @@ function switchTab(tab) {
     placeholder.style.display = 'none';
     render();
   } else {
-    mainEl.style.display      = 'none';
-    placeholder.innerHTML     = `<p class="placeholder-label">${tab.charAt(0).toUpperCase() + tab.slice(1)}</p>`;
+    mainEl.style.display  = 'none';
+    placeholder.innerHTML = tab === 'insights'
+      ? renderInsights()
+      : `<p class="placeholder-label">${tab.charAt(0).toUpperCase() + tab.slice(1)}</p>`;
     placeholder.style.display = '';
     updateBottomNavActive();
   }

@@ -4152,3 +4152,40 @@ main { padding-bottom: 72px; }
   letter-spacing: .08em;
   text-transform: uppercase;
 }
+
+/* ── Insights tab ──────────────────────────────────────── */
+.insights-screen,
+.insights-empty {
+  padding: 20px 16px 80px;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+.insights-screen h2,
+.insights-empty h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+.insights-empty p { color: #555; font-size: 14px; }
+
+.ins-tx-list { display: flex; flex-direction: column; }
+
+.tx-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.tx-left  { display: flex; flex-direction: column; gap: 3px; }
+.tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+
+.tx-type       { font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.tx-type.buy   { color: #4caf50; }
+.tx-type.sell  { color: #f44336; }
+.tx-asset      { font-size: 13px; color: #ddd; }
+.tx-date       { font-size: 11px; color: #555; }
+.tx-qty        { font-size: 13px; font-weight: 600; color: #fff; }
+.tx-price      { font-size: 11px; color: #555; }
+.tx-total      { font-size: 13px; color: #aaa; }
