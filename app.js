@@ -3361,6 +3361,25 @@ function saveWowMemory(data) {
 
 function hasSeenWow(text) { return getWowMemory().includes(text); }
 
+const EVOLUTION_KEY = 'aurix_evolution';
+
+function getEvolution() {
+  try { return JSON.parse(localStorage.getItem(EVOLUTION_KEY)) || { level: 1, interactions: 0 }; }
+  catch { return { level: 1, interactions: 0 }; }
+}
+
+function saveEvolution(data) {
+  localStorage.setItem(EVOLUTION_KEY, JSON.stringify(data));
+}
+
+function trackInteraction() {
+  const evo = getEvolution();
+  evo.interactions++;
+  if (evo.interactions > 20) evo.level = 2;
+  if (evo.interactions > 60) evo.level = 3;
+  saveEvolution(evo);
+}
+
 function storeWow(text) {
   const memory = getWowMemory();
   memory.push(text);
@@ -3713,10 +3732,34 @@ function initAmbientLayer() {
   document.body.appendChild(layer);
 }
 
+const phrasesByLevel = {
+  1: [
+    'Small changes accumulate over time.',
+    'Structure becomes clearer with time.',
+    'Stability often goes unnoticed.',
+  ],
+  2: [
+    'Your portfolio structure is gradually taking shape.',
+    'Recent movements may carry more weight than they appear.',
+    'Patterns tend to emerge through repetition.',
+  ],
+  3: [
+    'Your decisions are beginning to form a consistent structure.',
+    'What appears stable may still be evolving underneath.',
+    'Behavior often reveals more than outcomes.',
+  ],
+};
+
+function generateEvolvingPhrase() {
+  const evo   = getEvolution();
+  const pool  = phrasesByLevel[evo.level] || phrasesByLevel[1];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function spawnAmbientText() {
   const layer = document.querySelector('.ambient-text-layer');
   if (!layer) return;
-  const phrase = generateAmbientPhrase();
+  const phrase = generateEvolvingPhrase();
   const el     = document.createElement('div');
   el.className   = 'ambient-text';
   el.textContent = phrase;
@@ -4787,6 +4830,8 @@ chipClearBtn.addEventListener('click', () => enterSearchMode());
 document.addEventListener('click', e => {
   if (!e.target.closest('#searchWrap')) closeSuggestions();
 }, true);
+
+document.addEventListener('click', trackInteraction);
 
 // ── Modal ──────────────────────────────────────────────────
 
