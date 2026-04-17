@@ -4693,6 +4693,10 @@ function openTxModal(assetId) {
   document.querySelectorAll('#txTypeToggle [data-txtype]')
     .forEach(b => b.classList.toggle('active', b.dataset.txtype === 'buy'));
   txErrorEl.textContent = '';
+  const asset = assets.find(a => a.id === assetId);
+  if (asset && asset.price && !isNaN(asset.price)) {
+    txPriceInput.value = asset.price;
+  }
   txOverlay.classList.add('open');
   document.body.classList.add('modal-open');
   setTimeout(() => txQtyInput.focus(), 50);
