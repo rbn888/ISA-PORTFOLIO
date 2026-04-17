@@ -3349,10 +3349,83 @@ function getSilentMessage() {
   };
 }
 
+const WOW_KEY = 'aurix_wow';
+
+function getWowMemory() {
+  try { return JSON.parse(localStorage.getItem(WOW_KEY)) || []; } catch { return []; }
+}
+
+function saveWowMemory(data) {
+  try { localStorage.setItem(WOW_KEY, JSON.stringify(data)); } catch {}
+}
+
+function hasSeenWow(text) { return getWowMemory().includes(text); }
+
+function storeWow(text) {
+  const memory = getWowMemory();
+  memory.push(text);
+  saveWowMemory(memory.slice(-20));
+}
+
+function detectWowInsights() {
+  const es     = lang === 'es';
+  const total  = getTotalPortfolioValue();
+  const txs    = getAllTransactions();
+  const insights = [];
+
+  // 1. Gains concentration — priority 1
+  let topGain = null, topValue = 0;
+  assets.forEach(a => {
+    if (!a.costBasis) return;
+    const pnl = a.qty * a.price - a.costBasis;
+    if (pnl > topValue) { topValue = pnl; topGain = a; }
+  });
+  if (topGain && total > 0 && topValue > total * 0.3) insights.push({
+    text: es
+      ? `Una parte significativa del crecimiento de tu cartera parece provenir de ${escHtml(topGain.name)}.`
+      : `A significant portion of your portfolio growth appears to come from ${escHtml(topGain.name)}.`,
+    priority: 1,
+  });
+
+  // 2. Buying into strength — priority 1
+  const repeatedBuys = {};
+  txs.forEach(tx => { if (tx.type === 'buy') repeatedBuys[tx.assetName] = (repeatedBuys[tx.assetName] || 0) + 1; });
+  for (const name in repeatedBuys) {
+    if (repeatedBuys[name] >= 4) {
+      insights.push({
+        text: es
+          ? `Has incrementado tu posición en ${escHtml(name)} de forma consistente, incluso a medida que su valor evolucionaba.`
+          : `You have consistently increased your position in ${escHtml(name)}, even as its value evolved.`,
+        priority: 1,
+      });
+      break;
+    }
+  }
+
+  // 3. Structure stability — priority 2
+  if (assets.length >= 3) insights.push({
+    text: es
+      ? 'La estructura de tu cartera se ha mantenido relativamente estable a lo largo del tiempo.'
+      : 'Your portfolio structure has remained relatively stable over time.',
+    priority: 2,
+  });
+
+  return insights;
+}
+
+function getWowInsight() {
+  const candidates = detectWowInsights();
+  for (const c of candidates) {
+    if (!hasSeenWow(c.text)) { storeWow(c.text); return c; }
+  }
+  return null;
+}
+
 function generateInsights() {
   const profile   = buildUserProfile();
   buildIdentityProfile();
   analyzeBehavior();
+  const wow       = getWowInsight();
   const base      = generateBaseInsights();
   const temporal  = generateTemporalInsights();
   const behavior  = generateBehaviorInsights();
@@ -3360,6 +3433,7 @@ function generateInsights() {
   const narrative = generateNarrativeInsight();
   const signature = generateSignatureInsight();
   const all       = [
+    ...(wow ? [wow] : []),
     ...base, ...temporal, ...behavior,
     ...(decision  ? [decision]  : []),
     ...(narrative ? [narrative] : []),
