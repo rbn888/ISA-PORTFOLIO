@@ -3646,6 +3646,36 @@ function startIntuitiveLoop() {
 
 startIntuitiveLoop();
 
+(function startAmbientTextLayer() {
+  const layer = document.createElement('div');
+  layer.className = 'ambient-text-layer';
+  document.body.appendChild(layer);
+
+  const WORDS = [
+    'portfolio', 'balance', 'growth', 'diversify', 'allocation',
+    'returns', 'value', 'position', 'insight', 'trend',
+    'stability', 'compound', 'equity', 'exposure', 'horizon',
+  ];
+
+  function spawnWord() {
+    const pool = [
+      ...WORDS,
+      ...assets.map(a => a.name).filter(Boolean),
+    ];
+    const text = pool[Math.floor(Math.random() * pool.length)];
+    const el   = document.createElement('span');
+    el.className   = 'ambient-text';
+    el.textContent = text;
+    el.style.left  = Math.random() * 85 + '%';
+    el.style.top   = Math.random() * 80 + 10 + '%';
+    layer.appendChild(el);
+    setTimeout(() => { el.remove(); }, 12000);
+  }
+
+  spawnWord();
+  setInterval(spawnWord, 4000);
+})();
+
 function animateGel() {
   _currentX += (_targetX - _currentX) * 0.1;
   _currentY += (_targetY - _currentY) * 0.1;
