@@ -784,6 +784,16 @@ function syncCostBasisFromTransactions(asset) {
   if (computed !== null) asset.costBasis = computed;
 }
 
+function syncQtyFromTransactions(asset) {
+  if (!asset.transactions || !asset.transactions.length) return;
+  let qty = 0;
+  for (const tx of asset.transactions) {
+    if (tx.type === 'buy')  qty += tx.qty;
+    if (tx.type === 'sell') qty -= tx.qty;
+  }
+  asset.qty = Math.max(0, qty);
+}
+
 function totalCostBasisBase() {
   return assets.reduce((sum, a) => {
     if (a.type === 'cash' || a.type === 'real_estate') return sum;
@@ -4710,6 +4720,8 @@ function addTransaction(assetId, type, qty, price) {
   if (!asset) return;
   if (!asset.transactions) asset.transactions = [];
   asset.transactions.push({ type, qty, price, ts: Date.now() });
+  syncQtyFromTransactions(asset);
+  syncCostBasisFromTransactions(asset);
   save();
 }
 
@@ -4774,6 +4786,7 @@ txForm.addEventListener('submit', e => {
         price,
         ts:    originalTs,
       };
+      syncQtyFromTransactions(asset);
       syncCostBasisFromTransactions(asset);
       save();
       render();
@@ -4917,6 +4930,7 @@ document.getElementById('adTxList').addEventListener('click', e => {
     const idx = parseInt(delBtn.dataset.index, 10);
     if (isNaN(idx) || idx < 0 || idx >= asset.transactions.length) return;
     asset.transactions.splice(idx, 1);
+    syncQtyFromTransactions(asset);
     syncCostBasisFromTransactions(asset);
     save();
     render();
