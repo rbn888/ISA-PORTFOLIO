@@ -3507,6 +3507,17 @@ function animateMonster(elOrb, elText) {
   setTimeout(() => { setMonsterTone(elOrb, 'default'); }, 4000);
 }
 
+function applySubtleVariation(el) {
+  if (!el || el.classList.contains('active')) return;
+  const scale      = 1 + Math.random() * 0.01;
+  const brightness = 0.95 + Math.random() * 0.1;
+  el.style.transform = `scale(${scale})`;
+  el.style.filter    = `brightness(${brightness})`;
+  setTimeout(() => { el.style.transform = ''; el.style.filter = ''; }, 2000);
+}
+
+setInterval(() => { applySubtleVariation(document.querySelector('.monster-orb')); }, 10000);
+
 function startInsightRotation() {
   if (_insightInterval) { clearInterval(_insightInterval); _insightInterval = null; }
   const orb  = () => document.querySelector('.monster-orb');
