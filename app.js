@@ -2667,6 +2667,7 @@ function renderDetailHero(type, typeAssets) {
 
 // ── Render ─────────────────────────────────────────────────
 function render(animate = false) {
+  assets.forEach(syncQtyFromTransactions);
   assets.forEach(syncCostBasisFromTransactions);
   countUpTotalValue(totalValueBase());
   updatePerformance();
@@ -4720,8 +4721,6 @@ function addTransaction(assetId, type, qty, price) {
   if (!asset) return;
   if (!asset.transactions) asset.transactions = [];
   asset.transactions.push({ type, qty, price, ts: Date.now() });
-  syncQtyFromTransactions(asset);
-  syncCostBasisFromTransactions(asset);
   save();
 }
 
@@ -4786,7 +4785,6 @@ txForm.addEventListener('submit', e => {
         price,
         ts:    originalTs,
       };
-      syncQtyFromTransactions(asset);
       syncCostBasisFromTransactions(asset);
       save();
       render();
@@ -4930,7 +4928,6 @@ document.getElementById('adTxList').addEventListener('click', e => {
     const idx = parseInt(delBtn.dataset.index, 10);
     if (isNaN(idx) || idx < 0 || idx >= asset.transactions.length) return;
     asset.transactions.splice(idx, 1);
-    syncQtyFromTransactions(asset);
     syncCostBasisFromTransactions(asset);
     save();
     render();
