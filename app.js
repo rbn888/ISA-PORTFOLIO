@@ -3485,403 +3485,104 @@ function getNextInsight() {
   return insight.text;
 }
 
-function updateMonsterText(lineEl, newText) {
-  if (!lineEl) return;
-  lineEl.classList.add('fade-out');
-  setTimeout(() => {
-    lineEl.textContent = newText;
-    lineEl.classList.remove('fade-out');
-    lineEl.classList.add('fade-in');
-    setTimeout(() => { lineEl.classList.remove('fade-in'); }, 800);
-  }, 600);
-}
+// =====================================
+// AURIX — FINAL MONSTER ENGINE (CLEAN)
+// =====================================
 
-function getInsightTone(text) {
-  const t = text.toLowerCase();
-  if (t.includes('large part')  || t.includes('concentrated') ||
-      t.includes('liquidity')   || t.includes('concentrad')   ||
-      t.includes('liquidez')    || t.includes('gran parte')) return 'soft-caution';
-  if (t.includes('increased')   || t.includes('strong')       ||
-      t.includes('recent')      || t.includes('incrementad')  ||
-      t.includes('crecimiento') || t.includes('notable')      ||
-      t.includes('recientemente')) return 'soft-positive';
-  return 'default';
-}
-
-function setMonsterTone(el, tone) {
-  el.classList.remove('soft-caution', 'soft-positive');
-  if (tone !== 'default') el.classList.add(tone);
-}
-
-function animateMonster(elOrb, elText) {
-  if (!elOrb || !elText) return;
-  const next = getNextInsight();
-  const tone = getInsightTone(next);
-  anticipationEffect(elOrb);
-  setMonsterTone(elOrb, tone);
-  elOrb.classList.add('active');
-  setTimeout(() => {
-    updateMonsterText(elText, next);
-    setTimeout(() => { elOrb.classList.remove('active'); }, 1200);
-  }, 600);
-  setTimeout(() => { setMonsterTone(elOrb, 'default'); }, 4000);
-}
-
-function applySubtleVariation(el) {
-  if (!el || el.classList.contains('active')) return;
-  const brightness = 0.95 + Math.random() * 0.1;
-  el.style.filter = `brightness(${brightness})`;
-  setTimeout(() => { el.style.filter = ''; }, 2000);
-}
-
-setInterval(() => { applySubtleVariation(document.querySelector('.monster-orb')); }, 10000);
-
-let _mouseX    = 0.5;
-let _mouseY    = 0.5;
-let _pulseScale = 1;
-let _targetX   = 0;
-let _targetY   = 0;
-let _currentX  = 0;
-let _currentY  = 0;
-
-document.addEventListener('mousemove', e => {
-  _mouseX  = e.clientX / window.innerWidth;
-  _mouseY  = e.clientY / window.innerHeight;
-  _targetX = (_mouseX - 0.5) * 30;
-  _targetY = (_mouseY - 0.5) * 30;
-});
-
-document.addEventListener('mouseleave', () => { _targetX = 0; _targetY = 0; });
-
-function microPulse(el) {
-  if (!el) return;
-  _pulseScale = 1.02;
-  setTimeout(() => { _pulseScale = 1; }, 600);
-}
-
-setInterval(() => {
-  const el = document.querySelector('.monster-orb');
-  if (!el || el.classList.contains('active')) return;
-  if (Math.random() > 0.7) microPulse(el);
-}, 5000);
-
-function getMarketMood() {
-  if (!assets.length) return 'neutral';
-  let total = 0, weightedChange = 0;
-  assets.forEach(a => {
-    const v = a.qty * a.price;
-    total          += v;
-    weightedChange += v * (a.change24h || 0);
-  });
-  const avg = total ? weightedChange / total : 0;
-  if (avg >  3) return 'bullish';
-  if (avg < -3) return 'bearish';
-  return 'neutral';
-}
-
-function applyMarketMood(el) {
-  const mood = getMarketMood();
-  if (mood === 'bullish')      el.style.boxShadow = '0 0 60px rgba(0,255,180,0.25)';
-  else if (mood === 'bearish') el.style.boxShadow = '0 0 60px rgba(255,120,120,0.2)';
-  else                         el.style.boxShadow = '0 0 40px rgba(120,160,255,0.2)';
-}
-
-function getVolatility() {
-  if (!assets.length) return 0;
-  return assets.reduce((s, a) => s + Math.abs(a.change24h || 0), 0) / assets.length;
-}
-
-function applyVolatility(el) {
-  const speed = Math.min(Math.max(getVolatility() / 10, 0.5), 2);
-  el.style.transition = `all ${(2 / speed).toFixed(1)}s ease`;
-}
-
-function startMarketAwareness() {
-  setInterval(() => {
-    const el = document.querySelector('.monster-orb');
-    if (!el) return;
-    applyMarketMood(el);
-    applyVolatility(el);
-  }, 4000);
-}
-
-startMarketAwareness();
-
-let _lastMarketMood = null;
-
-function detectMarketShift() {
-  const current = getMarketMood();
-  if (_lastMarketMood && _lastMarketMood !== current) {
-    _lastMarketMood = current;
-    return true;
-  }
-  _lastMarketMood = current;
-  return false;
-}
-
-function anticipationEffect(el) {
-  if (!el) return;
-  _pulseScale = 1.03;
-  el.style.filter = 'brightness(1.1)';
-  setTimeout(() => {
-    _pulseScale = 1;
-    el.style.filter = '';
-  }, 800);
-}
-
-function getHeartbeatSpeed() {
-  return Math.min(Math.max(1.5 - getVolatility() / 10, 0.6), 1.5);
-}
-
-function applyMarketTension(el) {
-  const mood = getMarketMood();
-  if (mood === 'bearish')      el.style.filter = 'brightness(0.95) contrast(1.05)';
-  else if (mood === 'bullish') el.style.filter = 'brightness(1.05)';
-  else                         el.style.filter = 'brightness(1)';
-}
-
-function startHeartbeat() {
-  function beat() {
-    const el    = document.querySelector('.monster-orb');
-    const speed = getHeartbeatSpeed();
-    if (el && !el.classList.contains('active')) {
-      _pulseScale = 1.015;
-      setTimeout(() => { _pulseScale = 1; }, Math.round(400 * speed));
-    }
-    setTimeout(beat, Math.round(2000 * speed));
-  }
-  beat();
-}
-
-function startIntuitiveLoop() {
-  startHeartbeat();
-  setInterval(() => {
-    const el = document.querySelector('.monster-orb');
-    if (!el) return;
-    applyMarketTension(el);
-    if (detectMarketShift()) anticipationEffect(el);
-  }, 4000);
-}
-
-startIntuitiveLoop();
-
-function getPortfolioData() {
-  const total = assets.reduce((s, a) => s + (a.value || 0), 0);
-  const cryptoVal    = assets.filter(a => a.type === 'crypto').reduce((s, a) => s + (a.value || 0), 0);
-  const liquidityVal = assets.filter(a => a.type === 'cash').reduce((s, a) => s + (a.value || 0), 0);
-  const cryptoPct    = total > 0 ? cryptoVal / total : 0;
-  const liquidityPct = total > 0 ? liquidityVal / total : 0;
-  const sorted       = [...assets].sort((a, b) => (b.value || 0) - (a.value || 0));
-  const topPct       = total > 0 && sorted.length ? (sorted[0].value || 0) / total : 0;
-  return { total, cryptoPct, liquidityPct, topAsset: sorted[0], topPct, assets };
-}
-
-function generateAmbientPhrase() {
-  const data    = getPortfolioData();
-  const isEs    = lang === 'es';
-  const phrases = [];
-  const recent  = typeof getRecentTransactions === 'function' ? getRecentTransactions() : [];
-
-  if (data.cryptoPct > 0.6) {
-    phrases.push(
-      isEs ? 'Una parte importante de tu cartera se mueve al mismo tiempo.'
-           : 'A significant part of your portfolio moves together.'
-    );
-  }
-  if (data.liquidityPct < 0.1 && data.total > 0) {
-    phrases.push(
-      isEs ? 'Poca liquidez disponible en este momento.'
-           : 'Liquidity is limited right now.'
-    );
-  }
-  if (data.topPct > 0.5 && data.topAsset) {
-    phrases.push(
-      isEs ? `${data.topAsset.name} domina tu cartera.`
-           : `${data.topAsset.name} dominates your portfolio.`
-    );
-  }
-  if (recent && recent.length > 0) {
-    phrases.push(
-      isEs ? 'Actividad reciente registrada en tu cartera.'
-           : 'Recent activity recorded in your portfolio.'
-    );
-  }
-  if (phrases.length === 0) {
-    const fallbacks = isEs ? [
-      'La estructura se vuelve visible con el tiempo.',
-      'La paciencia compone en silencio.',
-      'Los mercados se mueven en ciclos.',
-      'El tiempo revela la estructura.',
-      'El riesgo rara vez es obvio.',
-    ] : [
-      'Structure becomes visible with time.',
-      'Patience compounds silently.',
-      'Markets move in cycles.',
-      'Time reveals structure.',
-      'Risk is rarely obvious.',
-    ];
-    phrases.push(...fallbacks);
-  }
-  return phrases[Math.floor(Math.random() * phrases.length)];
-}
-
-function initAmbientLayer() {
-  if (document.querySelector('.ambient-text-layer')) return;
-  const layer = document.createElement('div');
-  layer.className = 'ambient-text-layer';
-  document.body.appendChild(layer);
-}
-
-const phrasesByLevel = {
-  1: [
-    'Small changes accumulate over time.',
-    'Structure becomes clearer with time.',
-    'Stability often goes unnoticed.',
-  ],
-  2: [
-    'Your portfolio structure is gradually taking shape.',
-    'Recent movements may carry more weight than they appear.',
-    'Patterns tend to emerge through repetition.',
-  ],
-  3: [
-    'Your decisions are beginning to form a consistent structure.',
-    'What appears stable may still be evolving underneath.',
-    'Behavior often reveals more than outcomes.',
-  ],
+const monsterState = {
+  x: 0,
+  y: 0,
+  tx: 0,
+  ty: 0,
+  scale: 1,
+  targetScale: 1
 };
 
-function generateEvolvingPhrase() {
-  const evo   = getEvolution();
-  const pool  = phrasesByLevel[evo.level] || phrasesByLevel[1];
-  return pool[Math.floor(Math.random() * pool.length)];
+function updateTarget(x, y) {
+  monsterState.tx = (x / window.innerWidth - 0.5) * 20;
+  monsterState.ty = (y / window.innerHeight - 0.5) * 20;
 }
 
-function spawnAmbientText() {
-  const layer = document.querySelector('.ambient-text-layer');
-  if (!layer) return;
-  const phrase = generateEvolvingPhrase();
-  const el     = document.createElement('div');
-  el.className   = 'ambient-text';
-  el.textContent = phrase;
-  el.style.left  = Math.random() * 80 + '%';
-  el.style.top   = Math.random() * 80 + '%';
-  layer.appendChild(el);
-  setTimeout(() => { el.remove(); }, 12000);
+window.addEventListener("mousemove", (e) => {
+  updateTarget(e.clientX, e.clientY);
+});
+
+window.addEventListener("touchmove", (e) => {
+  if (!e.touches || !e.touches[0]) return;
+  updateTarget(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+function monsterLoop() {
+  const orb = document.querySelector(".monster-orb");
+
+  if (!orb) {
+    requestAnimationFrame(monsterLoop);
+    return;
+  }
+
+  monsterState.x += (monsterState.tx - monsterState.x) * 0.08;
+  monsterState.y += (monsterState.ty - monsterState.y) * 0.08;
+  monsterState.scale += (monsterState.targetScale - monsterState.scale) * 0.08;
+
+  const deformX = 1 + Math.abs(monsterState.x) * 0.01;
+  const deformY = 1 + Math.abs(monsterState.y) * 0.01;
+
+  orb.style.transform = `
+    translate(${monsterState.x}px, ${monsterState.y}px)
+    scale(${deformX}, ${deformY})
+  `;
+
+  requestAnimationFrame(monsterLoop);
 }
 
-function startAmbientIntelligence() {
+monsterLoop();
+
+function monsterReact() {
+  monsterState.targetScale = 1.06;
+
+  setTimeout(() => {
+    monsterState.targetScale = 1;
+  }, 700);
+}
+
+function updateMonsterTextSmooth(el, text) {
+  if (!el) return;
+
+  el.style.opacity = 0;
+
+  setTimeout(() => {
+    el.textContent = text;
+    el.style.opacity = 1;
+  }, 1000);
+}
+
+function animateMonster() {
+  const elText = document.querySelector(".monster-line");
+  if (!elText) return;
+
+  const next = getNextInsight();
+
+  monsterReact();
+
+  setTimeout(() => {
+    updateMonsterTextSmooth(elText, next);
+  }, 300);
+}
+
+function startMonsterCycle() {
   function loop() {
-    const delay = 4000 + Math.random() * 4000;
+    const delay = 6000 + Math.random() * 3000;
+
     setTimeout(() => {
-      if (Math.random() > 0.5) spawnAmbientText();
+      animateMonster();
       loop();
     }, delay);
   }
+
   loop();
 }
 
-initAmbientLayer();
-startAmbientIntelligence();
-
-function getVisualLevel() {
-  try { return (JSON.parse(localStorage.getItem(EVOLUTION_KEY)) || { level: 1 }).level || 1; }
-  catch { return 1; }
-}
-
-function applyVisualEvolution(el) {
-  const level = getVisualLevel();
-  el.classList.remove('evo-1', 'evo-2', 'evo-3');
-  el.classList.add(`evo-${level}`);
-}
-
-function initVisualEvolution() {
-  const orb = document.querySelector('.monster-orb');
-  if (!orb) return;
-  applyVisualEvolution(orb);
-}
-
-initVisualEvolution();
-
-const CHAOS_KEY = 'aurix_chaos';
-
-function getChaosMemory() {
-  try { return JSON.parse(localStorage.getItem(CHAOS_KEY)) || []; } catch { return []; }
-}
-
-function storeChaos(event) {
-  const mem = getChaosMemory();
-  mem.push(event);
-  localStorage.setItem(CHAOS_KEY, JSON.stringify(mem.slice(-10)));
-}
-
-function subtleFlash(el) {
-  el.classList.add('chaos-flash');
-  setTimeout(() => el.classList.remove('chaos-flash'), 200);
-}
-
-function slightDrift(el) {
-  const wrap = el.closest('.monster-wrap') || el.parentElement;
-  if (!wrap) return;
-  wrap.classList.add('chaos-drift');
-  setTimeout(() => wrap.classList.remove('chaos-drift'), 600);
-}
-
-function deepPulse() {
-  _pulseScale = 1.04;
-  setTimeout(() => { _pulseScale = 1; }, 500);
-}
-
-function innerGlow(el) {
-  el.style.boxShadow += ', 0 0 120px rgba(120,160,255,0.2)';
-  setTimeout(() => {
-    el.style.boxShadow = el.style.boxShadow.replace(', 0 0 120px rgba(120,160,255,0.2)', '');
-  }, 800);
-}
-
-function triggerRareEvent(el) {
-  const events = [subtleFlash, slightDrift, deepPulse, innerGlow];
-  const chosen = events[Math.floor(Math.random() * events.length)];
-  chosen(el);
-  storeChaos(chosen.name);
-}
-
-function startUnpredictableSystem() {
-  setInterval(() => {
-    const el = document.querySelector('.monster-orb');
-    if (!el) return;
-    if (Math.random() > 0.9) triggerRareEvent(el);
-  }, 8000);
-}
-
-startUnpredictableSystem();
-
-function animateGel() {
-  _currentX += (_targetX - _currentX) * 0.1;
-  _currentY += (_targetY - _currentY) * 0.1;
-  const orb = document.querySelector('.monster-orb');
-  if (orb && !orb.classList.contains('active')) {
-    const scaleX = (_pulseScale * (1 + Math.abs(_currentX) * 0.01)).toFixed(4);
-    const scaleY = (_pulseScale * (1 + Math.abs(_currentY) * 0.01)).toFixed(4);
-    const lightX = 20 + _mouseX * 60;
-    const lightY = 20 + _mouseY * 60;
-    orb.style.transform  = `translate(${_currentX.toFixed(2)}px, ${_currentY.toFixed(2)}px) scale(${scaleX}, ${scaleY})`;
-    orb.style.background = `
-      radial-gradient(circle at ${lightX}% ${lightY}%, rgba(255,255,255,0.15), transparent 40%),
-      radial-gradient(circle at 30% 30%, rgba(120,160,255,0.6), transparent 40%),
-      radial-gradient(circle at center, #05070f, #000)
-    `;
-  }
-  requestAnimationFrame(animateGel);
-}
-
-animateGel();
-
-setInterval(() => {
-  const el = document.querySelector('.monster-orb');
-  if (!el || el.classList.contains('active')) return;
-  _pulseScale = 1.02;
-  setTimeout(() => { _pulseScale = 1; }, 300);
-}, 4000);
+startMonsterCycle();
 
 function getCurrentContext() {
   return currentTab || 'home';
@@ -3905,15 +3606,14 @@ let _rotationActive = false;
 function startInsightRotation() {
   if (_insightInterval) { clearTimeout(_insightInterval); _insightInterval = null; }
   _rotationActive = true;
-  const orb  = () => document.querySelector('.monster-orb');
-  const line = () => document.querySelector('.monster-line');
+  const orb = () => document.querySelector('.monster-orb');
   const o = orb();
   if (o) applyContext(o);
-  setTimeout(() => { if (_rotationActive) animateMonster(orb(), line()); }, 1000);
+  setTimeout(() => { if (_rotationActive) animateMonster(); }, 1000);
   function loop() {
     if (!_rotationActive) return;
     _insightInterval = setTimeout(() => {
-      animateMonster(orb(), line());
+      animateMonster();
       loop();
     }, getContextTiming());
   }
