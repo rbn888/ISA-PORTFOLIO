@@ -3065,17 +3065,8 @@ function buildUserProfile() {
   return profile;
 }
 
-function adaptMessage(text, profile) {
-  const es = lang === 'es';
-  let result = text;
-
-  if (profile.risk === 'high') {
-    result = es
-      ? result.replace('puede valer la pena considerar', 'puede valer la pena considerar cuidadosamente')
-      : result.replace('may want to consider', 'may want to carefully consider');
-  }
-
-  return result;
+function adaptMessage(text) {
+  return text;
 }
 
 const BEHAVIOR_KEY = 'aurix_behavior';
@@ -3112,21 +3103,6 @@ function analyzeBehavior() {
 }
 
 function adaptInsight(text) {
-  const es = lang === 'es';
-  const b  = getBehavior();
-
-  if (b.impulsive) {
-    return es
-      ? text.replace('ha incrementado', 'ha incrementado de forma progresiva')
-      : text.replace('has increased', 'has increased steadily over time');
-  }
-
-  if (b.longTerm) {
-    return text + (es
-      ? ' Mantener la consistencia a lo largo del tiempo puede ser valioso.'
-      : ' Maintaining consistency over time can be valuable.');
-  }
-
   return text;
 }
 
@@ -3264,16 +3240,6 @@ function buildIdentityProfile() {
 }
 
 function applyIdentityTone(text) {
-  const es       = lang === 'es';
-  const identity = getIdentity();
-  if (identity.style === 'active') {
-    return es
-      ? text.replace('puede valer la pena', 'puede valer la pena ocasionalmente')
-      : text.replace('may be worth', 'it may be worth occasionally');
-  }
-  if (identity.style === 'concentrated') {
-    return text;
-  }
   return text;
 }
 
@@ -3457,7 +3423,7 @@ function generateInsights() {
   const filtered = all.filter(i => !wasRecentlyShown(i.text));
   const pool     = (filtered.length ? filtered : all).slice(0, 5).map(i => ({
     ...i,
-    text: applyIdentityTone(adaptInsight(adaptMessage(i.text, profile))),
+    text: applyIdentityTone(adaptInsight(adaptMessage(i.text))),
   }));
 
   const ambient = getAmbientMessages().slice(0, 2).map(i => ({ ...i, topic: 'ambient' }));
