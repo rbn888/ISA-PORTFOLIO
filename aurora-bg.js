@@ -46,45 +46,40 @@
   }, { passive: true });
 
   // ── Particles ────────────────────────────────────────────────
-  const FAR_COUNT = window.innerWidth <= 768 ? 60 : 110;
-  const MID_COUNT = window.innerWidth <= 768 ? 30 :  50;
-  const COUNT     = FAR_COUNT + MID_COUNT;
-  const particles = new Array(COUNT);
+  const isMobile  = window.innerWidth < 768;
+  const FAR_COUNT  = isMobile ? 60 : 100;
+  const NEAR_COUNT = isMobile ? 40 :  70;
 
-  function spawnParticle(layer) {
-    const isFar       = layer === 'far';
-    const depth       = isFar ? 0.3 + Math.random() * 0.3 : 0.6 + Math.random() * 0.4;
-    const baseOpacity = isFar ? 0.2 + Math.random() * 0.3  : 0.4 + Math.random() * 0.4;
-    const size        = isFar
-      ? Math.pow(Math.random(), 2) * 2.2 + 0.4
-      : Math.pow(Math.random(), 2) * 2.2 + 0.4;
+  let particlesFar  = [];
+  let particlesNear = [];
 
-    const radius   = Math.min(W || window.innerWidth, H || window.innerHeight) * 0.65;
+  function spawnParticle(depth) {
+    const radius   = Math.min(W || window.innerWidth, H || window.innerHeight) * (depth === 1 ? 0.7 : 0.6);
     const angle    = Math.random() * Math.PI * 2;
-    const distance = Math.pow(Math.random(), 1.2) * radius;
+    const distance = Math.pow(Math.random(), depth === 1 ? 1.1 : 1.3) * radius;
     const cx       = (W || window.innerWidth)  / 2;
     const cy       = (H || window.innerHeight) / 2;
 
     return {
-      x:           cx + Math.cos(angle) * distance,
-      y:           cy + Math.sin(angle) * distance,
-      vx:          (Math.random() - 0.5) * 0.2,
-      vy:          (Math.random() - 0.5) * 0.2,
-      size,
-      baseOpacity,
-      opacity:     baseOpacity,
+      x:     cx + Math.cos(angle) * distance,
+      y:     cy + Math.sin(angle) * distance,
+      vx:    (Math.random() - 0.5) * (depth === 1 ? 0.15 : 0.25),
+      vy:    (Math.random() - 0.5) * (depth === 1 ? 0.15 : 0.25),
+      size:  depth === 1
+        ? Math.random() * 1.2 + 0.3
+        : Math.random() * 2.2 + 0.5,
+      alpha: depth === 1
+        ? Math.random() * 0.4 + 0.2
+        : Math.random() * 0.7 + 0.3,
       depth,
-      phase:       Math.random() * Math.PI * 2,
-      freq:        0.22 + Math.random() * 0.38,
-      seed:        Math.random() * 1000,
-      layer,
     };
   }
 
   function initParticles() {
-    let idx = 0;
-    for (let i = 0; i < FAR_COUNT; i++) particles[idx++] = spawnParticle('far');
-    for (let i = 0; i < MID_COUNT; i++) particles[idx++] = spawnParticle('mid');
+    particlesFar  = [];
+    particlesNear = [];
+    for (let i = 0; i < FAR_COUNT;  i++) particlesFar.push(spawnParticle(1));
+    for (let i = 0; i < NEAR_COUNT; i++) particlesNear.push(spawnParticle(2));
   }
 
   // ── Aurora blobs ─────────────────────────────────────────────
@@ -177,6 +172,59 @@
     });
   }
 
+  // ── Particle helpers ─────────────────────────────────────────
+  const PARTICLE_MAX_DIST = () => Math.min(W, H) * 0.8;
+
+  function updateParticle(p) {
+    const cx = centerX();
+    const cy = centerY();
+
+    p.vx += (cx - p.x) * 0.000008;
+    p.vy += (cy - p.y) * 0.000008;
+
+    // Pointer repel
+    const pdx   = p.x - pointerX;
+    const pdy   = p.y - pointerY;
+    const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+    if (pdist < 120) {
+      const force = (120 - pdist) / 120;
+      p.vx += pdx * force * 0.02;
+      p.vy += pdy * force * 0.02;
+    }
+
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.x  += p.vx;
+    p.y  += p.vy;
+
+    // Twinkle
+    p.alpha += (Math.random() - 0.5) * 0.02;
+    p.alpha  = Math.max(0.1, Math.min(p.alpha, 1));
+
+    // Recycle if escaped
+    if (Math.hypot(p.x - cx, p.y - cy) > PARTICLE_MAX_DIST()) {
+      Object.assign(p, spawnParticle(p.depth));
+    }
+  }
+
+  function drawParticles(list) {
+    const cx      = centerX();
+    const cy      = centerY();
+    const maxDist = PARTICLE_MAX_DIST();
+    // Color: depth 1 = blue-violet, depth 2 = violet-pink
+    for (const p of list) {
+      const dist = Math.hypot(p.x - cx, p.y - cy);
+      const fade = 1 - Math.min(dist / maxDist, 1);
+      ctx.globalAlpha = p.alpha * fade;
+      const hue = p.depth === 1 ? 210 : 260;
+      const lit = p.depth === 1 ? 62  : 70;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsl(${hue},72%,${lit}%)`;
+      ctx.fill();
+    }
+  }
+
   // ── Main loop ────────────────────────────────────────────────
   let _lastTs = 0;
 
@@ -192,10 +240,6 @@
     }
 
     ctx.clearRect(0, 0, W, H);
-
-    const cx = centerX();
-    const cy = centerY();
-    const maxDist = Math.min(W, H) * 0.75;
 
     // ── Aurora blobs ──
     for (let i = 0; i < BLOB_COUNT; i++) {
@@ -243,63 +287,12 @@
       ctx.fill();
     }
 
-    // ── Particles ──
-    for (let i = 0; i < COUNT; i++) {
-      const p = particles[i];
+    // ── Particles (far first, near on top) ──
+    for (const p of particlesFar)  updateParticle(p);
+    for (const p of particlesNear) updateParticle(p);
 
-      // Organic drift
-      p.vx += Math.sin(ts * 0.001 * p.freq + p.phase) * 0.0007;
-      p.vy += Math.cos(ts * 0.001 * p.freq * 0.68 + p.phase) * 0.0007;
-
-      // Center attraction
-      p.vx += (cx - p.x) * 0.00001;
-      p.vy += (cy - p.y) * 0.00001;
-
-      // Pointer repel
-      const pdx  = p.x - pointerX;
-      const pdy  = p.y - pointerY;
-      const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
-      if (pdist < 120) {
-        const force = (120 - pdist) / 120;
-        p.vx += pdx * force * 0.02;
-        p.vy += pdy * force * 0.02;
-      }
-
-      p.vx *= 0.98;
-      p.vy *= 0.98;
-      p.x  += p.vx;
-      p.y  += p.vy;
-
-      // Recycle if escaped
-      const cdist = Math.hypot(p.x - cx, p.y - cy);
-      if (cdist > maxDist) {
-        Object.assign(p, spawnParticle(p.layer));
-        continue;
-      }
-
-      // Twinkle
-      p.opacity = p.baseOpacity + Math.sin(ts * 0.002 + p.seed) * 0.2;
-
-      // Boost near pointer
-      if (pdist < 100) {
-        p.opacity = Math.min(p.opacity + 0.05, 0.99);
-      }
-
-      p.opacity = Math.max(0, p.opacity);
-
-      // Distance fade
-      const fade = 1 - Math.min(cdist / maxDist, 1);
-
-      // Color: blue (far) → violet (near)
-      const hue = 205 + p.depth * 65;
-      const lit = 54  + p.depth * 26;
-
-      ctx.globalAlpha = p.opacity * fade;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = `hsl(${hue},72%,${lit}%)`;
-      ctx.fill();
-    }
+    drawParticles(particlesFar);
+    drawParticles(particlesNear);
 
     ctx.globalAlpha = 1;
 
