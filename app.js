@@ -3910,10 +3910,8 @@ function renderInsights() {
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
 
 function updateBottomNavActive() {
-  document.querySelectorAll('#bottomNav .bn-tab[data-tab]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === currentTab);
-    const span = btn.querySelector('span');
-    if (span) span.textContent = T[lang][TAB_KEYS[btn.dataset.tab]] || btn.dataset.tab;
+  document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === currentTab);
   });
 }
 
@@ -3928,6 +3926,7 @@ function switchTab(tab) {
     mainEl.style.display      = '';
     placeholder.style.display = 'none';
     render();
+    updateBottomNavActive();
   } else {
     mainEl.style.display  = 'none';
     placeholder.innerHTML = tab === 'insights'
@@ -6246,8 +6245,18 @@ assetsListEl.addEventListener('click', e => {
 });
 
 // ── Event Listeners ────────────────────────────────────────
-document.getElementById('logoHome')
+document.querySelector('.header-title')
   ?.addEventListener('click', () => { switchTab('home'); setActiveCategory(null); });
+
+document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
+  el.addEventListener('click', () => {
+    const tab = el.dataset.tab;
+    if (tab === 'add') { openModal(); return; }
+    document.querySelectorAll('#bottomNav .item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    switchTab(tab);
+  });
+});
 document.getElementById('assetsBackBtn')
   ?.addEventListener('click', () => setActiveCategory(null));
 btnAdd.addEventListener('click', openModal);

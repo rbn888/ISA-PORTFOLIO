@@ -15,7 +15,7 @@
 
     <header class="header">
       <div class="header-left">
-        <button class="logo-block" id="logoHome" aria-label="Volver al inicio">
+        <button class="logo-block header-title" id="logoHome" aria-label="Volver al inicio">
           <span class="logo-aurix">AURIX</span>
         </button>
       </div>
@@ -150,25 +150,21 @@
     <div class="tab-placeholder" id="tabPlaceholder" style="display:none"></div>
 
     <nav class="bottom-nav" id="bottomNav">
-      <button class="bn-tab active" data-tab="home" onclick="switchTab('home')">
+      <div class="item active" data-tab="home">
         <svg viewBox="0 0 24 24"><path d="M3 10L12 3l9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
-        <span>Home</span>
-      </button>
-      <button class="bn-tab" data-tab="insights" onclick="switchTab('insights')">
+      </div>
+      <div class="item" data-tab="insights">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
-        <span>Insights</span>
-      </button>
-      <button class="bn-tab bn-tab--add" onclick="openModal()">
+      </div>
+      <div class="item" data-tab="add">
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-      <button class="bn-tab" data-tab="market" onclick="switchTab('market')">
+      </div>
+      <div class="item" data-tab="market">
         <svg viewBox="0 0 24 24"><path d="M4 18l6-6 4 4 6-8"/></svg>
-        <span>Market</span>
-      </button>
-      <button class="bn-tab" data-tab="profile" onclick="switchTab('profile')">
+      </div>
+      <div class="item" data-tab="profile">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
-        <span>Profile</span>
-      </button>
+      </div>
     </nav>
 
   </div>
