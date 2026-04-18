@@ -3315,31 +3315,6 @@ function generateSignatureInsight() {
   };
 }
 
-const SILENCE_KEY = 'aurix_silence';
-
-function getSilenceMemory() {
-  try { return JSON.parse(localStorage.getItem(SILENCE_KEY)) || {}; } catch { return {}; }
-}
-
-function saveSilenceMemory(data) {
-  try { localStorage.setItem(SILENCE_KEY, JSON.stringify(data)); } catch {}
-}
-
-function shouldSpeak(insights) {
-  const memory     = getSilenceMemory();
-  const hoursSince = (Date.now() - (memory.lastSpoken || 0)) / (1000 * 60 * 60);
-  if (hoursSince < 6)                          return false;
-  if (!insights.length)                        return false;
-  if (!insights.some(i => i.priority <= 2))    return false;
-  return true;
-}
-
-function markSpoken() {
-  const memory = getSilenceMemory();
-  memory.lastSpoken = Date.now();
-  saveSilenceMemory(memory);
-}
-
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -3495,16 +3470,8 @@ function generateInsights() {
     text: applyIdentityTone(adaptInsight(adaptMessage(i.text, profile))),
   }));
 
-  if (!shouldSpeak(pool)) {
-    // Not time for real insights — rotate through varied ambient pool
-    insightCache = getAmbientMessages();
-    return insightCache;
-  }
-
-  markSpoken();
-  // Real insights are primary; append up to 2 ambient as minor support
   const ambient = getAmbientMessages().slice(0, 2);
-  insightCache = [...pool, ...ambient];
+  insightCache  = pool.length ? [...pool, ...ambient] : getAmbientMessages();
   return insightCache;
 }
 
@@ -3695,7 +3662,6 @@ function toggleAllTx() {
 }
 
 function renderInsights() {
-  generateInsights();
   return `
     <div class="insights-screen">
       <div class="insights-hero">
