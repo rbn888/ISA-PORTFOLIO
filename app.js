@@ -3115,12 +3115,6 @@ function adaptInsight(text) {
   const es = lang === 'es';
   const b  = getBehavior();
 
-  if (b.frequency === 'high') {
-    return text + (es
-      ? ' Tomarse un momento para reflexionar puede ayudar a mantener el equilibrio.'
-      : ' Taking time to reflect can help maintain balance.');
-  }
-
   if (b.impulsive) {
     return es
       ? text.replace('ha incrementado', 'ha incrementado de forma progresiva')
