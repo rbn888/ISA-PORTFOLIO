@@ -3562,11 +3562,14 @@ function updateMonsterTextSmooth(el, text) {
   }, 320);
 }
 
-function getMessageDelay(priority) {
-  if (priority === 1) return 7000 + Math.random() * 2000;
-  if (priority === 2) return 6000 + Math.random() * 2000;
-  if (priority === 3) return 5000 + Math.random() * 2000;
-  return 4000 + Math.random() * 2000; // ambient (priority 4)
+function getMessageDelay(priority, textLength = 120) {
+  const base = 6000;
+  const lengthFactor = Math.min(textLength / 80, 1.8);
+  const priorityFactor =
+    priority === 1 ? 1.2 :
+    priority === 2 ? 1.1 :
+    1;
+  return base * lengthFactor * priorityFactor;
 }
 
 function animateMonster() {
@@ -3616,7 +3619,7 @@ function startInsightRotation() {
     _insightInterval = setTimeout(() => {
       const priority = animateMonster();
       if (_rotationActive) loop();
-    }, getMessageDelay(_lastInsightPriority));
+    }, getMessageDelay(_lastInsightPriority, _lastInsightText.length));
   }
   loop();
 }
