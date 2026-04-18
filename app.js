@@ -3496,17 +3496,20 @@ function generateInsights() {
   }));
 
   if (!shouldSpeak(pool)) {
+    // Not time for real insights — rotate through varied ambient pool
     insightCache = getAmbientMessages();
     return insightCache;
   }
 
   markSpoken();
-  insightCache = pool;
+  // Real insights are primary; append up to 2 ambient as minor support
+  const ambient = getAmbientMessages().slice(0, 2);
+  insightCache = [...pool, ...ambient];
   return insightCache;
 }
 
 function getNextInsight() {
-  if (insightCache.length < 2) generateInsights();
+  if (insightCache.length < 3) generateInsights();
   if (!insightCache.length) return '';
   // rotate a back-to-back repeat to the end of the queue
   if (insightCache[0].text === _lastInsightText && insightCache.length > 1) {
@@ -3554,12 +3557,16 @@ function monsterLoop() {
     return;
   }
 
-  monsterState.x += (monsterState.tx - monsterState.x) * 0.08;
-  monsterState.y += (monsterState.ty - monsterState.y) * 0.08;
+  const t     = Date.now() / 1000;
+  const idleX = Math.sin(t * 0.42) * 3.5 + Math.cos(t * 0.27) * 1.8;
+  const idleY = Math.cos(t * 0.35) * 3.0 + Math.sin(t * 0.19) * 2.0;
+
+  monsterState.x += ((monsterState.tx + idleX) - monsterState.x) * 0.06;
+  monsterState.y += ((monsterState.ty + idleY) - monsterState.y) * 0.06;
   monsterState.scale += (monsterState.targetScale - monsterState.scale) * 0.08;
 
-  const deformX = 1 + Math.abs(monsterState.x) * 0.01;
-  const deformY = 1 + Math.abs(monsterState.y) * 0.01;
+  const deformX = 1 + Math.abs(monsterState.x) * 0.015;
+  const deformY = 1 + Math.abs(monsterState.y) * 0.015;
 
   orb.style.transform = `
     translate(${monsterState.x}px, ${monsterState.y}px)
@@ -3581,15 +3588,11 @@ function monsterReact() {
 
 function updateMonsterTextSmooth(el, text) {
   if (!el) return;
-
   el.style.opacity = 0;
-
-  // variable micro-pause: text swaps somewhere between fade nearly-gone and fully-gone
-  const pause = 900 + Math.random() * 300;
   setTimeout(() => {
     el.textContent = text;
     el.style.opacity = 1;
-  }, pause);
+  }, 320);
 }
 
 function getMessageDelay(priority) {
@@ -3614,18 +3617,6 @@ function animateMonster() {
   return _lastInsightPriority;
 }
 
-function startMonsterCycle() {
-  function loop() {
-    const priority = animateMonster();
-    const delay    = getMessageDelay(priority);
-
-    setTimeout(loop, delay);
-  }
-
-  loop();
-}
-
-startMonsterCycle();
 
 function getCurrentContext() {
   return currentTab || 'home';

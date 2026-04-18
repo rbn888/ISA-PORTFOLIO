@@ -4352,7 +4352,7 @@ main { padding-bottom: 72px; }
   word-wrap: break-word;
   overflow-wrap: break-word;
   opacity: 1;
-  transition: opacity 1.2s ease;
+  transition: opacity 0.3s ease;
 }
 
 .insights-history { padding: 0 16px 80px; opacity: .75; }
