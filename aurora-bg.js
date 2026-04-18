@@ -287,6 +287,54 @@
       ctx.fill();
     }
 
+    // ── Aurora layer ──
+    const t = ts * 0.0002;
+    const gradient = ctx.createLinearGradient(0, 0, 0, H);
+    gradient.addColorStop(0,   'rgba(0,255,180,0.03)');
+    gradient.addColorStop(0.5, 'rgba(0,200,255,0.05)');
+    gradient.addColorStop(1,   'rgba(0,255,180,0.03)');
+    ctx.fillStyle = gradient;
+    for (let i = 0; i < 3; i++) {
+      const yOffset = Math.sin(t + i * 2) * 40;
+      ctx.globalAlpha = 0.15;
+      ctx.fillRect(0, yOffset + i * H * 0.3, W, H * 0.2);
+    }
+    ctx.globalAlpha = 1;
+
+    // ── Color shift ──
+    const hueShift = 120 + Math.sin(t * 2) * 20;
+    ctx.filter = `hue-rotate(${hueShift}deg)`;
+    ctx.fillStyle = 'rgba(0,200,255,0.02)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.filter = 'none';
+
+    // ── Occasional flares ──
+    if (Math.random() < 0.01) {
+      const fx = centerX() + (Math.random() - 0.5) * W * 0.6;
+      const fy = centerY() + (Math.random() - 0.5) * H * 0.6;
+      const fr = Math.random() * 80 + 40;
+      const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
+      fg.addColorStop(0, 'rgba(0,255,180,0.15)');
+      fg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // ── Orb glow ──
+    const pulse      = 0.5 + Math.sin(ts * 0.002) * 0.5;
+    const glowRadius = 120 + pulse * 40;
+    const orbGlow    = ctx.createRadialGradient(centerX(), centerY(), 0, centerX(), centerY(), glowRadius);
+    orbGlow.addColorStop(0, `rgba(0,255,150,${(0.25 + pulse * 0.2) * 0.2})`);
+    orbGlow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = orbGlow;
+    ctx.beginPath();
+    ctx.arc(centerX(), centerY(), glowRadius, 0, Math.PI * 2);
+    ctx.fill();
+
     // ── Particles (far first, near on top) ──
     for (const p of particlesFar)  updateParticle(p);
     for (const p of particlesNear) updateParticle(p);
