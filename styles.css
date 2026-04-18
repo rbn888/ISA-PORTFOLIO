@@ -4215,14 +4215,16 @@ main { padding-bottom: 72px; }
 
 .insights-hero {
   min-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  position: relative;
   padding: 20px;
 }
-.monster-container { margin-bottom: 20px; }
+.monster-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
 .monster-wrap {
   display: flex;
   justify-content: center;
@@ -4349,11 +4351,16 @@ main { padding-bottom: 72px; }
   100% { transform: scale(1);     }
 }
 .monster-message {
+  position: absolute;
+  top: calc(50% + 120px);
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
   max-width: 300px;
   padding: 0 20px;
   box-sizing: border-box;
   text-align: center;
+  min-height: 60px;
 }
 .monster-line {
   font-size: 14px;
