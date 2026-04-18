@@ -961,7 +961,8 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 /* ── Body scroll lock when any modal is open ───────────── */
 body.modal-open {
   overflow: hidden;
-  /* Prevents iOS Safari rubber-band scroll bleeding through */
+  position: fixed;
+  width: 100%;
   touch-action: none;
 }
 
@@ -997,6 +998,7 @@ body.modal-open {
   transform: translateY(24px) scale(0.96);
   transition: opacity .3s var(--ease-out), transform .38s var(--ease-out);
   will-change: transform, opacity;
+  overscroll-behavior: none;
 }
 .modal-overlay.open .modal {
   opacity: 1;
@@ -2641,10 +2643,11 @@ body.modal-open {
   .modal-body {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
     flex: 1;
     min-height: 0; /* required for flex child to shrink below content height */
-    padding-bottom: 120px;
+    padding-bottom: 140px;
   }
   /* Suggestions list: tighter max-height on small screens */
   .asset-suggestions { max-height: 42vh; }
