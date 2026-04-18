@@ -26,6 +26,10 @@
 
   window.addEventListener('resize', resize, { passive: true });
 
+  // ── Center ───────────────────────────────────────────────────
+  const centerX = () => W / 2;
+  const centerY = () => H / 2;
+
   // ── Pointer ──────────────────────────────────────────────────
   let pointerX = 0;
   let pointerY = 0;
@@ -47,35 +51,38 @@
   const COUNT     = FAR_COUNT + MID_COUNT;
   const particles = new Array(COUNT);
 
-  function makeParticle(layer) {
-    const isFar      = layer === 'far';
-    const depth      = isFar ? 0.3 + Math.random() * 0.3 : 0.6 + Math.random() * 0.4;
-    const speed      = 0.05 + depth * 0.15;
-    const baseOpacity = isFar
-      ? 0.2 + Math.random() * 0.3
-      : 0.4 + Math.random() * 0.4;
-    const size = isFar
-      ? 0.5 + Math.random() * 1.0
-      : 1.0 + Math.random() * 1.5;
+  function spawnParticle(layer) {
+    const isFar       = layer === 'far';
+    const depth       = isFar ? 0.3 + Math.random() * 0.3 : 0.6 + Math.random() * 0.4;
+    const baseOpacity = isFar ? 0.2 + Math.random() * 0.3  : 0.4 + Math.random() * 0.4;
+    const size        = isFar ? 0.5 + Math.random() * 1.0  : 1.0 + Math.random() * 1.5;
+
+    const radius   = Math.min(W || window.innerWidth, H || window.innerHeight) * 0.35;
+    const angle    = Math.random() * Math.PI * 2;
+    const distance = Math.pow(Math.random(), 1.5) * radius;
+    const cx       = (W || window.innerWidth)  / 2;
+    const cy       = (H || window.innerHeight) / 2;
+
     return {
-      x:            Math.random() * window.innerWidth,
-      y:            Math.random() * window.innerHeight,
-      vx:           (Math.random() - 0.5) * speed,
-      vy:           (Math.random() - 0.5) * speed * 0.5,
+      x:           cx + Math.cos(angle) * distance,
+      y:           cy + Math.sin(angle) * distance,
+      vx:          (Math.random() - 0.5) * 0.2,
+      vy:          (Math.random() - 0.5) * 0.2,
       size,
       baseOpacity,
-      opacity:      baseOpacity,
+      opacity:     baseOpacity,
       depth,
-      phase:        Math.random() * Math.PI * 2,
-      freq:         0.22 + Math.random() * 0.38,
-      seed:         Math.random() * 1000,
+      phase:       Math.random() * Math.PI * 2,
+      freq:        0.22 + Math.random() * 0.38,
+      seed:        Math.random() * 1000,
+      layer,
     };
   }
 
   function initParticles() {
     let idx = 0;
-    for (let i = 0; i < FAR_COUNT; i++) particles[idx++] = makeParticle('far');
-    for (let i = 0; i < MID_COUNT; i++) particles[idx++] = makeParticle('mid');
+    for (let i = 0; i < FAR_COUNT; i++) particles[idx++] = spawnParticle('far');
+    for (let i = 0; i < MID_COUNT; i++) particles[idx++] = spawnParticle('mid');
   }
 
   // ── Aurora blobs ─────────────────────────────────────────────
@@ -184,6 +191,10 @@
 
     ctx.clearRect(0, 0, W, H);
 
+    const cx = centerX();
+    const cy = centerY();
+    const maxDist = Math.min(W, H) * 0.5;
+
     // ── Aurora blobs ──
     for (let i = 0; i < BLOB_COUNT; i++) {
       const b = auroraBlobs[i];
@@ -238,15 +249,18 @@
       p.vx += Math.sin(ts * 0.001 * p.freq + p.phase) * 0.0007;
       p.vy += Math.cos(ts * 0.001 * p.freq * 0.68 + p.phase) * 0.0007;
 
-      // Pointer interaction
-      const dx   = p.x - pointerX;
-      const dy   = p.y - pointerY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      // Center attraction
+      p.vx += (cx - p.x) * 0.00002;
+      p.vy += (cy - p.y) * 0.00002;
 
-      if (dist < 120) {
-        const force = (120 - dist) / 120;
-        p.vx += dx * force * 0.02;
-        p.vy += dy * force * 0.02;
+      // Pointer repel
+      const pdx  = p.x - pointerX;
+      const pdy  = p.y - pointerY;
+      const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+      if (pdist < 120) {
+        const force = (120 - pdist) / 120;
+        p.vx += pdx * force * 0.02;
+        p.vy += pdy * force * 0.02;
       }
 
       p.vx *= 0.98;
@@ -254,31 +268,38 @@
       p.x  += p.vx;
       p.y  += p.vy;
 
+      // Recycle if escaped
+      const cdist = Math.hypot(p.x - cx, p.y - cy);
+      if (cdist > maxDist) {
+        Object.assign(p, spawnParticle(p.layer));
+        continue;
+      }
+
       // Twinkle
       p.opacity = p.baseOpacity + Math.sin(ts * 0.002 + p.seed) * 0.2;
 
       // Boost near pointer
-      if (dist < 100) {
+      if (pdist < 100) {
         p.opacity = Math.min(p.opacity + 0.05, 0.99);
       }
 
       p.opacity = Math.max(0, p.opacity);
 
-      // Wrap edges
-      if (p.x < -8)    p.x = W + 8;
-      if (p.x > W + 8) p.x = -8;
-      if (p.y < -8)    p.y = H + 8;
-      if (p.y > H + 8) p.y = -8;
+      // Distance fade
+      const fade = 1 - Math.min(cdist / maxDist, 1);
 
       // Color: blue (far) → violet (near)
       const hue = 205 + p.depth * 65;
       const lit = 54  + p.depth * 26;
 
+      ctx.globalAlpha = p.opacity * fade;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${hue},72%,${lit}%,${p.opacity.toFixed(3)})`;
+      ctx.fillStyle = `hsl(${hue},72%,${lit}%)`;
       ctx.fill();
     }
+
+    ctx.globalAlpha = 1;
 
     // ── Micro sparkles ──
     for (let i = 0; i < SPARKLE_COUNT; i++) {
