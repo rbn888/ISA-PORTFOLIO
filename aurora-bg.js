@@ -26,16 +26,18 @@
 
   window.addEventListener('resize', resize, { passive: true });
 
-  // ── Pointer — NEW listeners, no reuse of app.js ─────────────
-  const ptr = { x: 0, y: 0 };
+  // ── Pointer ──────────────────────────────────────────────────
+  let pointerX = 0;
+  let pointerY = 0;
+
   window.addEventListener('mousemove', e => {
-    ptr.x = e.clientX;
-    ptr.y = e.clientY;
+    pointerX = e.clientX;
+    pointerY = e.clientY;
   }, { passive: true });
   window.addEventListener('touchmove', e => {
     if (e.touches[0]) {
-      ptr.x = e.touches[0].clientX;
-      ptr.y = e.touches[0].clientY;
+      pointerX = e.touches[0].clientX;
+      pointerY = e.touches[0].clientY;
     }
   }, { passive: true });
 
@@ -53,6 +55,7 @@
       vy:          (Math.random() - 0.5) * speed * 0.5,
       size:        0.4 + depth * 1.8,
       baseOpacity: 0.07 + depth * 0.32,
+      opacity:     0.07 + depth * 0.32,
       depth,
       phase:       Math.random() * Math.PI * 2,
       freq:        0.22 + Math.random() * 0.38,
@@ -88,17 +91,6 @@
   function initGlows() {
     for (let i = 0; i < GLOW_N; i++) glows[i] = makeGlow(true);
   }
-
-  // ── Tap / click waves ────────────────────────────────────────
-  const waves = [];
-  window.addEventListener('click', e => {
-    if (!_active) return;
-    waves.push({ x: e.clientX, y: e.clientY, r: 0, opacity: 0.22 });
-  });
-  window.addEventListener('touchstart', e => {
-    if (!_active || !e.touches[0]) return;
-    waves.push({ x: e.touches[0].clientX, y: e.touches[0].clientY, r: 0, opacity: 0.16 });
-  }, { passive: true });
 
   // ── Visibility state ─────────────────────────────────────────
   let _active         = false;
@@ -186,20 +178,28 @@
       p.vx += Math.sin(t * p.freq + p.phase) * 0.0007;
       p.vy += Math.cos(t * p.freq * 0.68 + p.phase) * 0.0007;
 
-      // Cursor repel (gentle)
-      const dx   = p.x - ptr.x;
-      const dy   = p.y - ptr.y;
+      // Pointer interaction
+      const dx   = p.x - pointerX;
+      const dy   = p.y - pointerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 100 && dist > 1) {
-        const f = (1 - dist / 100) * 0.022 * p.depth;
-        p.vx += (dx / dist) * f;
-        p.vy += (dy / dist) * f;
+
+      if (dist < 120) {
+        const force = (120 - dist) / 120;
+        p.vx += dx * force * 0.02;
+        p.vy += dy * force * 0.02;
       }
 
-      p.vx *= 0.984;
-      p.vy *= 0.984;
+      p.vx *= 0.98;
+      p.vy *= 0.98;
       p.x  += p.vx;
       p.y  += p.vy;
+
+      // Opacity boost near pointer, decay back to base
+      if (dist < 100) {
+        p.opacity = Math.min(p.baseOpacity + 0.05, 0.99);
+      } else {
+        p.opacity += (p.baseOpacity - p.opacity) * 0.05;
+      }
 
       // Wrap edges
       if (p.x < -8)    p.x = W + 8;
@@ -210,41 +210,27 @@
       // Color: blue (far) → violet (near)
       const hue = 205 + p.depth * 65;
       const lit = 54  + p.depth * 26;
-      const a   = p.baseOpacity;
 
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${hue},72%,${lit}%,${a})`;
+      ctx.fillStyle = `hsla(${hue},72%,${lit}%,${p.opacity})`;
       ctx.fill();
 
       // Soft sparkle on near-layer particles
       if (p.depth > 0.78 && Math.sin(t * 1.75 + p.phase * 2.8) > 0.92) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 1.7, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(192,100%,92%,${(a * 0.65).toFixed(3)})`;
+        ctx.fillStyle = `hsla(192,100%,92%,${(p.opacity * 0.65).toFixed(3)})`;
         ctx.fill();
       }
-    }
-
-    // ── Tap waves ──
-    for (let i = waves.length - 1; i >= 0; i--) {
-      const wv = waves[i];
-      wv.r       += 1.6;
-      wv.opacity *= 0.967;
-      if (wv.opacity < 0.007) { waves.splice(i, 1); continue; }
-      ctx.beginPath();
-      ctx.arc(wv.x, wv.y, wv.r, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(147,112,219,${wv.opacity.toFixed(3)})`;
-      ctx.lineWidth   = 0.8;
-      ctx.stroke();
     }
   }
 
   // ── Init ─────────────────────────────────────────────────────
   function init() {
     resize();
-    ptr.x = W / 2;
-    ptr.y = H / 2;
+    pointerX = W / 2;
+    pointerY = H / 2;
     initParticles();
     initGlows();
     initObserver();
