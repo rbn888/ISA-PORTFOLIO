@@ -7155,7 +7155,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     const rows = top.map(a =>
       '<div class="watchlist-row">' +
         '<span class="watchlist-sym">' + (a.sym || a.name) + '</span>' +
-        '<span class="watchlist-val">' + formatBase(a.qty * a.price) + '</span>' +
+        '<span class="watchlist-val">' + formatBase(a.price) + '</span>' +
       '</div>'
     ).join('');
     content.innerHTML = '<div class="watchlist-preview">' + rows + '</div>';
