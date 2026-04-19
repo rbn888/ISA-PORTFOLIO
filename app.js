@@ -6720,6 +6720,17 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     pinInput.addEventListener('blur',  () => inputWrap.classList.remove('focused'));
   }
 
+  pinInput.addEventListener('input', () => {
+    let value = pinInput.value;
+    if (value.length > MAX_DIGITS) {
+      value = value.slice(0, MAX_DIGITS);
+      pinInput.value = value;
+    }
+    const length = value.length;
+    renderDots(length);
+    btnSubmit.disabled = length === 0;
+  });
+
   // ── On load ────────────────────────────────────────────
   if (isAuthed()) {
     // Already authenticated — hide screen instantly, no entrance sequence needed
@@ -7065,37 +7076,3 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   });
 })();
 
-// ── PIN input listener ─────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const pinInput  = document.getElementById('betaPin');
-  const btnSubmit = document.getElementById('betaSubmit');
-  const dotsEl    = document.getElementById('betaDots');
-  const MAX_DIGITS = 4;
-
-  if (!pinInput) return;
-
-  pinInput.addEventListener('input', () => {
-    let value = pinInput.value;
-
-    if (value.length > MAX_DIGITS) {
-      value = value.slice(0, MAX_DIGITS);
-      pinInput.value = value;
-    }
-
-    const length = value.length;
-
-    if (dotsEl) {
-      dotsEl.innerHTML = '';
-      for (let i = 0; i < length; i++) {
-        const dot = document.createElement('span');
-        dot.className = 'beta-dot visible';
-        dotsEl.appendChild(dot);
-      }
-    }
-
-    if (btnSubmit) {
-      btnSubmit.disabled = length === 0;
-      btnSubmit.classList.toggle('ready', length === MAX_DIGITS);
-    }
-  });
-});
