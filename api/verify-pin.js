@@ -1,4 +1,4 @@
-const CORRECT_PIN = '0000';
+const CORRECT_PIN = '8181';
 const ALLOWED_ORIGIN = 'https://rbn888.github.io';
 
 export default async function handler(req, res) {
