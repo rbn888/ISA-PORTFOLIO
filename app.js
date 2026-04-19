@@ -970,7 +970,26 @@ let activeCategory = null; // persistent category filter ('crypto', 'metal', …
 let currentTab       = 'home';
 let showAllTx        = false;
 let insightIndex        = 0;
-let insightCache        = [];
+let insightCache            = [];
+let lastInsightSignature          = null;
+let lastInsightTimestamp          = 0;
+let lastDisplayedInsightSignature = null;
+const INSIGHT_COOLDOWN      = 60000;
+
+function createInsightSignature(insight) {
+  try {
+    const base = `${insight.topic}|${insight.priority}|${insight.text}`;
+    let hash = 0;
+    for (let i = 0; i < base.length; i++) {
+      hash = ((hash << 5) - hash) + base.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash.toString();
+  } catch (_) {
+    return null;
+  }
+}
+const INSIGHT_TTL           = 120000;
 let _lastInsightText    = '';
 let _lastInsightPriority = 4;
 let _insightInterval = null;
@@ -3510,7 +3529,31 @@ function getWowInsight() {
   return null;
 }
 
-function generateInsights() {
+async function generateInsights() {
+  let marketInsight = null;
+  try {
+    const market = await getMarketSignals();
+    const total       = assets.reduce((s, a) => s + a.qty * a.price, 0);
+    const cryptoValue = assets.filter(a => a.type === 'crypto').reduce((s, a) => s + a.qty * a.price, 0);
+    const cashValue   = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty * a.price, 0);
+    const portfolio   = {
+      cryptoExposure: total > 0 ? (cryptoValue / total) * 100 : 0,
+      liquidity:      total > 0 ? (cashValue   / total) * 100 : 0,
+    };
+    const insight = generateInsight(market, portfolio);
+    const message = insight?.message?.trim() ?? '';
+    const validSeverities = new Set(['low', 'medium', 'high']);
+    if (insight && message.length > 0 && insight.type && validSeverities.has(insight.severity)) {
+      marketInsight = {
+        id:        'market_' + Date.now(),
+        text:      message,
+        topic:     insight.type,
+        priority:  insight.severity === 'high' ? 0 : insight.severity === 'medium' ? 1 : 2,
+        createdAt: Date.now(),
+      };
+    }
+  } catch (err) { console.error('[InsightEngine]', err); }
+
   const profile   = buildUserProfile();
   buildIdentityProfile();
   analyzeBehavior();
@@ -3547,12 +3590,35 @@ function generateInsights() {
 
   const ambient = getAmbientMessages().slice(0, 2).map(i => ({ ...i, topic: 'ambient' }));
   insightCache  = pool.length ? [...pool, ...ambient] : getAmbientMessages().map(i => ({ ...i, topic: 'ambient' }));
+
+  try {
+    if (marketInsight !== null) {
+      const signature    = createInsightSignature(marketInsight);
+      const now          = Date.now();
+      const isSameAsLast = signature === lastInsightSignature && (now - lastInsightTimestamp) < INSIGHT_COOLDOWN;
+      if (
+        !insightCache.some(i => i.text === marketInsight.text) &&
+        !isSameAsLast
+      ) {
+        insightCache.unshift(marketInsight);
+        lastInsightSignature = signature;
+        lastInsightTimestamp = now;
+      }
+    }
+  } catch (err) { console.error('[InsightDedup]', err); }
+
   return insightCache;
 }
 
 function getNextInsight() {
   if (insightCache.length < 3) generateInsights();
-  if (!insightCache.length) return null;
+
+  const now = Date.now();
+  const validInsights = insightCache.filter(i => i.createdAt && (now - i.createdAt) < INSIGHT_TTL);
+  if (!validInsights.length) return null;
+  const sorted = [...validInsights].sort((a, b) => a.priority - b.priority);
+  const bestInsight = sorted[0];
+  return bestInsight;
 
   const available = insightCache.filter(i => !lastMessages.includes(i.text));
   const pool      = available.length ? available : insightCache;
@@ -3651,7 +3717,12 @@ function monsterLoop() {
   const deformX = 1 + Math.abs(monsterState.x) * 0.015;
   const deformY = 1 + Math.abs(monsterState.y) * 0.015;
 
-  orb.style.transform = `translate(${monsterState.x}px, ${monsterState.y}px) scale(${deformX}, ${deformY})`;
+  monsterState._breathTime = (monsterState._breathTime || 0) + 0.01;
+  const _breathScale = 1 + Math.sin(monsterState._breathTime) * 0.02;
+  const finalScaleX = deformX * _breathScale;
+  const finalScaleY = deformY * _breathScale;
+
+  orb.style.transform = `translate(${monsterState.x}px, ${monsterState.y}px) scale(${finalScaleX}, ${finalScaleY})`;
 
   // Dynamic color from PnL
   const pnl = getPortfolioPnL();
@@ -3823,7 +3894,13 @@ function showNextMessage() {
   setTimeout(() => {
     if (!_rotationActive) { isDisplaying = false; return; }
     currentMessage = next;
-    displayMessage(next);
+    try {
+      if (!next) return;
+      const signature = createInsightSignature(next);
+      if (signature === lastDisplayedInsightSignature) { isDisplaying = false; return; }
+      displayMessage(next);
+      lastDisplayedInsightSignature = signature;
+    } catch (err) { console.error('[MonsterRender]', err); }
     const readTime = getReadingTime(next.text);
     setTimeout(() => {
       lastMessages.push(next.text);
