@@ -3896,13 +3896,11 @@ async function showNextMessage() {
       return;
     }
     const signature = createInsightSignature(next);
-    if (signature !== lastDisplayedInsightSignature) {
-      currentMessage = next;
-      displayMessage(next);
-      lastDisplayedInsightSignature = signature;
-      lastMessages.push(next.text);
-      if (lastMessages.length > 5) lastMessages.shift();
-    }
+    currentMessage = next;
+    displayMessage(next);
+    lastDisplayedInsightSignature = signature;
+    lastMessages.push(next.text);
+    if (lastMessages.length > 5) lastMessages.shift();
   } catch (err) {
     console.error('[MonsterRender]', err);
   } finally {
@@ -3917,6 +3915,13 @@ function startInsightRotation() {
   const o = document.querySelector('.monster-orb');
   if (o) { applyContext(o); applyPnlToOrb(o); }
   showNextMessage();
+  setTimeout(async () => {
+    const first = await getNextInsight();
+    if (first) {
+      currentMessage = first;
+      displayMessage(first);
+    }
+  }, 100);
 }
 
 function getTopAssetExposure() {
