@@ -3886,43 +3886,37 @@ function displayMessage(msg) {
 }
 
 async function showNextMessage() {
-  if (!_rotationActive || isDisplaying) return;
-  const next = await getNextInsight();
-  if (!next) { isDisplaying = false; setTimeout(showNextMessage, 2000); return; }
+  if (isDisplaying) return;
   isDisplaying = true;
-  const thinkDelay = 800 + Math.random() * 1200;
-  setTimeout(() => {
-    if (!_rotationActive) { isDisplaying = false; return; }
-    currentMessage = next;
-    try {
-      if (!next) return;
-      const signature = createInsightSignature(next);
-      if (signature === lastDisplayedInsightSignature) { isDisplaying = false; setTimeout(showNextMessage, 4000); return; }
+  let delay = 4000 + Math.random() * 2000;
+  try {
+    const next = await getNextInsight();
+    if (!next) {
+      delay = 2000;
+      return;
+    }
+    const signature = createInsightSignature(next);
+    if (signature !== lastDisplayedInsightSignature) {
+      currentMessage = next;
       displayMessage(next);
       lastDisplayedInsightSignature = signature;
-    } catch (err) { console.error('[MonsterRender]', err); }
-    const readTime = getReadingTime(next.text);
-    setTimeout(() => {
       lastMessages.push(next.text);
       if (lastMessages.length > 5) lastMessages.shift();
-      const restDelay = 1500 + Math.random() * 2500;
-      setTimeout(() => {
-        isDisplaying = false;
-        showNextMessage();
-      }, restDelay);
-    }, readTime);
-    setTimeout(showNextMessage, 4000);
-  }, thinkDelay);
+    }
+  } catch (err) {
+    console.error('[MonsterRender]', err);
+  } finally {
+    isDisplaying = false;
+    setTimeout(showNextMessage, delay);
+  }
 }
 
 let _rotationActive = false;
 
 function startInsightRotation() {
-  _rotationActive = true;
-  isDisplaying    = false;
   const o = document.querySelector('.monster-orb');
   if (o) { applyContext(o); applyPnlToOrb(o); }
-  setTimeout(showNextMessage, 1000);
+  showNextMessage();
 }
 
 function getTopAssetExposure() {
@@ -6370,6 +6364,7 @@ const _perfCurrBtn = document.getElementById('perfCurrBtn');
 if (_perfCurrBtn) _perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
 
 render(true);
+setTimeout(showNextMessage, 1500);
 
 // Bootstrap simulated history if this is the first session
 (function bootstrapHistory() {
