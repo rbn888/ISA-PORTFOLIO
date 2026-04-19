@@ -4554,8 +4554,8 @@ main { padding-bottom: 72px; }
   text-align: center;
 }
 
-/* ── Tracking card (desktop only) ── */
-.tracking-card {
+/* ── Tracking block (desktop only) ── */
+.tracking-block {
   display: none;
 }
 
@@ -4694,7 +4694,7 @@ main { padding-bottom: 72px; }
     padding: 16px;
   }
 
-  /* Distribution section: header full-width, inner + tracking-card side by side */
+  /* Distribution section: left block + right tracking block */
   .distribution-section {
     display: grid !important;
     grid-template-columns: 1fr 360px;
@@ -4703,14 +4703,14 @@ main { padding-bottom: 72px; }
     align-items: start;
   }
 
-  .distribution-header {
-    grid-column: 1 / -1;
-    margin-bottom: 0;
+  .distribution-block,
+  .tracking-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .distribution-inner {
-    grid-column: 1;
-    grid-row: 2;
     display: grid !important;
     grid-template-columns: auto max-content;
     justify-content: start;
@@ -4757,8 +4757,6 @@ main { padding-bottom: 72px; }
   }
 
   .tracking-card {
-    grid-column: 2;
-    grid-row: 2;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -4769,9 +4767,6 @@ main { padding-bottom: 72px; }
     overflow: hidden;
     min-height: 260px;
     width: 100%;
-    min-width: 320px;
-    justify-self: unset;
-    align-self: start;
   }
 
   .tracking-title {
