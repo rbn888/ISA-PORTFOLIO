@@ -1,10 +1,15 @@
-const CORRECT_PIN = '8181';
+import { createHash } from 'crypto';
+
 const ALLOWED_ORIGIN = 'https://rbn888.github.io';
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 5 * 60 * 1000;
 
 const attempts = {};
+
+function hashPin(pin) {
+  return createHash('sha256').update(pin).digest('hex');
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
@@ -38,7 +43,8 @@ export default async function handler(req, res) {
 
   try {
     const { pin } = req.body;
-    return res.status(200).json({ success: pin === CORRECT_PIN });
+    const PIN_HASH = process.env.PIN_HASH;
+    return res.status(200).json({ success: hashPin(pin) === PIN_HASH });
   } catch {
     return res.status(200).json({ success: false });
   }
