@@ -6678,29 +6678,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     }, 2 * STEP + 120);
   }
 
-  // ── Dot management — dynamic add/remove for true centering ─
-  // Only live dots exist in the flex container so justify-content:center
-  // always centers exactly the typed count, not a fixed 4-slot row.
-  const dotEls = [];
-
-  function addDot() {
-    const dot = document.createElement('span');
-    dot.className = 'beta-dot';
-    dotsEl.appendChild(dot);
-    dotEls.push(dot);
-    // Force layout commit before adding .visible so the transition fires
-    void dot.getBoundingClientRect();
-    dot.classList.add('visible');
-  }
-
-  function removeDot() {
-    if (!dotEls.length) return;
-    const dot = dotEls.pop();
-    dot.classList.remove('visible');
-    // Remove from DOM after both opacity (.12s) and transform (.14s) finish
-    setTimeout(() => { if (dot.parentNode) dot.remove(); }, 180);
-  }
-
   function renderDots(count) {
     const dotsEl = document.getElementById('betaDots');
     if (!dotsEl) return;
@@ -6749,7 +6726,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
     pinInput.value = '';
     // Instant clear — no exit animations when returning to the auth screen
     dotsEl.innerHTML = '';
-    dotEls.length = 0;
     inputWrap.classList.remove('has-input', 'ready');
     pinInput.classList.remove('has-value');
     btnSubmit.classList.remove('ready');
@@ -6766,14 +6742,26 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   // ── Input events ───────────────────────────────────────
-  pinInput.addEventListener('input', () => {
-    if (pinInput.value.length > MAX_DIGITS) pinInput.value = pinInput.value.slice(0, MAX_DIGITS);
-    renderDots(pinInput.value.length);
-    btnSubmit.disabled = pinInput.value.length === 0;
-    if (pinInput.value.length > 0) errorEl.classList.remove('show');
+  document.addEventListener('DOMContentLoaded', () => {
+    const pinInput  = document.getElementById('betaPin');
+    const btnSubmit = document.getElementById('betaSubmit');
+    const inputWrap = document.querySelector('.beta-input-wrap');
+
+    if (!pinInput) { console.error('[ACCESS] betaPin not found'); return; }
+
+    pinInput.addEventListener('input', () => {
+      const length = pinInput.value.length;
+      if (length > MAX_DIGITS) { pinInput.value = pinInput.value.slice(0, MAX_DIGITS); }
+      renderDots(pinInput.value.length);
+      btnSubmit.disabled = pinInput.value.length === 0;
+      inputWrap.classList.toggle('has-input', pinInput.value.length > 0);
+      inputWrap.classList.toggle('ready', pinInput.value.length === MAX_DIGITS);
+      btnSubmit.classList.toggle('ready', pinInput.value.length === MAX_DIGITS);
+      if (pinInput.value.length > 0) errorEl.classList.remove('show');
+    });
+    pinInput.addEventListener('focus', () => inputWrap.classList.add('focused'));
+    pinInput.addEventListener('blur',  () => inputWrap.classList.remove('focused'));
   });
-  pinInput.addEventListener('focus', () => inputWrap.classList.add('focused'));
-  pinInput.addEventListener('blur',  () => inputWrap.classList.remove('focused'));
 
   // ── On load ────────────────────────────────────────────
   if (isAuthed()) {
