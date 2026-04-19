@@ -4698,11 +4698,9 @@ main { padding-bottom: 72px; }
   .distribution-section {
     display: grid !important;
     grid-template-columns: 1fr 360px;
-    grid-template-rows: auto 1fr;
     column-gap: 24px;
     row-gap: 16px;
     align-items: start;
-    flex-direction: unset;
   }
 
   .distribution-header {
@@ -4772,7 +4770,7 @@ main { padding-bottom: 72px; }
     min-height: 260px;
     width: 100%;
     min-width: 320px;
-    justify-self: end;
+    justify-self: unset;
     align-self: start;
   }
 
