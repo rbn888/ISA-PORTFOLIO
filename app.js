@@ -6702,9 +6702,16 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   }
 
   function renderDots(count) {
-    const delta = count - dotEls.length;
-    if (delta > 0) for (let i = 0; i < delta; i++) addDot();
-    else if (delta < 0) for (let i = 0; i < -delta; i++) removeDot();
+    const dotsEl = document.getElementById('betaDots');
+    if (!dotsEl) return;
+
+    dotsEl.innerHTML = '';
+
+    for (let i = 0; i < count; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'beta-dot visible';
+      dotsEl.appendChild(dot);
+    }
 
     const hasValue = count > 0;
     pinInput.classList.toggle('has-value', hasValue);
