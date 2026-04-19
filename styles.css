@@ -4603,25 +4603,27 @@ main { padding-bottom: 72px; }
     margin-top: 24px;
     display: grid;
     grid-template-columns: 360px 1fr;
-    gap: 24px;
-    align-items: center;
+    gap: 20px;
+    align-items: start;
+    padding: 20px 24px;
   }
 
   .donut-wrapper {
     display: flex;
+    align-items: flex-start;
     justify-content: flex-start;
-    align-items: center;
   }
 
   .donut-chart {
-    width: 300px;
-    height: 300px;
+    width: 280px;
+    height: 280px;
   }
 
   .distribution-legend {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
+    margin-top: 4px;
   }
 
   .assets-grid {
