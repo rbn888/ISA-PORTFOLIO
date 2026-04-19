@@ -3610,11 +3610,11 @@ async function generateInsights() {
   return insightCache;
 }
 
-function getNextInsight() {
-  if (insightCache.length < 3) generateInsights();
+async function getNextInsight() {
+  if (insightCache.length < 3) await generateInsights();
 
   const now = Date.now();
-  const validInsights = insightCache.filter(i => i.createdAt && (now - i.createdAt) < INSIGHT_TTL);
+  const validInsights = insightCache.filter(i => !i.createdAt || (now - i.createdAt) < INSIGHT_TTL);
   if (!validInsights.length) return null;
   const sorted = [...validInsights].sort((a, b) => a.priority - b.priority);
   const bestInsight = sorted[0];
@@ -3803,11 +3803,11 @@ function updateOrbState() {
   monsterState.targetPulseFreq = base.freq   * (p === 1 ? 1.2 : p === 3 ? 0.80 : 1);
 }
 
-function animateMonster() {
+async function animateMonster() {
   const elText = document.querySelector(".monster-line");
   if (!elText) return _lastInsightPriority;
 
-  const next = getNextInsight();
+  const next = await getNextInsight();
   updateOrbState();
 
   monsterReact();
@@ -3885,9 +3885,9 @@ function displayMessage(msg) {
   }, 300);
 }
 
-function showNextMessage() {
+async function showNextMessage() {
   if (!_rotationActive || isDisplaying) return;
-  const next = getNextInsight();
+  const next = await getNextInsight();
   if (!next) { setTimeout(showNextMessage, 2000); return; }
   isDisplaying = true;
   const thinkDelay = 800 + Math.random() * 1200;
