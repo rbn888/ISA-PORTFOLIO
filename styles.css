@@ -4718,7 +4718,7 @@ main { padding-bottom: 72px; }
     font-weight: 500;
     opacity: 0.8;
     letter-spacing: 0.08em;
-    margin: 0 0 2px;
+    margin: 0 0 4px;
   }
 
   .distribution-inner {
@@ -4776,7 +4776,7 @@ main { padding-bottom: 72px; }
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding: 10px 14px 14px;
+    padding: 12px 14px;
     overflow: hidden;
     height: fit-content;
     max-height: 170px;
