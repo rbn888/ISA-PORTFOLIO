@@ -4600,8 +4600,8 @@ main { padding-bottom: 72px; }
   }
 
   .distribution-inner {
-    display: grid;
-    grid-template-columns: 280px 1fr;
+    display: grid !important;
+    grid-template-columns: 260px 1fr;
     gap: 32px;
     align-items: start;
   }
@@ -4611,11 +4611,16 @@ main { padding-bottom: 72px; }
     height: 220px;
   }
 
+  #donutChart {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
   .distribution-legend {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 4px;
+    gap: 12px;
+    justify-content: flex-start;
   }
 
   .assets-grid {
