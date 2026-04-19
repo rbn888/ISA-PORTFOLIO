@@ -4586,28 +4586,6 @@ main { padding-bottom: 72px; }
   min-height: 0;
 }
 
-.tracking-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-
-.tracking-footer-btn {
-  width: 100%;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-family: inherit;
-  padding: 8px;
-  cursor: pointer;
-  transition: border-color .2s, color .2s;
-}
-
-.tracking-footer-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 
 /* Ticker */
 .tracking-ticker-wrap {
@@ -4665,11 +4643,11 @@ main { padding-bottom: 72px; }
 
 .watchlist-row {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
+  align-items: center;
+  padding: 6px 0;
   border-bottom: 1px solid rgba(255,255,255,.04);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .watchlist-row:last-child { border-bottom: none; }
@@ -4682,6 +4660,7 @@ main { padding-bottom: 72px; }
 .watchlist-val {
   color: var(--text-muted);
   font-size: 12px;
+  opacity: 0.8;
 }
 
 /* ── Desktop layout enhancements ── */

@@ -7100,8 +7100,7 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 (function initTrackingCard() {
   if (!window.matchMedia('(min-width: 1024px)').matches) return;
 
-  const content   = document.getElementById('trackingContent');
-  const footerBtn = document.getElementById('trackingFooterBtn');
+  const content = document.getElementById('trackingContent');
   if (!content) return;
 
   const TICKER_ASSETS = [
@@ -7169,12 +7168,6 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
       await fetchTickerPrices();
       renderTicker();
     }
-  }
-
-  if (footerBtn) {
-    footerBtn.addEventListener('click', () => {
-      if (typeof openModal === 'function') openModal();
-    });
   }
 
   render();
