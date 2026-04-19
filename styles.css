@@ -4716,8 +4716,8 @@ main { padding-bottom: 72px; }
     display: grid !important;
     grid-template-columns: auto max-content;
     justify-content: start;
+    align-items: start;
     gap: 10px;
-    align-items: center;
   }
 
   .donut-wrap {
