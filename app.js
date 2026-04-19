@@ -3616,9 +3616,12 @@ async function getNextInsight() {
   const now = Date.now();
   const validInsights = insightCache.filter(i => !i.createdAt || (now - i.createdAt) < INSIGHT_TTL);
   if (!validInsights.length) return null;
-  const sorted = [...validInsights].sort((a, b) => a.priority - b.priority);
-  const bestInsight = sorted[0];
-  return bestInsight;
+
+  const candidates = validInsights.filter(i => createInsightSignature(i) !== lastInsightSignature);
+  const pool = candidates.length ? candidates : validInsights;
+  const next = pool[Math.floor(Math.random() * pool.length)];
+  lastInsightSignature = createInsightSignature(next);
+  return next;
 
   const available = insightCache.filter(i => !lastMessages.includes(i.text));
   const pool      = available.length ? available : insightCache;
