@@ -4697,7 +4697,7 @@ main { padding-bottom: 72px; }
   /* Distribution section: header full-width, inner + tracking-card side by side */
   .distribution-section {
     display: grid !important;
-    grid-template-columns: auto 320px;
+    grid-template-columns: 1fr 360px;
     grid-template-rows: auto 1fr;
     column-gap: 24px;
     row-gap: 16px;
@@ -4717,7 +4717,7 @@ main { padding-bottom: 72px; }
     grid-template-columns: auto max-content;
     justify-content: start;
     align-items: start;
-    gap: 10px;
+    gap: 12px;
   }
 
   .donut-wrap {
@@ -4769,10 +4769,11 @@ main { padding-bottom: 72px; }
     border-radius: 12px;
     padding: 16px;
     overflow: hidden;
-    height: 100%;
     min-height: 260px;
     width: 100%;
-    min-width: 340px;
+    min-width: 320px;
+    justify-self: end;
+    align-self: start;
   }
 
   .tracking-title {
