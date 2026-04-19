@@ -4602,14 +4602,20 @@ main { padding-bottom: 72px; }
   .distribution-section {
     margin-top: 24px;
     display: grid;
-    grid-template-columns: 320px 1fr;
-    gap: 28px;
+    grid-template-columns: 360px 1fr;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .donut-wrapper {
+    display: flex;
+    justify-content: flex-start;
     align-items: center;
   }
 
   .donut-chart {
-    width: 260px;
-    height: 260px;
+    width: 300px;
+    height: 300px;
   }
 
   .distribution-legend {
