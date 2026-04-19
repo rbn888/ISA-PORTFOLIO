@@ -4697,9 +4697,8 @@ main { padding-bottom: 72px; }
   /* Distribution section: left block + right tracking block */
   .distribution-section {
     display: grid !important;
-    grid-template-columns: 1fr 340px;
-    column-gap: 20px;
-    row-gap: 16px;
+    grid-template-columns: 1fr 330px;
+    column-gap: 18px;
     align-items: start;
   }
 
@@ -4708,7 +4707,10 @@ main { padding-bottom: 72px; }
     display: flex;
     flex-direction: column;
     gap: 10px;
-    justify-content: flex-start;
+  }
+
+  .tracking-block {
+    margin-top: 2px;
   }
 
   .section-title {
@@ -4722,15 +4724,13 @@ main { padding-bottom: 72px; }
   .distribution-inner {
     display: grid !important;
     grid-template-columns: auto max-content;
-    justify-content: start;
     align-items: start;
     gap: 16px;
   }
 
   .donut-wrap {
-    width: 175px;
-    height: 175px;
-    margin-top: 2px;
+    width: 180px;
+    height: 180px;
   }
 
   #donutChart {
@@ -4743,7 +4743,7 @@ main { padding-bottom: 72px; }
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 10px;
+    margin-top: 12px;
   }
 
   .distribution-legend-item {
@@ -4765,33 +4765,35 @@ main { padding-bottom: 72px; }
     opacity: 0.85;
   }
 
+  .tracking-card,
+  .distribution-block {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
   .tracking-card {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 10px;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px;
+    padding: 12px;
     overflow: hidden;
-    min-height: unset;
-    height: auto;
-    width: 100%;
-    min-width: 300px;
+    height: fit-content;
+    max-height: 180px;
     align-self: start;
   }
 
   .tracking-content {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
 
   .watchlist-row {
     display: flex;
     justify-content: space-between;
-    font-size: 13px;
+    font-size: 12.5px;
+    line-height: 1.2;
   }
 
   .ticker-item {
