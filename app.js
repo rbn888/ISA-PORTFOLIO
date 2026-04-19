@@ -3627,11 +3627,11 @@ async function getNextInsight() {
   const selectionPool  = available.length ? available : insightCache;
 
   const recentTopics = topicHistory.slice(-2);
-  const cooled       = selectionPool.filter(i => i.priority === 1 || !recentTopics.includes(i.topic));
-  const candidates   = cooled.length ? cooled : selectionPool;
+  const cooled             = selectionPool.filter(i => i.priority === 1 || !recentTopics.includes(i.topic));
+  const cooledCandidates   = cooled.length ? cooled : selectionPool;
 
-  candidates.sort((a, b) => (a.priority || 4) - (b.priority || 4));
-  const top2 = candidates.slice(0, 2);
+  cooledCandidates.sort((a, b) => (a.priority || 4) - (b.priority || 4));
+  const top2 = cooledCandidates.slice(0, 2);
   const item = top2[Math.floor(Math.random() * top2.length)];
 
   const idx = insightCache.indexOf(item);
