@@ -992,13 +992,16 @@ function createInsightSignature(insight) {
 const INSIGHT_TTL           = 120000;
 let _lastInsightText    = '';
 let _lastInsightPriority = 4;
-let _insightInterval = null;
+let _loopInterval  = null;
 let currentTopic   = null;
 let lastTopics     = [];
 let topicHistory   = [];
 let lastMessages   = [];
 let currentMessage = null;
-let isDisplaying   = false;
+let messageQueue   = [];
+let queueIndex     = 0;
+let recentIds      = [];
+let _isRefilling   = false;
 
 const MEMORY_KEY = 'aurix_insights_memory';
 
@@ -2831,128 +2834,164 @@ function getTotalPortfolioValue() {
   return assets.reduce((sum, a) => sum + a.qty * a.price, 0);
 }
 
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 function own(asset) {
   return `Tu ${asset}`;
 }
 
 function generateBaseInsights() {
-  const es         = lang === 'es';
-  const insights   = [];
   const txs        = getAllTransactions();
   const totalValue = getTotalPortfolioValue();
+  const candidates = [];
 
   if (!assets.length) {
-    return [{ text: es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.', priority: 4 }];
+    const es = lang === 'es';
+    return [{ text: es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.', priority: 4, topic: 'distribution', score: 0, id: 'empty', semanticKey: 'empty_portfolio', build: null }];
   }
 
-  // 1. Single-asset concentration (priority 1)
-  let maxValue = 0;
-  assets.forEach(a => { const v = a.qty * a.price; if (v > maxValue) maxValue = v; });
-  if (totalValue > 0 && (maxValue / totalValue) * 100 > 50) insights.push({
-    text: es ? pick([
-      'Más del 50% en un solo activo.',
-      'Un activo concentra más del 50% de cartera.',
-    ]) : pick([
-      'Over 50% in a single asset.',
-      'One asset holds over 50% of portfolio.',
-    ]),
-    priority: 1, topic: 'concentration',
-  });
+  let maxValue = 0, maxAsset = null;
+  assets.forEach(a => { const v = a.qty * a.price; if (v > maxValue) { maxValue = v; maxAsset = a; } });
+  const concPct = totalValue > 0 ? Math.round((maxValue / totalValue) * 100) : 0;
+  if (totalValue > 0 && concPct > 50 && maxAsset) {
+    const nk = maxAsset.name.replace(/\s+/g, '_');
+    const nh = escHtml(maxAsset.name);
+    candidates.push({
+      id: `conc_asset_${nk}_${Math.floor(concPct / 10) * 10}`,
+      semanticKey: `${nk}_weight`,
+      topic: 'concentration', priority: 1, score: concPct,
+      data: { name: nh, pct: concPct },
+      build: (d, i) => buildInsightText('concentration_asset', d, i),
+    });
+    candidates.push({
+      id: `risk_conc_asset_${nk}_${Math.floor(concPct / 10) * 10}`,
+      semanticKey: `${nk}_concentration_risk`,
+      topic: 'concentration', priority: 1, score: concPct - 5,
+      data: { name: nh, pct: concPct },
+      build: (d, i) => buildInsightText('risk_asset_dominates', d, i),
+    });
+  }
 
-  // 2. Category exposure (priority 1)
   const byType = {};
   assets.forEach(a => { byType[a.type] = (byType[a.type] || 0) + a.qty * a.price; });
   for (const type in byType) {
-    if (totalValue > 0 && (byType[type] / totalValue) * 100 > 60) {
+    const typePct = totalValue > 0 ? Math.round((byType[type] / totalValue) * 100) : 0;
+    if (typePct > 60) {
       const label = (T[lang].typeMeta && T[lang].typeMeta[type]) || type;
-      insights.push({
-        text: es ? `Más del 60% de tu cartera está en ${label}.` : `Over 60% of your portfolio is in ${label}.`,
-        priority: 1, topic: 'distribution',
+      candidates.push({
+        id: `conc_cat_${type}_${Math.floor(typePct / 10) * 10}`,
+        semanticKey: `category_${type}_exposure`,
+        topic: 'distribution', priority: 1, score: typePct,
+        data: { label, pct: typePct },
+        build: (d, i) => buildInsightText('concentration_category', d, i),
       });
       break;
     }
   }
 
-  // 3. Strong performer — priority 2
-  let strongPerformer = null;
-  assets.forEach(a => {
-    if (!a.costBasis || a.costBasis <= 0) return;
-    if (((a.qty * a.price - a.costBasis) / a.costBasis) * 100 > 50) strongPerformer = a;
+  // Performance + risk for top-3 gainers (> 20% up from cost)
+  const performers = assets
+    .filter(a => a.costBasis > 0)
+    .map(a => ({ asset: a, pct: Math.round((a.qty * a.price - a.costBasis) / a.costBasis * 100) }))
+    .filter(p => p.pct > 20)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 3);
+
+  performers.forEach((p, idx) => {
+    const { asset, pct } = p;
+    const nk = asset.name.replace(/\s+/g, '_');
+    const nh = escHtml(asset.name);
+    candidates.push({
+      id: `perf_gain_${nk}_${Math.floor(pct / 10) * 10}`,
+      semanticKey: `${nk}_performance`,
+      topic: 'performance', priority: 2, score: pct,
+      data: { name: nh, pct },
+      build: (d, i) => buildInsightText('performance_gain', d, i),
+    });
+    if (idx === 0) {
+      candidates.push({
+        id: `risk_unrealized_${nk}_${Math.floor(pct / 10) * 10}`,
+        semanticKey: `${nk}_unrealized`,
+        topic: 'performance', priority: 2, score: pct - 5,
+        data: { name: nh, pct },
+        build: (d, i) => buildInsightText('risk_unrealized', d, i),
+      });
+      candidates.push({
+        id: `dec_unrealized_${nk}_${Math.floor(pct / 10) * 10}`,
+        semanticKey: `${nk}_decision_unrealized`,
+        topic: 'activity', priority: 2, score: pct - 10,
+        data: { name: nh, pct },
+        build: (d, i) => buildInsightText('decision_unrealized_open', d, i),
+      });
+    }
   });
-  if (strongPerformer) {
-    const sn    = escHtml(strongPerformer.name);
-    const pct   = ((strongPerformer.qty * strongPerformer.price - strongPerformer.costBasis) / strongPerformer.costBasis * 100).toFixed(0);
-    const heavy = totalValue > 0 && (strongPerformer.qty * strongPerformer.price / totalValue) > 0.2;
-    insights.push({
-      text: es ? (heavy ? pick([
-        `Tu posición en ${sn} sube más del 50% desde tu entrada.`,
-        `${own(sn)} lleva una subida superior al 50%.`,
-      ]) : pick([
-        `Tienes exposición a ${sn} que ha subido un ${pct}%.`,
-        `Tu ${sn} acumula más del 50% desde que entraste.`,
-      ])) : (heavy ? pick([
-        `Your ${sn} position is up over 50% from entry.`,
-        `You hold ${sn} with gains above 50%.`,
-      ]) : pick([
-        `Your exposure to ${sn} is up ${pct}%.`,
-        `${sn} represents a gain of over 50% in your portfolio.`,
-      ])),
-      priority: 2, topic: 'performance',
+
+  // Confidence-risk: concentrated book in profit
+  const totalPnl   = assets.reduce((s, a) => s + (a.costBasis > 0 ? a.qty * a.price - a.costBasis : 0), 0);
+  const portPnlPct = totalValue > 0 && totalPnl > 0 ? Math.round((totalPnl / totalValue) * 100) : 0;
+  if (portPnlPct > 10 && maxAsset && concPct > 40) {
+    const nk = maxAsset.name.replace(/\s+/g, '_');
+    const nh = escHtml(maxAsset.name);
+    candidates.push({
+      id: `conc_conf_${nk}_${Math.floor(portPnlPct / 10) * 10}`,
+      semanticKey: `${nk}_confidence_exposure`,
+      topic: 'concentration', priority: 2, score: portPnlPct,
+      data: { name: nh, pct: concPct, pnl: portPnlPct },
+      build: (d, i) => buildInsightText('concentration_confidence', d, i),
     });
   }
 
-  // 4. Low liquidity — priority 2
-  const liquidity = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty, 0);
-  if (totalValue > 0 && liquidity / totalValue < 0.1) insights.push({
-    text: es ? pick([
-      'Menos del 10% en liquidez.',
-      'Menos del 10% de cartera en efectivo.',
-    ]) : pick([
-      'Under 10% in liquidity.',
-      'Less than 10% of portfolio in cash.',
-    ]),
-    priority: 2, topic: 'liquidity',
-  });
+  const liquidity    = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty, 0);
+  const liquidityPct = totalValue > 0 ? Math.round((liquidity / totalValue) * 100) : 0;
+  if (totalValue > 0 && liquidityPct < 10) {
+    candidates.push({
+      id: `liq_low_${Math.floor(liquidityPct / 5) * 5}`,
+      semanticKey: 'portfolio_liquidity',
+      topic: 'liquidity', priority: 2, score: 100 - liquidityPct,
+      data: { pct: liquidityPct },
+      build: (d, i) => buildInsightText('liquidity_low', d, i),
+    });
+    candidates.push({
+      id: `dec_liq_${Math.floor(liquidityPct / 5) * 5}`,
+      semanticKey: 'portfolio_flexibility',
+      topic: 'liquidity', priority: 2, score: 95 - liquidityPct,
+      data: { pct: liquidityPct },
+      build: (d, i) => buildInsightText('decision_low_liquidity', d, i),
+    });
+  }
 
-  // 5. Recent activity — priority 3
   if (txs.length) {
-    const last = txs[0];
-    insights.push({
-      text: last.type === 'buy'
-        ? (es ? pick([
-            `Compraste ${escHtml(last.assetName)} recientemente.`,
-            `Tu última operación fue una compra en ${escHtml(last.assetName)}.`,
-          ]) : pick([
-            `You recently bought ${escHtml(last.assetName)}.`,
-            `Your last trade was a buy in ${escHtml(last.assetName)}.`,
-          ]))
-        : (es ? pick([
-            `Vendiste ${escHtml(last.assetName)} recientemente.`,
-            `Tu última operación fue una venta en ${escHtml(last.assetName)}.`,
-          ]) : pick([
-            `You recently sold ${escHtml(last.assetName)}.`,
-            `Your last trade was a sell in ${escHtml(last.assetName)}.`,
-          ])),
-      priority: 3, topic: 'activity',
+    const last    = txs[0];
+    const daysAgo = Math.round(getDaysSince(last.ts));
+    const isBuy   = last.type === 'buy';
+    const nk      = last.assetName.replace(/\s+/g, '_');
+    candidates.push({
+      id: `activity_recent_${isBuy ? 'buy' : 'sell'}_${nk}_${daysAgo}`,
+      semanticKey: `${nk}_recent_${isBuy ? 'buy' : 'sell'}`,
+      topic: 'activity', priority: 3, score: 50,
+      data: { name: escHtml(last.assetName), daysAgo },
+      build: (d, i) => buildInsightText(isBuy ? 'activity_recent_buy' : 'activity_recent_sell', d, i),
     });
   }
 
-  if (!insights.length) insights.push({
-    text: es ? pick([
-      'Sin activo dominante en cartera.',
-      'Ningún activo supera el 50%.',
-    ]) : pick([
-      'No dominant asset in portfolio.',
-      'No asset over 50% of portfolio.',
-    ]),
-    priority: 4, topic: 'distribution',
+  // Structural snapshot for multi-asset portfolios
+  if (assets.length >= 2 && maxAsset && totalValue > 0) {
+    candidates.push({
+      id: `dist_structure_${assets.length}_${Math.floor(concPct / 10) * 10}`,
+      semanticKey: 'portfolio_structure_snapshot',
+      topic: 'distribution', priority: 4, score: 15,
+      data: { count: assets.length, name: escHtml(maxAsset.name), topPct: concPct },
+      build: (d, i) => buildInsightText('distribution_structure', d, i),
+    });
+  }
+
+  if (!candidates.length) candidates.push({
+    id: `dist_no_dominant_${assets.length}`,
+    semanticKey: 'portfolio_balance',
+    topic: 'distribution', priority: 4, score: 10,
+    data: { count: assets.length },
+    build: (d, i) => buildInsightText('distribution_no_dominant', d, i),
   });
 
-  return insights;
+  return candidates;
 }
 
 function getDaysSince(ts) {
@@ -2972,105 +3011,107 @@ function buildAssetTimeline(asset) {
 }
 
 function detectRunUp(asset) {
-  const es       = lang === 'es';
   const timeline = buildAssetTimeline(asset);
   if (!timeline || timeline.avgEntry <= 0) return null;
   const growth = ((timeline.currentPrice - timeline.avgEntry) / timeline.avgEntry) * 100;
   const days   = getDaysSince(timeline.firstTs);
   if (growth > 80 && days < 60) {
-    const n = escHtml(asset.name);
-    return es
-      ? pick([
-          `Tu posición en ${n} sube más del 80% en menos de 60 días.`,
-          `${own(n)} acumula más del 80% en menos de dos meses.`,
-        ])
-      : pick([
-          `Your ${n} position is up over 80% in under 60 days.`,
-          `You hold ${n} with over 80% gain in under 2 months.`,
-        ]);
+    const nk  = asset.name.replace(/\s+/g, '_');
+    const nh  = escHtml(asset.name);
+    const pct = Math.round(growth);
+    const d   = Math.round(days);
+    return [
+      {
+        id: `perf_runup_${nk}_${Math.floor(growth / 10) * 10}`,
+        semanticKey: `${nk}_performance`,
+        topic: 'performance', priority: 2, score: pct,
+        data: { name: nh, pct, days: d },
+        build: (data, i) => buildInsightText('performance_runup', data, i),
+      },
+      {
+        id: `risk_runup_${nk}_${Math.floor(growth / 10) * 10}`,
+        semanticKey: `${nk}_unrealized`,
+        topic: 'performance', priority: 2, score: pct - 5,
+        data: { name: nh, pct, days: d },
+        build: (data, i) => buildInsightText('risk_runup_open', data, i),
+      },
+    ];
   }
   return null;
 }
 
 function detectStabilization(asset) {
-  const es       = lang === 'es';
   const timeline = buildAssetTimeline(asset);
   if (!timeline || timeline.avgEntry <= 0) return null;
-  const growth       = ((timeline.currentPrice - timeline.avgEntry) / timeline.avgEntry) * 100;
+  const growth        = ((timeline.currentPrice - timeline.avgEntry) / timeline.avgEntry) * 100;
   const daysSinceLast = getDaysSince(timeline.lastTs);
   if (growth > 50 && daysSinceLast > 7) {
-    const n    = escHtml(asset.name);
-    const dRnd = Math.round(daysSinceLast);
-    return es
-      ? pick([
-          `Tu posición en ${n} lleva +50% sin que hayas operado en ${dRnd} días.`,
-          `${own(n)} está en +50% y llevas ${dRnd} días sin tocarla.`,
-        ])
-      : pick([
-          `Your ${n} is up +50% and you haven't traded it in ${dRnd} days.`,
-          `You hold ${n} at +50% with no activity for ${dRnd} days.`,
-        ]);
+    const nk   = asset.name.replace(/\s+/g, '_');
+    const nh   = escHtml(asset.name);
+    const pct  = Math.round(growth);
+    const days = Math.round(daysSinceLast);
+    const base = Math.floor(growth / 10) * 10;
+    const dbase = Math.floor(daysSinceLast / 7) * 7;
+    return [
+      {
+        id: `perf_stable_${nk}_${base}_${dbase}`,
+        semanticKey: `${nk}_unrealized`,
+        topic: 'performance', priority: 3, score: pct,
+        data: { name: nh, pct, days },
+        build: (d, i) => buildInsightText('performance_stabilization', d, i),
+      },
+      {
+        id: `beh_hold_${nk}_${base}_${dbase}`,
+        semanticKey: `${nk}_holding_behavior`,
+        topic: 'activity', priority: 3, score: days,
+        data: { name: nh, pct, days },
+        build: (d, i) => buildInsightText('behavior_holding', d, i),
+      },
+    ];
   }
   return null;
 }
 
 function detectAccumulation(asset) {
-  const es   = lang === 'es';
   if (!asset.transactions) return null;
   const buys = asset.transactions.filter(tx => tx.type === 'buy');
   if (buys.length >= 3) {
-    const n = escHtml(asset.name);
-    return es
-      ? pick([
-          `Has acumulado ${n} en ${buys.length} compras distintas.`,
-          `Tu posición en ${n} se construyó en ${buys.length} entradas.`,
-        ])
-      : pick([
-          `You built your ${n} position across ${buys.length} separate buys.`,
-          `Your ${n} was accumulated over ${buys.length} purchases.`,
-        ]);
+    return {
+      id: `activity_accum_${asset.name.replace(/\s+/g, '_')}_${buys.length}`,
+      semanticKey: `${asset.name.replace(/\s+/g, '_')}_accumulation`,
+      topic: 'activity', priority: 3, score: buys.length * 10,
+      data: { name: escHtml(asset.name), count: buys.length },
+      build: (d, i) => buildInsightText('activity_accumulation', d, i),
+    };
   }
   return null;
 }
 
 function generateTemporalInsights() {
-  const insights = [];
+  const candidates = [];
   assets.forEach(asset => {
     const runUp = detectRunUp(asset);
-    if (runUp) insights.push({ text: runUp, priority: 2, topic: 'performance' });
-
+    if (runUp) Array.isArray(runUp) ? candidates.push(...runUp) : candidates.push(runUp);
     const stable = detectStabilization(asset);
-    if (stable) insights.push({ text: stable, priority: 3, topic: 'performance' });
-
+    if (stable) Array.isArray(stable) ? candidates.push(...stable) : candidates.push(stable);
     const acc = detectAccumulation(asset);
-    if (acc) insights.push({ text: acc, priority: 3, topic: 'activity' });
+    if (acc) candidates.push(acc);
   });
-
-  const byTopic = new Map();
-
-  for (const i of insights) {
-    const existing = byTopic.get(i.topic);
-
-    if (!existing || i.priority < existing.priority) {
-      byTopic.set(i.topic, i);
-    }
-  }
-
-  return Array.from(byTopic.values()).slice(0, 5);
+  return candidates;
 }
 
 function detectRepetition() {
-  const es    = lang === 'es';
   const txs   = getAllTransactions();
   const count = {};
   txs.forEach(tx => { if (tx.type === 'buy') count[tx.assetName] = (count[tx.assetName] || 0) + 1; });
   for (const name in count) {
     if (count[name] >= 3) {
       return {
-        text: es
-          ? `Aumentaste tu posición en ${escHtml(name)} al menos 3 veces.`
-          : `You increased your position in ${escHtml(name)} at least 3 times.`,
-        priority: 2, topic: 'activity',
+        id: `activity_rep_${name.replace(/\s+/g, '_')}_${count[name]}`,
+        semanticKey: `${name.replace(/\s+/g, '_')}_accumulation`,
+        topic: 'activity', priority: 2, score: count[name] * 10,
+        data: { name: escHtml(name), count: count[name] },
+        build: (d, i) => buildInsightText('activity_repetition', d, i),
       };
     }
   }
@@ -3078,55 +3119,67 @@ function detectRepetition() {
 }
 
 function detectOveractivity() {
-  const es     = lang === 'es';
   const txs    = getAllTransactions();
   const recent = txs.filter(tx => Date.now() - tx.ts < 3 * 24 * 60 * 60 * 1000);
   if (recent.length >= 5) {
+    const assetCounts = {};
+    recent.forEach(tx => { assetCounts[tx.assetName] = (assetCounts[tx.assetName] || 0) + 1; });
+    const topName = Object.keys(assetCounts).sort((a, b) => assetCounts[b] - assetCounts[a])[0];
     return {
-      text: es ? pick([
-        '5 o más operaciones en los últimos 3 días.',
-        '5+ operaciones en los últimos 3 días.',
-      ]) : pick([
-        '5 or more trades in the last 3 days.',
-        '5+ trades in the last 3 days.',
-      ]),
-      priority: 2, topic: 'activity',
+      id: `activity_over_${recent.length}`,
+      semanticKey: 'portfolio_overactivity',
+      topic: 'activity', priority: 2, score: recent.length * 10,
+      data: { count: recent.length, name: topName ? escHtml(topName) : null },
+      build: (d, i) => buildInsightText('activity_overactivity', d, i),
     };
   }
   return null;
 }
 
 function detectConfidenceRisk() {
-  const es            = lang === 'es';
   const pnl           = getPortfolioPnL();
   const concentration = getTopAssetExposure();
   if (pnl > 40 && concentration > 50) {
+    let topAsset = null, topVal = 0;
+    assets.forEach(a => { const v = a.qty * a.price; if (v > topVal) { topVal = v; topAsset = a; } });
+    const pnlRound  = Math.round(pnl);
+    const concRound = Math.round(concentration);
+    const es        = lang === 'es';
+    const n         = topAsset ? escHtml(topAsset.name) : (es ? 'un activo' : 'one asset');
+    const nk        = n.replace(/\s+/g, '_');
     return {
-      text: es ? pick([
-        'Rentabilidad alta y más del 50% concentrado.',
-        'Sube con más del 50% en pocos activos.',
-      ]) : pick([
-        'High returns with over 50% concentrated.',
-        'Rising with 50%+ in few assets.',
-      ]),
-      priority: 1, topic: 'concentration',
+      id: `conc_confidence_${nk}_${Math.floor(concRound / 10) * 10}`,
+      semanticKey: `${nk}_concentration_risk`,
+      topic: 'concentration', priority: 1, score: concRound + pnlRound,
+      data: { name: n, pnl: pnlRound, pct: concRound },
+      build: (d, i) => buildInsightText('concentration_confidence', d, i),
     };
   }
   return null;
 }
 
 function detectInactivityAfterGrowth() {
-  const es  = lang === 'es';
   const txs = getAllTransactions();
   if (!txs.length) return null;
   const days = getDaysSince(txs[0].ts);
   const pnl  = getPortfolioPnL();
   if (pnl > 30 && days > 10) {
+    let bestAsset = null, bestGain = 0;
+    assets.forEach(a => {
+      if (!a.costBasis || a.costBasis <= 0) return;
+      const g = (a.qty * a.price - a.costBasis) / a.costBasis * 100;
+      if (g > bestGain) { bestGain = g; bestAsset = a; }
+    });
+    const daysRound = Math.round(days);
+    const n         = bestAsset ? escHtml(bestAsset.name) : null;
+    const nk        = n ? n.replace(/\s+/g, '_') : 'portfolio';
+    const pct       = n ? Math.round(bestGain) : Math.round(pnl);
     return {
-      text: es
-        ? `+30% en cartera. Sin operar en ${Math.round(days)} días.`
-        : `Portfolio +30%. No trades in ${Math.round(days)} days.`,
-      priority: 2, topic: 'activity',
+      id: `activity_inactivity_${daysRound}`,
+      semanticKey: `${nk}_unrealized`,
+      topic: 'activity', priority: 2, score: pct,
+      data: { name: n, pct, days: daysRound },
+      build: (d, i) => buildInsightText('activity_inactivity', d, i),
     };
   }
   return null;
@@ -3251,32 +3304,19 @@ function detectBehaviorPatterns() {
 }
 
 function generateDecisionInsight() {
-  const es      = lang === 'es';
   const pattern = detectBehaviorPatterns();
   if (!pattern) return null;
   if (pattern.type === 'buying_high') {
+    const ratioPct = Math.round(pattern.strength * 100);
     return {
-      text: es ? pick([
-        'Mayoría de compras recientes en subidas.',
-        '70%+ de compras en tendencia alcista.',
-      ]) : pick([
-        'Most recent buys during price rallies.',
-        '70%+ of buys during uptrends.',
-      ]),
-      priority: 2, topic: 'activity',
+      id: `activity_decision_${ratioPct}`,
+      semanticKey: 'behavior_buying_trend',
+      topic: 'activity', priority: 2, score: ratioPct,
+      data: { ratioPct },
+      build: (d, i) => buildInsightText('activity_decision', d, i),
     };
   }
   return null;
-}
-
-const NARRATIVE_KEY = 'aurix_narrative';
-
-function getNarrativeMemory() {
-  try { return JSON.parse(localStorage.getItem(NARRATIVE_KEY)) || []; } catch { return []; }
-}
-
-function saveNarrativeMemory(data) {
-  try { localStorage.setItem(NARRATIVE_KEY, JSON.stringify(data)); } catch {}
 }
 
 function buildUserStory() {
@@ -3289,58 +3329,34 @@ function buildUserStory() {
 }
 
 function detectNarrativePatterns() {
-  const es      = lang === 'es';
-  const story   = buildUserStory();
-  const insights = [];
+  const story      = buildUserStory();
+  const candidates = [];
   for (const asset in story) {
     const txs  = story[asset];
     if (txs.length < 3) continue;
+    const nk   = asset.replace(/\s+/g, '_');
     const buys = txs.filter(tx => tx.type === 'buy');
-    if (buys.length >= 3) insights.push({
-      text: es
-        ? `Tienes ${buys.length} compras registradas en ${escHtml(asset)}.`
-        : `You have ${buys.length} recorded purchases of ${escHtml(asset)}.`,
-      priority: 2, topic: 'activity',
+    if (buys.length >= 3) candidates.push({
+      id: `narrative_buys_${nk}_${buys.length}`,
+      semanticKey: `${nk}_accumulation`,
+      topic: 'activity', priority: 2, score: buys.length * 5,
+      data: { name: escHtml(asset), count: buys.length },
+      build: (d, i) => buildInsightText('activity_narrative_buys', d, i),
     });
     const days = (txs[txs.length - 1].ts - txs[0].ts) / (1000 * 60 * 60 * 24);
-    if (days > 30) insights.push({
-      text: es
-        ? pick([
-            `Tu posición en ${escHtml(asset)} lleva construyéndose ${Math.round(days)} días.`,
-            `Llevas ${Math.round(days)} días acumulando ${escHtml(asset)}.`,
-          ])
-        : pick([
-            `You've been building your ${escHtml(asset)} position for ${Math.round(days)} days.`,
-            `Your ${escHtml(asset)} has been accumulated over ${Math.round(days)} days.`,
-          ]),
-      priority: 3, topic: 'activity',
+    if (days > 30) candidates.push({
+      id: `narrative_days_${nk}_${Math.floor(days / 10) * 10}`,
+      semanticKey: `${nk}_long_hold`,
+      topic: 'activity', priority: 3, score: Math.round(days),
+      data: { name: escHtml(asset), days: Math.round(days) },
+      build: (d, i) => buildInsightText('activity_narrative_days', d, i),
     });
   }
-  return insights;
-}
-
-function shouldShowNarrative(text) {
-  const memory = getNarrativeMemory();
-  const limit  = 5 * 24 * 60 * 60 * 1000;
-  const now    = Date.now();
-  return !memory.find(m => m.text === text && (now - m.ts < limit));
-}
-
-function storeNarrative(text) {
-  const memory = getNarrativeMemory();
-  memory.push({ text, ts: Date.now() });
-  saveNarrativeMemory(memory.slice(-20));
+  return candidates;
 }
 
 function generateNarrativeInsight() {
-  const patterns = detectNarrativePatterns();
-  for (const p of patterns) {
-    if (shouldShowNarrative(p.text)) {
-      storeNarrative(p.text);
-      return p;
-    }
-  }
-  return null;
+  return selectInsight(detectNarrativePatterns());
 }
 
 const IDENTITY_KEY = 'aurix_identity';
@@ -3367,89 +3383,317 @@ function applyIdentityTone(text) {
 }
 
 function generateSignatureInsight() {
-  const es       = lang === 'es';
-  const identity = getIdentity();
-  if (identity.style === 'active') {
-    return {
-      text: es ? pick([
-        'Has registrado más de 20 operaciones en total.',
-        'Llevas más de 20 operaciones registradas.',
-      ]) : pick([
-        'You have recorded over 20 trades in total.',
-        'You have logged more than 20 trades.',
-      ]),
-      priority: 3, topic: 'activity',
-    };
-  }
-  if (identity.style === 'concentrated') {
-    return {
-      text: es ? pick([
-        'Tienes 2 o menos activos en cartera.',
-        'Menos de 3 activos en tu cartera.',
-      ]) : pick([
-        'You hold 2 or fewer assets.',
-        'Fewer than 3 assets in portfolio.',
-      ]),
-      priority: 3, topic: 'concentration',
-    };
-  }
+  const identity   = getIdentity();
+  const txCount    = getAllTransactions().length;
+  const totalValue = getTotalPortfolioValue();
+  let topAsset = null, topVal = 0;
+  assets.forEach(a => { const v = a.qty * a.price; if (v > topVal) { topVal = v; topAsset = a; } });
+  const n      = topAsset ? escHtml(topAsset.name) : null;
+  const topPct = topAsset && totalValue > 0 ? Math.round((topVal / totalValue) * 100) : 0;
+
+  if (identity.style === 'active') return {
+    id: `sig_active_${txCount}`,
+    semanticKey: 'portfolio_activity_style',
+    topic: 'activity', priority: 3, score: txCount,
+    data: { txCount, name: n },
+    build: (d, i) => buildInsightText('activity_signature', d, i),
+  };
+  if (identity.style === 'concentrated') return {
+    id: `sig_concentrated_${assets.length}`,
+    semanticKey: 'portfolio_concentration_style',
+    topic: 'concentration', priority: 3, score: 50,
+    data: { name: n || (lang === 'es' ? 'la cartera' : 'portfolio'), count: assets.length },
+    build: (d, i) => buildInsightText('concentration_signature', d, i),
+  };
   return {
-    text: es
-      ? `Tu cartera tiene ${assets.length} posiciones sin activo dominante.`
-      : `Your portfolio holds ${assets.length} positions with no dominant asset.`,
-    priority: 3, topic: 'distribution',
+    id: `sig_balanced_${assets.length}`,
+    semanticKey: 'portfolio_distribution_style',
+    topic: 'distribution', priority: 3, score: 50,
+    data: { count: assets.length, name: n, topPct },
+    build: (d, i) => buildInsightText('distribution_signature', d, i),
   };
 }
 
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+const messageHistory  = new Map();
+const semanticHistory = new Map();
+
+function isUsed(id) {
+  const entry = messageHistory.get(id);
+  if (!entry) return false;
+  return (Date.now() - entry.lastSeen) < 5 * 60 * 1000;
+}
+
+function register(id) {
+  const entry = messageHistory.get(id) || { count: 0 };
+  messageHistory.set(id, { count: entry.count + 1, lastSeen: Date.now() });
+}
+
+function getUseCount(id) {
+  return (messageHistory.get(id) || { count: 0 }).count;
+}
+
+function isSemanticUsed(key) {
+  if (!key) return false;
+  const entry = semanticHistory.get(key);
+  if (!entry) return false;
+  return (Date.now() - entry.lastSeen) < 5 * 60 * 1000;
+}
+
+function registerSemantic(key) {
+  if (key) semanticHistory.set(key, { lastSeen: Date.now() });
+}
+
+function isSameIdea(a, b) {
+  return !!(a.semanticKey && b.semanticKey && a.semanticKey === b.semanticKey);
+}
+
+const TOPIC_BUILDERS = {
+  // ── Structure: how the portfolio is organized ──
+  concentration_asset: {
+    es: { msgs: [d => `${d.name} representa el ${d.pct}% de la cartera.`, d => `${d.name} al ${d.pct}% — activo dominante en la cartera.`] },
+    en: { msgs: [d => `${d.name} represents ${d.pct}% of portfolio.`, d => `${d.name} at ${d.pct}% — dominant position.`] },
+  },
+  concentration_category: {
+    es: { msgs: [d => `${d.label} representa el ${d.pct}% del capital invertido.`, d => `El ${d.pct}% de la cartera está concentrado en ${d.label}.`] },
+    en: { msgs: [d => `${d.label} represents ${d.pct}% of invested capital.`, d => `${d.pct}% of portfolio concentrated in ${d.label}.`] },
+  },
+  concentration_confidence: {
+    es: { msgs: [d => `Cartera en +${d.pnl}% con ${d.name} al ${d.pct}%.`, d => `${d.name} al ${d.pct}% mientras la cartera sube un ${d.pnl}%.`] },
+    en: { msgs: [d => `Portfolio up ${d.pnl}% with ${d.name} at ${d.pct}%.`, d => `${d.name} at ${d.pct}% as portfolio gains ${d.pnl}%.`] },
+  },
+  concentration_signature: {
+    es: { msgs: [d => `${d.name} es el activo principal entre ${d.count} posición${d.count !== 1 ? 'es' : ''}.`] },
+    en: { msgs: [d => `${d.name} is the primary asset across ${d.count} position${d.count !== 1 ? 's' : ''}.`] },
+  },
+  distribution_no_dominant: {
+    es: { msgs: [d => `${d.count} posición${d.count !== 1 ? 'es' : ''} sin activo dominante.`, d => `Cartera distribuida en ${d.count} posiciones sin concentración dominante.`] },
+    en: { msgs: [d => `${d.count} position${d.count !== 1 ? 's' : ''}, no dominant asset.`, d => `Portfolio across ${d.count} positions, no dominant concentration.`] },
+  },
+  distribution_signature: {
+    es: { msgs: [d => d.name ? `${d.count} posiciones activas. ${d.name} al ${d.topPct}%.` : `Cartera con ${d.count} posiciones distribuidas.`] },
+    en: { msgs: [d => d.name ? `${d.count} active positions. ${d.name} at ${d.topPct}%.` : `Portfolio with ${d.count} distributed positions.`] },
+  },
+  distribution_structure: {
+    es: { msgs: [d => d.name ? `${d.count} activos. ${d.name} al ${d.topPct}%.` : `Cartera distribuida entre ${d.count} activos.`, d => d.name ? `Estructura: ${d.count} activos. Mayor posición ${d.name} (${d.topPct}%).` : `${d.count} activos en cartera.`] },
+    en: { msgs: [d => d.name ? `${d.count} assets. ${d.name} at ${d.topPct}%.` : `Portfolio spread across ${d.count} assets.`, d => d.name ? `Structure: ${d.count} assets. Top position ${d.name} at ${d.topPct}%.` : `${d.count} assets in portfolio.`] },
+  },
+
+  // ── Performance: what is happening ──
+  performance_gain: {
+    es: { msgs: [d => `${d.name} sube un ${d.pct}% desde tu entrada.`, d => `${d.name} acumula +${d.pct}% sobre tu precio de coste.`, d => `${d.name} genera +${d.pct}% en rentabilidad bruta.`] },
+    en: { msgs: [d => `${d.name} up ${d.pct}% from your entry.`, d => `${d.name} at +${d.pct}% on cost basis.`, d => `${d.name} generating +${d.pct}% gross return.`] },
+  },
+  performance_runup: {
+    es: { msgs: [d => `${d.name} sube un ${d.pct}% en ${d.days} días.`, d => `${d.name} lleva ${d.pct}% de ganancia en ${d.days} días.`, d => `${d.name} +${d.pct}% en ${d.days} días desde la primera entrada.`] },
+    en: { msgs: [d => `${d.name} up ${d.pct}% in ${d.days} days.`, d => `${d.name} carrying ${d.pct}% gain over ${d.days} days.`, d => `${d.name} +${d.pct}% in ${d.days} days from first entry.`] },
+  },
+  performance_stabilization: {
+    es: { msgs: [d => `${d.name} en +${d.pct}% sin cambios en ${d.days} días.`, d => `${d.name} mantiene +${d.pct}% sin nuevas operaciones en ${d.days} días.`] },
+    en: { msgs: [d => `${d.name} at +${d.pct}%, no changes in ${d.days} days.`, d => `${d.name} holding +${d.pct}% with no trades in ${d.days} days.`] },
+  },
+  performance_growth_driver: {
+    es: { msgs: [d => `${d.name} genera el ${d.pct}% del crecimiento total de la cartera.`, d => `${d.name} aporta ${d.pct} de cada 100 puntos de rentabilidad.`] },
+    en: { msgs: [d => `${d.name} drives ${d.pct}% of total portfolio growth.`, d => `${d.name} accounts for ${d.pct} of every 100 return points.`] },
+  },
+
+  // ── Risk: why it matters ──
+  risk_unrealized: {
+    es: { msgs: [d => `${d.name} lleva +${d.pct}% en ganancias sin consolidar.`, d => `+${d.pct}% en ${d.name} sin toma de beneficios.`, d => `${d.name} acumula +${d.pct}% no realizados. Posición abierta.`] },
+    en: { msgs: [d => `${d.name} carrying +${d.pct}% in unrealized gains.`, d => `+${d.pct}% in ${d.name} with no profit taken.`, d => `${d.name} at +${d.pct}% unrealized. Position open.`] },
+  },
+  risk_asset_dominates: {
+    es: { msgs: [d => `El ${d.pct}% del capital en ${d.name} concentra el riesgo de cartera.`, d => `${d.name} al ${d.pct}% — un único activo domina la exposición.`, d => `Con ${d.name} al ${d.pct}%, la cartera carece de diversificación.`] },
+    en: { msgs: [d => `${d.pct}% in ${d.name} concentrates portfolio risk in one position.`, d => `${d.name} at ${d.pct}% — a single asset dominates exposure.`, d => `At ${d.pct}% in ${d.name}, the portfolio lacks diversification.`] },
+  },
+  risk_runup_open: {
+    es: { msgs: [d => `${d.name} +${d.pct}% en ${d.days} días sin consolidar ganancias.`, d => `${d.name} sube ${d.pct}% en ${d.days} días con posición abierta.`] },
+    en: { msgs: [d => `${d.name} +${d.pct}% in ${d.days} days with no gains locked in.`, d => `${d.name} up ${d.pct}% over ${d.days} days, position open.`] },
+  },
+  liquidity_low: {
+    es: { msgs: [d => `Liquidez al ${d.pct}%. Reserva de caja muy reducida.`, d => `Solo un ${d.pct}% en efectivo. Capital casi totalmente invertido.`] },
+    en: { msgs: [d => `Cash at ${d.pct}%. Very thin liquidity reserve.`, d => `Only ${d.pct}% in cash. Capital almost fully deployed.`] },
+  },
+
+  // ── Decision: what to consider ──
+  decision_low_liquidity: {
+    es: { msgs: [d => `Tu liquidez actual es del ${d.pct}%. Margen de maniobra reducido.`, d => `Solo un ${d.pct}% en efectivo. Capacidad de reacción limitada.`, d => `Con ${d.pct}% en caja, las nuevas oportunidades son difíciles de aprovechar.`] },
+    en: { msgs: [d => `Cash at ${d.pct}%. Reduced room to maneuver.`, d => `Only ${d.pct}% in cash. Limited reaction capacity.`, d => `At ${d.pct}% cash, new opportunities are harder to act on.`] },
+  },
+  decision_unrealized_open: {
+    es: { msgs: [d => `Tienes +${d.pct}% en ganancias no realizadas en ${d.name}.`, d => `${d.name} lleva +${d.pct}% sin salida definida.`, d => `Las ganancias de ${d.name} (+${d.pct}%) siguen abiertas.`] },
+    en: { msgs: [d => `You have +${d.pct}% unrealized gains in ${d.name}.`, d => `${d.name} at +${d.pct}% with no exit taken.`, d => `${d.name} gains (+${d.pct}%) remain unrealized.`] },
+  },
+
+  // ── Behavior: patterns you show ──
+  activity_recent_buy: {
+    es: { msgs: [d => `${d.name} comprado hace ${d.daysAgo} día${d.daysAgo !== 1 ? 's' : ''}.`] },
+    en: { msgs: [d => `${d.name} bought ${d.daysAgo} day${d.daysAgo !== 1 ? 's' : ''} ago.`] },
+  },
+  activity_recent_sell: {
+    es: { msgs: [d => `${d.name} vendido hace ${d.daysAgo} día${d.daysAgo !== 1 ? 's' : ''}.`] },
+    en: { msgs: [d => `${d.name} sold ${d.daysAgo} day${d.daysAgo !== 1 ? 's' : ''} ago.`] },
+  },
+  activity_repetition: {
+    es: { msgs: [d => `${d.name} aumentado ${d.count} veces. Patrón de acumulación activo.`, d => `${d.count} entradas distintas en ${d.name}. Alta convicción sostenida.`] },
+    en: { msgs: [d => `${d.name} added ${d.count} times. Active accumulation pattern.`, d => `${d.count} separate entries in ${d.name}. Sustained high conviction.`] },
+  },
+  activity_overactivity: {
+    es: { msgs: [d => d.name ? `${d.count} operaciones en 3 días, mayoría en ${d.name}.` : `${d.count} operaciones en los últimos 3 días.`, d => d.name ? `Actividad elevada: ${d.count} ops en 3 días, lideradas por ${d.name}.` : `Frecuencia alta: ${d.count} operaciones en 3 días.`] },
+    en: { msgs: [d => d.name ? `${d.count} trades in 3 days, mostly in ${d.name}.` : `${d.count} trades in the last 3 days.`, d => d.name ? `High activity: ${d.count} ops in 3 days, led by ${d.name}.` : `${d.count} operations logged in 3 days.`] },
+  },
+  activity_inactivity: {
+    es: { msgs: [d => d.name ? `${d.name} en +${d.pct}% sin operaciones en ${d.days} días.` : `Sin operaciones en ${d.days} días. Cartera en +${d.pct}%.`, d => d.name ? `Llevas ${d.days} días sin ajustar ${d.name} (+${d.pct}%).` : `${d.days} días sin actividad. Rentabilidad: +${d.pct}%.`] },
+    en: { msgs: [d => d.name ? `${d.name} at +${d.pct}%, no trades in ${d.days} days.` : `No trades in ${d.days} days. Portfolio at +${d.pct}%.`, d => d.name ? `${d.days} days without touching ${d.name} (+${d.pct}%).` : `${d.days} days inactive. Return: +${d.pct}%.`] },
+  },
+  activity_accumulation: {
+    es: { msgs: [d => `${d.name} construido en ${d.count} compras distintas.`, d => `${d.count} entradas en ${d.name} a distintos precios.`] },
+    en: { msgs: [d => `${d.name} built across ${d.count} separate buys.`, d => `${d.count} entries in ${d.name} at different prices.`] },
+  },
+  activity_decision: {
+    es: { msgs: [d => `El ${d.ratioPct}% de tus compras recientes fueron en tendencia alcista.`, d => `${d.ratioPct} de cada 100 compras se realizaron durante subidas.`] },
+    en: { msgs: [d => `${d.ratioPct}% of your recent buys were during uptrends.`, d => `${d.ratioPct} out of 100 buys happened during price rises.`] },
+  },
+  activity_wow_buys: {
+    es: { msgs: [d => d.gain !== null ? `${d.name} comprado ${d.count} veces. Posición en +${d.gain}%.` : `${d.name} en ${d.count} entradas distintas.`] },
+    en: { msgs: [d => d.gain !== null ? `${d.name} bought ${d.count} times. Position at +${d.gain}%.` : `${d.name} across ${d.count} separate entries.`] },
+  },
+  activity_narrative_buys: {
+    es: { msgs: [d => `${d.name} — ${d.count} compras registradas.`] },
+    en: { msgs: [d => `${d.name} — ${d.count} recorded buys.`] },
+  },
+  activity_narrative_days: {
+    es: { msgs: [d => `${d.name} acumulado durante ${d.days} días.`] },
+    en: { msgs: [d => `${d.name} accumulated over ${d.days} days.`] },
+  },
+  activity_signature: {
+    es: { msgs: [d => d.name ? `${d.txCount} ops registradas. ${d.name} posición principal.` : `${d.txCount} operaciones registradas en total.`] },
+    en: { msgs: [d => d.name ? `${d.txCount} trades logged. ${d.name} primary position.` : `${d.txCount} total trades logged.`] },
+  },
+  behavior_holding: {
+    es: { msgs: [d => `${d.name} en +${d.pct}% sin operaciones en ${d.days} días.`, d => `Llevas ${d.days} días sin ajustar ${d.name} (+${d.pct}%).`] },
+    en: { msgs: [d => `${d.name} at +${d.pct}%, not touched in ${d.days} days.`, d => `${d.days} days holding ${d.name} at +${d.pct}% without changes.`] },
+  },
+};
+
+function buildInsightText(key, data, idx) {
+  const l = lang === 'es' ? 'es' : 'en';
+  const b = TOPIC_BUILDERS[key]?.[l];
+  if (!b) return null;
+  return b.msgs[idx % b.msgs.length](data);
+}
+
+const FORBIDDEN_WORDS_VALIDATE = ['puede', 'ayudar', 'importante', 'considera', 'recuerda', 'try', 'help', 'important', 'remember', 'consider'];
+
+function validate(text) {
+  if (!text || text.length < 20) return false;
+  if (!/\d/.test(text)) return false;
+  if (FORBIDDEN_WORDS_VALIDATE.some(w => text.toLowerCase().includes(w))) return false;
+  return true;
+}
+
+function selectInsight(candidates) {
+  if (!candidates || !candidates.length) return null;
+  const hasBuild  = candidates.filter(c => c.build);
+  const fresh     = hasBuild.filter(c => !isUsed(c.id) && !isSemanticUsed(c.semanticKey));
+  const semaFresh = fresh.length > 0 ? fresh : hasBuild.filter(c => !isSemanticUsed(c.semanticKey));
+  const pool      = semaFresh.length > 0 ? semaFresh : hasBuild;
+  if (!pool.length) return null;
+  pool.sort((a, b) => b.score - a.score);
+  const chosen = pool[0];
+  const idx    = getUseCount(chosen.id);
+  const text   = chosen.build(chosen.data, idx);
+  if (!validate(text)) return null;
+  register(chosen.id);
+  registerSemantic(chosen.semanticKey);
+  return { id: chosen.id, topic: chosen.topic, priority: chosen.priority, score: chosen.score, semanticKey: chosen.semanticKey, assetSlug: chosen.data && chosen.data.name ? String(chosen.data.name).replace(/\s+/g, '_').toLowerCase() : null, text };
+}
+
+function inferInsightType(c) {
+  const sk = (c.semanticKey || '').toLowerCase();
+  const t  = c.topic || '';
+  if (sk.endsWith('_performance') || sk.endsWith('_growth_driver'))         return 'performance';
+  if (sk.endsWith('_unrealized')  || sk.endsWith('_concentration_risk')     ||
+      sk.endsWith('_weight')       || sk.includes('category_')               ||
+      sk === 'portfolio_liquidity' || t === 'concentration')                  return 'risk';
+  if (sk === 'portfolio_flexibility' || sk === 'behavior_buying_trend' ||
+      sk.includes('_decision_'))                                              return 'decision';
+  if (t === 'activity' || sk.includes('_accumulation') || sk.includes('_recent_') ||
+      sk.endsWith('_long_hold')    || sk.endsWith('_holding_behavior'))       return 'behavior';
+  return 'structure';
 }
 
 function getAmbientMessages() {
-  const es   = lang === 'es';
-  const pool = es ? [
-    'Los mercados se mueven en ciclos.',
-    'La paciencia compone en silencio.',
-    'El tiempo revela la estructura.',
-    'El riesgo rara vez es obvio.',
-    'La estabilidad también es una señal.',
-    'Cada posición cuenta una historia.',
-    'La diversificación es una forma de escuchar.',
-    'Lo que no cambia también comunica algo.',
-  ] : [
-    'Markets move in cycles.',
-    'Patience compounds silently.',
-    'Time reveals structure.',
-    'Risk is rarely obvious.',
-    'Stability is also a signal.',
-    'Every position tells a story.',
-    'Diversification is a form of listening.',
-    'What stays unchanged also says something.',
-  ];
-  const result = shuffle(pool);
-  // ensure the first item in the new batch isn't the same as the last shown
-  if (_lastInsightText && result[0] === _lastInsightText && result.length > 1) {
-    result.push(result.shift());
+  const es         = lang === 'es';
+  const totalValue = getTotalPortfolioValue();
+
+  if (assets.length > 0) {
+    const pool = [];
+
+    // Top asset by value
+    let topByVal = null, topVal = 0;
+    assets.forEach(a => {
+      const v = a.qty * a.price;
+      if (v > topVal) { topVal = v; topByVal = a; }
+    });
+    if (topByVal && totalValue > 0) {
+      const pct = Math.round((topVal / totalValue) * 100);
+      pool.push(es
+        ? `${escHtml(topByVal.name)} ${pct}% de la cartera. Peso dominante.`
+        : `${escHtml(topByVal.name)} at ${pct}% of portfolio. Dominant weight.`
+      );
+    }
+
+    // Best performer by % gain
+    let bestPerformer = null, bestGain = 0;
+    assets.forEach(a => {
+      if (!a.costBasis || a.costBasis <= 0) return;
+      const g = (a.qty * a.price - a.costBasis) / a.costBasis * 100;
+      if (g > bestGain) { bestGain = g; bestPerformer = a; }
+    });
+    if (bestPerformer && bestGain > 0) {
+      pool.push(es
+        ? `${escHtml(bestPerformer.name)} +${Math.round(bestGain)}%. Beneficios sobre la mesa.`
+        : `${escHtml(bestPerformer.name)} +${Math.round(bestGain)}%. Gains on the table.`
+      );
+    }
+
+    // Dominant category
+    const byType = {};
+    assets.forEach(a => { byType[a.type] = (byType[a.type] || 0) + a.qty * a.price; });
+    const types = Object.keys(byType);
+    if (types.length >= 2) {
+      const topType = types.sort((a, b) => byType[b] - byType[a])[0];
+      const typePct = totalValue > 0 ? Math.round((byType[topType] / totalValue) * 100) : 0;
+      const label   = (T[lang].typeMeta && T[lang].typeMeta[topType]) || topType;
+      pool.push(es
+        ? `${label} ${typePct}% de la cartera. Exposición alta.`
+        : `${label} at ${typePct}% of portfolio. High exposure.`
+      );
+    }
+
+    // Open positions count
+    if (assets.length > 1) {
+      pool.push(es
+        ? `${assets.length} posiciones abiertas. Distribución activa.`
+        : `${assets.length} open positions. Active distribution.`
+      );
+    }
+
+    if (pool.length > 0) {
+      return pool.map(text => ({ text, priority: 4, ambient: true }));
+    }
   }
-  return result.map(text => ({ text, priority: 4, ambient: true }));
+
+  // Fallback when no assets
+  const fallback = es ? [
+    'Añade activos para empezar a recibir insights.',
+    'Tu cartera está vacía. Empieza añadiendo un activo.',
+  ] : [
+    'Add assets to start receiving portfolio insights.',
+    'Your portfolio is empty. Start by adding an asset.',
+  ];
+  return fallback.map(text => ({ text, priority: 4, ambient: true }));
 }
-
-const WOW_KEY = 'aurix_wow';
-
-function getWowMemory() {
-  try { return JSON.parse(localStorage.getItem(WOW_KEY)) || []; } catch { return []; }
-}
-
-function saveWowMemory(data) {
-  try { localStorage.setItem(WOW_KEY, JSON.stringify(data)); } catch {}
-}
-
-function hasSeenWow(text) { return getWowMemory().includes(text); }
 
 const EVOLUTION_KEY = 'aurix_evolution';
 
@@ -3470,84 +3714,93 @@ function trackInteraction() {
   saveEvolution(evo);
 }
 
-function storeWow(text) {
-  const memory = getWowMemory();
-  memory.push(text);
-  saveWowMemory(memory.slice(-20));
-}
-
 function detectWowInsights() {
-  const es     = lang === 'es';
-  const total  = getTotalPortfolioValue();
-  const txs    = getAllTransactions();
-  const insights = [];
+  const total      = getTotalPortfolioValue();
+  const txs        = getAllTransactions();
+  const candidates = [];
 
-  // 1. Gains concentration — priority 1
   let topGain = null, topValue = 0;
   assets.forEach(a => {
     if (!a.costBasis) return;
     const pnl = a.qty * a.price - a.costBasis;
     if (pnl > topValue) { topValue = pnl; topGain = a; }
   });
-  if (topGain && total > 0 && topValue > total * 0.3) insights.push({
-    text: es
-      ? `El mayor impulso a tu cartera viene de ${escHtml(topGain.name)}.`
-      : `Most of your portfolio growth is coming from ${escHtml(topGain.name)}.`,
-    priority: 1, topic: 'performance',
-  });
+  if (topGain && total > 0 && topValue > total * 0.3) {
+    const pct = Math.round((topValue / total) * 100);
+    const nk  = topGain.name.replace(/\s+/g, '_');
+    candidates.push({
+      id: `wow_growth_${nk}_${Math.floor(pct / 10) * 10}`,
+      semanticKey: `${nk}_growth_driver`,
+      topic: 'performance', priority: 1, score: pct,
+      data: { name: escHtml(topGain.name), pct },
+      build: (d, i) => buildInsightText('performance_growth_driver', d, i),
+    });
+  }
 
-  // 2. Buying into strength — priority 1
   const repeatedBuys = {};
   txs.forEach(tx => { if (tx.type === 'buy') repeatedBuys[tx.assetName] = (repeatedBuys[tx.assetName] || 0) + 1; });
   for (const name in repeatedBuys) {
     if (repeatedBuys[name] >= 4) {
-      insights.push({
-        text: es
-          ? `Compraste ${escHtml(name)} más de 4 veces mientras subía.`
-          : `You bought ${escHtml(name)} over 4 times while it rose.`,
-        priority: 1, topic: 'activity',
+      const cnt  = repeatedBuys[name];
+      const aObj = assets.find(a => a.name === name);
+      const gain = aObj && aObj.costBasis > 0
+        ? Math.round(((aObj.qty * aObj.price - aObj.costBasis) / aObj.costBasis) * 100)
+        : null;
+      const nk = name.replace(/\s+/g, '_');
+      candidates.push({
+        id: `wow_buys_${nk}_${cnt}`,
+        semanticKey: `${nk}_accumulation`,
+        topic: 'activity', priority: 1, score: cnt * 10,
+        data: { name: escHtml(name), count: cnt, gain },
+        build: (d, i) => buildInsightText('activity_wow_buys', d, i),
       });
       break;
     }
   }
 
-  // 3. Structure stability — priority 2
-  if (assets.length >= 3) insights.push({
-    text: es
-      ? `Tu cartera está distribuida entre ${assets.length} activos.`
-      : `Your portfolio is spread across ${assets.length} assets.`,
-    priority: 2, topic: 'distribution',
-  });
+  if (assets.length >= 3) {
+    let topAsset = null, topVal = 0;
+    assets.forEach(a => { const v = a.qty * a.price; if (v > topVal) { topVal = v; topAsset = a; } });
+    const topPct = total > 0 && topAsset ? Math.round((topVal / total) * 100) : 0;
+    candidates.push({
+      id: `wow_structure_${assets.length}_${Math.floor(topPct / 10) * 10}`,
+      semanticKey: 'portfolio_structure',
+      topic: 'distribution', priority: 2, score: topPct,
+      data: { count: assets.length, name: topAsset ? escHtml(topAsset.name) : null, topPct },
+      build: (d, i) => buildInsightText('distribution_structure', d, i),
+    });
+  }
 
-  return insights;
+  return candidates;
 }
 
 function getWowInsight() {
-  const candidates = detectWowInsights();
-  for (const c of candidates) {
-    if (!hasSeenWow(c.text)) { storeWow(c.text); return c; }
-  }
-  return null;
+  return selectInsight(detectWowInsights());
 }
 
 async function generateInsights() {
   let marketInsight = null;
   try {
-    const market = await getMarketSignals();
+    const market      = await getMarketSignals();
     const total       = assets.reduce((s, a) => s + a.qty * a.price, 0);
     const cryptoValue = assets.filter(a => a.type === 'crypto').reduce((s, a) => s + a.qty * a.price, 0);
     const cashValue   = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty * a.price, 0);
+    const topCrypto   = assets.filter(a => a.type === 'crypto').sort((a, b) => b.qty * b.price - a.qty * a.price)[0];
     const portfolio   = {
       cryptoExposure: total > 0 ? (cryptoValue / total) * 100 : 0,
       liquidity:      total > 0 ? (cashValue   / total) * 100 : 0,
+      topCryptoAsset: topCrypto ? topCrypto.name : null,
+      lang,
     };
     const insight = generateInsight(market, portfolio);
     const message = insight?.message?.trim() ?? '';
     const validSeverities = new Set(['low', 'medium', 'high']);
     if (insight && message.length > 0 && insight.type && validSeverities.has(insight.severity)) {
+      const mktId = 'market_' + insight.type;
+      register(mktId);
       marketInsight = {
-        id:        'market_' + Date.now(),
-        text:      message,
+        id:        mktId,
+        text,
         topic:     insight.type,
         priority:  insight.severity === 'high' ? 0 : insight.severity === 'medium' ? 1 : 2,
         createdAt: Date.now(),
@@ -3555,25 +3808,71 @@ async function generateInsights() {
     }
   } catch (err) { console.error('[InsightEngine]', err); }
 
-  const profile   = buildUserProfile();
+  buildUserProfile();
   buildIdentityProfile();
   analyzeBehavior();
-  const wow       = getWowInsight();
-  const base      = generateBaseInsights();
-  const temporal  = generateTemporalInsights();
-  const behavior  = generateBehaviorInsights();
-  const decision  = generateDecisionInsight();
-  const narrative = generateNarrativeInsight();
-  const signature = generateSignatureInsight();
+
   const VALID_TOPICS = new Set(['concentration', 'performance', 'activity', 'distribution', 'liquidity']);
-  const all = [
-    ...(wow ? [wow] : []),
-    ...base, ...temporal, ...behavior,
-    ...(decision  ? [decision]  : []),
-    ...(narrative ? [narrative] : []),
-    signature,
-  ].filter(i => VALID_TOPICS.has(i.topic));
-  all.sort((a, b) => a.priority - b.priority);
+  const decisionC    = generateDecisionInsight();
+  const signatureC   = generateSignatureInsight();
+  const allCandidates = [
+    ...generateBaseInsights(),
+    ...generateTemporalInsights(),
+    ...generateBehaviorInsights(),
+    ...(decisionC  ? [decisionC]  : []),
+    ...detectNarrativePatterns(),
+    ...(signatureC ? [signatureC] : []),
+    ...detectWowInsights(),
+  ].filter(c => c && c.build && VALID_TOPICS.has(c.topic));
+
+  // Reduce to one candidate per semanticKey
+  const bySemanticKey = new Map();
+  for (const c of allCandidates) {
+    const key = c.semanticKey || c.id;
+    if (!bySemanticKey.has(key)) bySemanticKey.set(key, []);
+    bySemanticKey.get(key).push(c);
+  }
+
+  const selected = [];
+  for (const [, skCandidates] of bySemanticKey) {
+    const insight = selectInsight(skCandidates);
+    if (insight) selected.push(insight);
+  }
+
+  // Annotate with insight type and sort: unseen first, then priority, then score
+  for (const i of selected) i.insightType = inferInsightType(i);
+  selected.sort((a, b) => {
+    const aSeen = wasRecentlyShown(a.text) ? 1 : 0;
+    const bSeen = wasRecentlyShown(b.text) ? 1 : 0;
+    if (aSeen !== bSeen) return aSeen - bSeen;
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return b.score - a.score;
+  });
+
+  // Select top 5: 1 per insight type, max 2 per asset
+  const FIVE_TYPES = ['performance', 'risk', 'decision', 'behavior', 'structure'];
+  const typeGroups = {};
+  for (const i of selected) {
+    if (!typeGroups[i.insightType]) typeGroups[i.insightType] = [];
+    typeGroups[i.insightType].push(i);
+  }
+
+  const usedSemantic = new Set();
+  const assetCap     = {};
+  const pool         = [];
+
+  for (const type of FIVE_TYPES) {
+    const group = typeGroups[type] || [];
+    for (const candidate of group) {
+      if (usedSemantic.has(candidate.semanticKey)) continue;
+      const slug = candidate.assetSlug;
+      if (slug && (assetCap[slug] || 0) >= 2) continue;
+      pool.push(candidate);
+      usedSemantic.add(candidate.semanticKey);
+      if (slug) assetCap[slug] = (assetCap[slug] || 0) + 1;
+      break;
+    }
+  }
 
   const ACTION_MAP = {
     performance:   { label: 'Ver rendimiento', type: 'view_performance'  },
@@ -3582,27 +3881,21 @@ async function generateInsights() {
     liquidity:     { label: 'Ver liquidez',    type: 'view_liquidity'    },
   };
 
-  const filtered = all.filter(i => !wasRecentlyShown(i.text));
-  const pool     = (filtered.length ? filtered : all).slice(0, 5).map(i => ({
+  const finalPool = pool.map(i => ({
     ...i,
-    text:   applyIdentityTone(adaptInsight(adaptMessage(i.text))),
-    action: i.priority === 1 && ACTION_MAP[i.topic] ? ACTION_MAP[i.topic] : undefined,
+    action: i.priority <= 1 && ACTION_MAP[i.topic] ? ACTION_MAP[i.topic] : undefined,
   }));
 
-  const ambient = getAmbientMessages().slice(0, 2).map(i => ({ ...i, topic: 'ambient' }));
-  insightCache  = pool.length ? [...pool, ...ambient] : getAmbientMessages().map(i => ({ ...i, topic: 'ambient' }));
+  insightCache = finalPool.length ? finalPool : getAmbientMessages().map(i => ({ ...i, topic: 'ambient' }));
 
   try {
     if (marketInsight !== null) {
-      const signature    = createInsightSignature(marketInsight);
-      const now          = Date.now();
-      const isSameAsLast = signature === lastInsightSignature && (now - lastInsightTimestamp) < INSIGHT_COOLDOWN;
-      if (
-        !insightCache.some(i => i.text === marketInsight.text) &&
-        !isSameAsLast
-      ) {
+      const sig       = createInsightSignature(marketInsight);
+      const now       = Date.now();
+      const duplicate = sig === lastInsightSignature && (now - lastInsightTimestamp) < INSIGHT_COOLDOWN;
+      if (!insightCache.some(i => i.text === marketInsight.text) && !duplicate) {
         insightCache.unshift(marketInsight);
-        lastInsightSignature = signature;
+        lastInsightSignature = sig;
         lastInsightTimestamp = now;
       }
     }
@@ -3611,19 +3904,8 @@ async function generateInsights() {
   return insightCache;
 }
 
-async function getNextInsight() {
-  if (insightCache.length < 3) await generateInsights();
+let _insightIndex = 0;
 
-  const now = Date.now();
-  const validInsights = insightCache.filter(i => !i.createdAt || (now - i.createdAt) < INSIGHT_TTL);
-  if (!validInsights.length) return null;
-
-  const candidates = validInsights.filter(i => createInsightSignature(i) !== lastInsightSignature);
-  const pool = candidates.length ? candidates : validInsights;
-  const next = pool[Math.floor(Math.random() * pool.length)];
-  lastInsightSignature = createInsightSignature(next);
-  return next;
-}
 
 // =====================================
 // AURIX — FINAL MONSTER ENGINE (CLEAN)
@@ -3739,24 +4021,6 @@ function monsterReact() {
   }, 700);
 }
 
-function updateMonsterTextSmooth(el, text) {
-  if (!el) return;
-  el.style.opacity = 0;
-  setTimeout(() => {
-    el.textContent = text;
-    el.style.opacity = 1;
-  }, 320);
-}
-
-function getMessageDelay(priority, textLength = 120) {
-  const base = 6000;
-  const lengthFactor = Math.min(textLength / 80, 1.8);
-  const priorityFactor =
-    priority === 1 ? 1.2 :
-    priority === 2 ? 1.1 :
-    1;
-  return base * lengthFactor * priorityFactor;
-}
 
 function updateOrbState() {
   if (!currentMessage) return;
@@ -3780,21 +4044,6 @@ function updateOrbState() {
   monsterState.targetPulseFreq = base.freq   * (p === 1 ? 1.2 : p === 3 ? 0.80 : 1);
 }
 
-async function animateMonster() {
-  const elText = document.querySelector(".monster-line");
-  if (!elText) return _lastInsightPriority;
-
-  const next = await getNextInsight();
-  updateOrbState();
-
-  monsterReact();
-
-  setTimeout(() => {
-    updateMonsterTextSmooth(elText, next);
-  }, 300);
-
-  return _lastInsightPriority;
-}
 
 
 function getCurrentContext() {
@@ -3827,78 +4076,65 @@ function handleMonsterAction(type) {
   if (tab) switchTab(tab);
 }
 
-function getReadingTime(text) {
-  const words = text.split(' ').length;
-  return Math.max(4000, words * 450);
+async function refillQueue() {
+  if (_isRefilling) return;
+  _isRefilling = true;
+  try {
+    const fresh    = await generateInsights();
+    const filtered = fresh.filter(i => !recentIds.includes(i.id || i.text));
+    messageQueue   = filtered.length ? filtered : (fresh.length ? fresh : messageQueue);
+    queueIndex     = 0;
+  } finally { _isRefilling = false; }
 }
 
-function displayMessage(msg) {
+function fadeOutMessage(cb) {
+  const el       = document.querySelector('.monster-line');
+  const actionEl = document.getElementById('monsterAction');
+  if (actionEl) { actionEl.classList.remove('visible'); actionEl.textContent = ''; actionEl.onclick = null; }
+  if (el) el.classList.remove('visible');
+  setTimeout(cb, 400);
+}
+
+function fadeInMessage(msg) {
   const el       = document.querySelector('.monster-line');
   const actionEl = document.getElementById('monsterAction');
   if (!el) return;
-
-  el.classList.remove('visible');
-  if (actionEl) {
-    actionEl.classList.remove('visible');
-    actionEl.textContent = '';
-    actionEl.onclick = null;
-  }
-
-  setTimeout(() => {
-    el.textContent = msg.text;
-    void el.offsetWidth;
-    el.classList.add('visible');
-    updateOrbState();
-    monsterReact();
-
-    if (msg.action && actionEl) {
-      setTimeout(() => {
-        actionEl.textContent = msg.action.label;
-        actionEl.onclick = () => handleMonsterAction(msg.action.type);
-        void actionEl.offsetWidth;
-        actionEl.classList.add('visible');
-      }, 800);
-    }
-  }, 300);
-}
-
-async function showNextMessage() {
-  if (isDisplaying) return;
-  isDisplaying = true;
-  let delay = 4000 + Math.random() * 2000;
-  try {
-    const next = await getNextInsight();
-    if (!next) {
-      delay = 2000;
-      return;
-    }
-    const signature = createInsightSignature(next);
-    currentMessage = next;
-    displayMessage(next);
-    lastDisplayedInsightSignature = signature;
-    lastMessages.push(next.text);
-    if (lastMessages.length > 5) lastMessages.shift();
-  } catch (err) {
-    console.error('[MonsterRender]', err);
-  } finally {
-    isDisplaying = false;
-    setTimeout(showNextMessage, delay);
+  el.textContent = msg.text;
+  void el.offsetWidth;
+  el.classList.add('visible');
+  currentMessage = msg;
+  updateOrbState();
+  monsterReact();
+  if (msg.action && actionEl) {
+    setTimeout(() => {
+      actionEl.textContent = msg.action.label;
+      actionEl.onclick = () => handleMonsterAction(msg.action.type);
+      void actionEl.offsetWidth;
+      actionEl.classList.add('visible');
+    }, 800);
   }
 }
 
-let _rotationActive = false;
+function showNextMessage() {
+  if (!messageQueue.length) return;
+  if (queueIndex >= messageQueue.length) { queueIndex = 0; refillQueue(); }
+  const next = messageQueue[queueIndex++];
+  if (!next) return;
+  const rid = next.id || next.text;
+  recentIds.push(rid);
+  if (recentIds.length > 10) recentIds.shift();
+  fadeOutMessage(() => fadeInMessage(next));
+}
 
 function startInsightRotation() {
   const o = document.querySelector('.monster-orb');
   if (o) { applyContext(o); applyPnlToOrb(o); }
-  showNextMessage();
-  setTimeout(async () => {
-    const first = await getNextInsight();
-    if (first) {
-      currentMessage = first;
-      displayMessage(first);
-    }
-  }, 100);
+  if (_loopInterval) { clearInterval(_loopInterval); _loopInterval = null; }
+  messageQueue = []; queueIndex = 0;
+  refillQueue().then(() => {
+    setTimeout(() => showNextMessage(), 800);
+    _loopInterval = setInterval(() => showNextMessage(), 3000);
+  });
 }
 
 function getTopAssetExposure() {
@@ -3971,9 +4207,7 @@ function updateBottomNavActive() {
 
 function switchTab(tab) {
   currentTab = tab;
-  _rotationActive = false;
-  isDisplaying    = false;
-  if (_insightInterval) { clearTimeout(_insightInterval); _insightInterval = null; }
+  if (_loopInterval) { clearInterval(_loopInterval); _loopInterval = null; }
   const mainEl      = document.querySelector('main');
   const placeholder = document.getElementById('tabPlaceholder');
   if (tab === 'home') {
@@ -6346,7 +6580,6 @@ const _perfCurrBtn = document.getElementById('perfCurrBtn');
 if (_perfCurrBtn) _perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
 
 render(true);
-setTimeout(showNextMessage, 1500);
 
 // Bootstrap simulated history if this is the first session
 (function bootstrapHistory() {
