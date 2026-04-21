@@ -4721,14 +4721,21 @@ main { padding-bottom: 72px; }
 
 .watchlist-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 52px auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 7px 4px;
   border-bottom: 1px solid rgba(255,255,255,.06);
   font-size: 12px;
   position: relative;
   transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.watchlist-spark {
+  width: 52px;
+  height: 14px;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 .watchlist-row:last-child { border-bottom: none; }
@@ -4882,9 +4889,9 @@ main { padding-bottom: 72px; }
 
   .watchlist-row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr 52px auto;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     padding: 8px 6px;
     font-size: 13px;
     line-height: 1.3;

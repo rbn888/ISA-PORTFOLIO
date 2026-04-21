@@ -7364,6 +7364,35 @@ const marketStore = (() => {
   let _rafMap   = {};   // key → rAF id (cancel mid-flight on new price)
   let _timer    = null;
 
+  // ── Sparkline ────────────────────────────────────────────
+  function _drawSpark(key) {
+    const canvas = document.querySelector('.watchlist-spark[data-key="' + key + '"]');
+    if (!canvas) return;
+    const h = _prices[key]?.history;
+    if (!h || h.length < 2) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = 52, H = 14;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const min   = Math.min(...h);
+    const max   = Math.max(...h);
+    const range = max - min || 1;
+    const trend = h[h.length - 1] - h[0];
+    ctx.beginPath();
+    h.forEach((v, i) => {
+      const x = (i / (h.length - 1)) * W;
+      const y = H - ((v - min) / range) * (H - 2) - 1;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = trend > 0 ? '#00ff9c' : trend < 0 ? '#ff4d4f' : 'rgba(255,255,255,0.35)';
+    ctx.lineWidth   = 1.5;
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+  }
+
   // ── DOM helpers ──────────────────────────────────────────
   function _updateDOM(key, value) {
     const text = value ? formatBase(value) : '--';
@@ -7422,16 +7451,21 @@ const marketStore = (() => {
 
   // ── Price setter ─────────────────────────────────────────
   function _set(key, newPrice) {
-    const entry = _prices[key];
+    const entry   = _prices[key];
     if (entry?.price === newPrice) return;
     const display = entry?.display ?? null;
+    const history = entry?.history ?? [];
+    history.push(newPrice);
+    if (history.length > 20) history.shift();
     _prices[key]  = {
       price:   newPrice,
       prev:    display ?? entry?.price ?? newPrice,
       display: display ?? newPrice,
       target:  newPrice,
+      history,
     };
     _animatePrice(key);
+    _drawSpark(key);
   }
 
   // Mirror non-crypto prices from main 30 s refresh cycle
@@ -7475,9 +7509,10 @@ const marketStore = (() => {
   watchlistStore.subscribe(_restartPolling);
 
   return {
-    getPrice:       key => _prices[key] ?? null,
+    getPrice:   key => _prices[key] ?? null,
+    redrawAll:  ()  => watchlistStore.getWatchlist().forEach(k => _drawSpark(k)),
     syncFromRefresh,
-    start:          _restartPolling,
+    start:      _restartPolling,
   };
 })();
 
@@ -7549,10 +7584,12 @@ const marketStore = (() => {
       const price = pd?.display ?? pd?.price ?? a.price;
       return '<div class="watchlist-row" data-key="' + key + '">' +
         '<span class="watchlist-sym">' + key + '</span>' +
+        '<canvas class="watchlist-spark" data-key="' + key + '"></canvas>' +
         '<span class="watchlist-price" data-key="' + key + '">' + (price ? formatBase(price) : '--') + '</span>' +
       '</div>';
     }).join('');
     content.innerHTML = '<div class="watchlist-preview">' + html + '</div>';
+    marketStore.redrawAll();
   }
 
   async function render() {
