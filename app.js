@@ -7330,20 +7330,30 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
   });
 })();
 
-// ── Watchlist State (single source of truth) ───────────────
-const watchlistState = (() => {
-  const _hidden    = new Set(JSON.parse(localStorage.getItem('wlHidden') || '[]'));
-  const _listeners = [];
+// ── Watchlist Store (single source of truth) ───────────────
+const watchlistStore = (() => {
+  const KEY   = 'aurix_watchlist';
+  const _subs = [];
+  let _list;
 
-  function _persist() { localStorage.setItem('wlHidden', JSON.stringify([..._hidden])); }
-  function _notify()  { _listeners.forEach(fn => fn()); }
+  function _defaultList() {
+    return (Array.isArray(assets) ? assets : [])
+      .filter(a => a.qty > 0)
+      .map(a => a.sym || a.name);
+  }
+
+  function _persist() { localStorage.setItem(KEY, JSON.stringify(_list)); }
+  function _notify()  { _subs.forEach(fn => fn()); }
+
+  const _stored = localStorage.getItem(KEY);
+  _list = _stored ? JSON.parse(_stored) : _defaultList();
 
   return {
-    isHidden:  key => _hidden.has(key),
-    hide(key)       { _hidden.add(key);    _persist(); _notify(); },
-    show(key)       { _hidden.delete(key); _persist(); _notify(); },
-    hiddenKeys:     () => new Set(_hidden),
-    subscribe: fn   => _listeners.push(fn),
+    getWatchlist: ()  => [..._list],
+    includes:     key => _list.includes(key),
+    add(key)          { if (!_list.includes(key)) { _list = [..._list, key]; _persist(); _notify(); } },
+    remove(key)       { _list = _list.filter(k => k !== key); _persist(); _notify(); },
+    subscribe:    fn  => _subs.push(fn),
   };
 })();
 
@@ -7395,7 +7405,7 @@ const watchlistState = (() => {
 
   function renderWatchlist() {
     const top = [...assets]
-      .filter(a => a.price > 0 && !watchlistState.isHidden(a.sym || a.name))
+      .filter(a => a.price > 0 && watchlistStore.includes(a.sym || a.name))
       .sort((a, b) => b.price - a.price)
       .slice(0, 5);
 
@@ -7423,7 +7433,7 @@ const watchlistState = (() => {
     }
   }
 
-  watchlistState.subscribe(render);
+  watchlistStore.subscribe(render);
   render();
 })();
 
@@ -7437,7 +7447,7 @@ function _wlRenderBody() {
 
   const tracked = Array.isArray(assets)
     ? assets
-        .filter(a => a.qty > 0 && !watchlistState.isHidden(a.sym || a.name))
+        .filter(a => a.qty > 0 && watchlistStore.includes(a.sym || a.name))
         .sort((a, b) => (b.price * b.qty) - (a.price * a.qty))
     : [];
 
@@ -7477,7 +7487,7 @@ function _wlRenderBody() {
         const row = btn.closest('.watchlist-modal-row');
         row.classList.add('removing');
         setTimeout(() => {
-          watchlistState.hide(btn.dataset.key);
+          watchlistStore.remove(btn.dataset.key);
           _wlRenderBody();
           _wlRenderPanel();
         }, 180);
@@ -7502,7 +7512,7 @@ function _wlRenderPanel() {
 
   const query  = (document.getElementById('addAssetInput')?.value || '').toLowerCase();
   const hidden = Array.isArray(assets)
-    ? assets.filter(a => a.qty > 0 && watchlistState.isHidden(a.sym || a.name))
+    ? assets.filter(a => a.qty > 0 && !watchlistStore.includes(a.sym || a.name))
     : [];
   const filtered = hidden.filter(a =>
     !query ||
@@ -7512,7 +7522,7 @@ function _wlRenderPanel() {
 
   if (filtered.length === 0) {
     results.innerHTML = '<div class="watchlist-modal-empty" style="padding:8px 0 0">' +
-      (hidden.length === 0 ? 'No hay activos ocultos' : 'Sin resultados') + '</div>';
+      (hidden.length === 0 ? 'No hay activos disponibles' : 'Sin resultados') + '</div>';
   } else {
     results.innerHTML = filtered.map(a =>
       '<div class="add-asset-result" data-key="' + (a.sym || a.name) + '">' +
@@ -7524,7 +7534,7 @@ function _wlRenderPanel() {
     results.querySelectorAll('.add-asset-result').forEach(el => {
       el.addEventListener('click', () => {
         _wlLastAdded = el.dataset.key;
-        watchlistState.show(el.dataset.key);
+        watchlistStore.add(el.dataset.key);
         _wlRenderBody();
         _wlRenderPanel();
       });
