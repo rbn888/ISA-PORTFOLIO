@@ -4207,7 +4207,16 @@ function updateBottomNavActive() {
 
 function switchView(view) {
   const hv = document.getElementById('hero-view');
-  if (hv) hv.hidden = (view !== 'hero');
+  if (!hv) return;
+  const isHero = view === 'hero';
+  hv.hidden = !isHero;
+  if (isHero) {
+    document.body.classList.add('hero-active');
+    window.startOrb?.();
+  } else {
+    document.body.classList.remove('hero-active');
+    window.stopOrb?.();
+  }
 }
 
 function switchTab(tab) {

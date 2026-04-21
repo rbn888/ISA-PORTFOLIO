@@ -1242,8 +1242,17 @@ body.modal-open {
   display: flex;
   flex-direction: column;
 }
-#hero-view[hidden] { display: none; }
-#hero-view .hero   { flex: 1; min-height: 0; height: 100%; }
+#hero-view[hidden]  { display: none; }
+#hero-view canvas   { pointer-events: none; }
+#hero-view .hero    { flex: 1; min-height: 0; height: 100%; }
+
+/* Hard isolation — hero elements invisible outside hero-active */
+body:not(.hero-active) .hero-glow,
+body:not(.hero-active) .hero-fade,
+body:not(.hero-active) #orb-canvas {
+  display: none !important;
+  opacity: 0 !important;
+}
 
 /* ── Hero Landing ───────────────────────────────────────── */
 .hero {
