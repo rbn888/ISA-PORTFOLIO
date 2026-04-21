@@ -118,7 +118,7 @@
   }
 
   window.startOrb = function () {
-    if (_raf) return; // already running
+    window.stopOrb(); // hard reset always — no stale state
     _canvas = document.getElementById('orb-canvas');
     if (!_canvas) return;
     _ctx = _canvas.getContext('2d');

@@ -1241,6 +1241,7 @@ body.modal-open {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  contain: layout paint size;
 }
 #hero-view[hidden]  { display: none; }
 #hero-view canvas   { pointer-events: none; }
