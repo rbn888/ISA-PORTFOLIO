@@ -7387,7 +7387,7 @@ const marketStore = (() => {
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    // Build dataset — sine-wave placeholder when real history not available yet
+    // Build dataset — random-walk placeholder looks like real market data
     let base, isReal;
     if (hasReal) {
       base   = raw;
@@ -7396,22 +7396,28 @@ const marketStore = (() => {
       canvas.classList.add('ready');
     } else {
       const seed = _prices[key]?.display ?? _prices[key]?.price ?? 100;
-      base = Array.from({length: 12}, (_, i) =>
-        seed + Math.sin(i / 2) * seed * 0.001   // ±0.1% sine wave
-      );
+      let v = seed;
+      base = Array.from({length: 20}, () => {
+        v += (Math.random() - 0.5) * seed * 0.002;  // ±0.1% random step
+        return v;
+      });
       isReal = false;
       canvas.classList.add('placeholder');
       canvas.classList.remove('ready');
     }
 
-    // Midpoint smoothing: insert interpolated point between each pair
-    const smooth = [];
-    for (let i = 0; i < base.length - 1; i++) {
-      smooth.push(base[i]);
-      smooth.push((base[i] + base[i + 1]) / 2);
+    // Triple-pass smoothing: removes dents, produces organic curve
+    const tripled = base.map((curr, i, a) =>
+      ((a[i - 1] ?? curr) + curr + (a[i + 1] ?? curr)) / 3
+    );
+
+    // Midpoint interpolation: doubles density, eliminates visible segments
+    const h = [];
+    for (let i = 0; i < tripled.length - 1; i++) {
+      h.push(tripled[i]);
+      h.push((tripled[i] + tripled[i + 1]) / 2);
     }
-    smooth.push(base[base.length - 1]);
-    const h = smooth;
+    h.push(tripled[tripled.length - 1]);
 
     const min       = Math.min(...h);
     const max       = Math.max(...h);
@@ -7444,11 +7450,11 @@ const marketStore = (() => {
     // Live dot — only when real data is present
     if (isReal) {
       const lastY = H - ((h[h.length - 1] - min) / range) * (H - 2) - 1;
-      ctx.shadowBlur  = 6;
+      ctx.shadowBlur  = 4;
       ctx.shadowColor = endColor;
       ctx.globalAlpha = 1;
       ctx.beginPath();
-      ctx.arc(W, lastY, 1.8, 0, Math.PI * 2);
+      ctx.arc(W, lastY, 1.6, 0, Math.PI * 2);
       ctx.fillStyle = endColor;
       ctx.fill();
       ctx.shadowBlur = 0;
@@ -7494,7 +7500,7 @@ const marketStore = (() => {
 
     function frame(now) {
       const t     = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);           // cubic ease-out
+      const eased = t * (2 - t);                        // quadratic ease-out
       const value = from + (to - from) * eased;
       item.display = value;
       _updateDOM(key, value);
@@ -7515,6 +7521,8 @@ const marketStore = (() => {
   function _set(key, newPrice) {
     const entry   = _prices[key];
     if (entry?.price === newPrice) return;
+    // Skip sub-noise updates (< 0.05% change) to avoid micro-jitter
+    if (entry?.price && Math.abs(newPrice - entry.price) / entry.price < 0.0005) return;
     const display = entry?.display ?? null;
     const history = entry?.history ?? [];
     history.push(newPrice);
