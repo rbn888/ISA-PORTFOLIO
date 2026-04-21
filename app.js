@@ -7370,7 +7370,7 @@ const marketStore = (() => {
     if (!canvas) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const W = 60, H = 20;
+    const W = 64, H = 20;
     canvas.width  = W * dpr;
     canvas.height = H * dpr;
     const ctx = canvas.getContext('2d');
@@ -7382,8 +7382,8 @@ const marketStore = (() => {
       canvas.classList.add('placeholder');
       canvas.classList.remove('ready');
       ctx.beginPath();
-      ctx.moveTo(4,       H / 2);
-      ctx.lineTo(W - 4,  H / 2);
+      ctx.moveTo(4,      H / 2);
+      ctx.lineTo(W - 4, H / 2);
       ctx.strokeStyle = 'rgba(255,255,255,0.2)';
       ctx.lineWidth   = 1;
       ctx.lineCap     = 'round';
@@ -7412,6 +7412,7 @@ const marketStore = (() => {
     grad.addColorStop(0, 'rgba(255,255,255,0.05)');
     grad.addColorStop(1, endColor);
 
+    ctx.globalAlpha = 0.9;
     ctx.beginPath();
     h.forEach((v, i) => {
       const x = (i / (h.length - 1)) * W;
@@ -7424,12 +7425,16 @@ const marketStore = (() => {
     ctx.lineCap     = 'round';
     ctx.stroke();
 
-    // Live dot at current price
+    // Live dot — glowing at current price
     const lastY = H - ((h[h.length - 1] - min) / range) * (H - 2) - 1;
+    ctx.shadowBlur  = 6;
+    ctx.shadowColor = endColor;
+    ctx.globalAlpha = 1;
     ctx.beginPath();
     ctx.arc(W, lastY, 1.8, 0, Math.PI * 2);
     ctx.fillStyle = endColor;
     ctx.fill();
+    ctx.shadowBlur = 0;
   }
 
   // ── DOM helpers ──────────────────────────────────────────

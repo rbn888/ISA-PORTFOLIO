@@ -4721,7 +4721,7 @@ main { padding-bottom: 72px; }
 
 .watchlist-row {
   display: grid;
-  grid-template-columns: 1fr 60px auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 8px;
   padding: 7px 4px;
@@ -4732,20 +4732,30 @@ main { padding-bottom: 72px; }
 }
 
 .watchlist-spark {
-  width: 60px;
+  width: 64px;
   height: 20px;
-  opacity: 0.45;
-  flex-shrink: 0;
-  filter: blur(0.2px);
-  transition: opacity 0.2s ease;
   display: block;
+  justify-self: center;
+  filter: blur(0.2px);
+  transition: opacity 0.25s ease;
+  opacity: 0.25;
 }
 
 .watchlist-spark.placeholder { opacity: 0.25; }
-.watchlist-spark.ready       { opacity: 0.45; }
+
+.watchlist-spark.ready {
+  opacity: 1;
+  animation: sparkBreath 3s ease-in-out infinite;
+}
 
 .watchlist-row:hover .watchlist-spark {
-  opacity: 0.85;
+  animation-play-state: paused;
+  opacity: 1;
+}
+
+@keyframes sparkBreath {
+  0%,100% { opacity: 0.72; }
+  50%     { opacity: 1; }
 }
 
 .watchlist-row:last-child { border-bottom: none; }
@@ -4934,7 +4944,7 @@ main { padding-bottom: 72px; }
 
   .watchlist-row {
     display: grid;
-    grid-template-columns: 1fr 60px auto;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: 8px;
     padding: 8px 6px;
