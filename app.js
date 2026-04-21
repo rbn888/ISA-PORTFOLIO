@@ -7405,8 +7405,9 @@ setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only up
 })();
 
 // ── Watchlist Modal ─────────────────────────────────────────
-const _wlHidden = new Set(JSON.parse(localStorage.getItem('wlHidden') || '[]'));
-let _wlEditing = false;
+const _wlHidden    = new Set(JSON.parse(localStorage.getItem('wlHidden') || '[]'));
+let   _wlEditing   = false;
+let   _wlLastAdded = null;
 
 function _wlSaveHidden() {
   localStorage.setItem('wlHidden', JSON.stringify([..._wlHidden]));
@@ -7427,25 +7428,42 @@ function _wlRenderBody() {
   } else {
     body.innerHTML = tracked.map(a => {
       const price     = a.price ? formatBase(a.price) : '—';
+      const key       = a.sym || a.name;
       const editClass = _wlEditing ? ' editing' : '';
       const removeBtn = _wlEditing
-        ? '<button class="remove-btn" data-key="' + (a.sym || a.name) + '">✕</button>'
+        ? '<button class="remove-btn" data-key="' + key + '">✕</button>'
         : '';
-      return '<div class="watchlist-modal-row' + editClass + '">' +
-        '<span class="watchlist-modal-sym">'   + (a.sym   || '') + '</span>' +
-        '<span class="watchlist-modal-name">'  + (a.name  || '') + '</span>' +
-        '<span class="watchlist-modal-price">' + price           + '</span>' +
+      return '<div class="watchlist-modal-row' + editClass + '" data-key="' + key + '">' +
+        '<span class="watchlist-modal-sym">'   + (a.sym  || '') + '</span>' +
+        '<span class="watchlist-modal-name">'  + (a.name || '') + '</span>' +
+        '<span class="watchlist-modal-price">' + price          + '</span>' +
         removeBtn +
       '</div>';
     }).join('');
 
+    // Animate newly added row
+    if (_wlLastAdded) {
+      const newRow = body.querySelector('[data-key="' + _wlLastAdded + '"]');
+      if (newRow) {
+        newRow.classList.add('new', 'highlight');
+        setTimeout(() => newRow.classList.remove('highlight'), 400);
+        newRow.addEventListener('animationend', () => newRow.classList.remove('new'), { once: true });
+      }
+      _wlLastAdded = null;
+    }
+
+    // Remove with exit animation
     body.querySelectorAll('.remove-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        _wlHidden.add(btn.dataset.key);
-        _wlSaveHidden();
-        _wlRenderBody();
-        _wlRenderPanel();
+        const row = btn.closest('.watchlist-modal-row');
+        row.classList.add('removing');
+        setTimeout(() => {
+          _wlHidden.add(btn.dataset.key);
+          _wlSaveHidden();
+          _wlRenderBody();
+          _wlRenderPanel();
+        }, 180);
       });
     });
   }
@@ -7488,6 +7506,7 @@ function _wlRenderPanel() {
 
     results.querySelectorAll('.add-asset-result').forEach(el => {
       el.addEventListener('click', () => {
+        _wlLastAdded = el.dataset.key;
         _wlHidden.delete(el.dataset.key);
         _wlSaveHidden();
         _wlRenderBody();
@@ -7508,13 +7527,17 @@ function openWatchlistModal() {
   if (!modal) return;
   _wlEditing = false;
   modal.classList.remove('hidden');
+  // Double rAF ensures display:flex is applied before transition starts
+  requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('open')));
   _wlRenderBody();
   _wlRenderPanel();
 }
 
 function closeWatchlistModal() {
   const modal = document.getElementById('watchlist-modal');
-  if (modal) modal.classList.add('hidden');
+  if (!modal) return;
+  modal.classList.remove('open');
+  setTimeout(() => modal.classList.add('hidden'), 200);
   _wlEditing = false;
 }
 

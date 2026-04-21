@@ -4927,10 +4927,18 @@ main { padding-bottom: 72px; }
   align-items: center;
   justify-content: center;
   z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
 }
 
 .watchlist-modal.hidden {
   display: none;
+}
+
+.watchlist-modal.open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .watchlist-modal-content {
@@ -4944,6 +4952,19 @@ main { padding-bottom: 72px; }
   display: flex;
   flex-direction: column;
   gap: 16px;
+  transform: scale(0.95) translateY(6px);
+  opacity: 0;
+  transition: transform 200ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease;
+}
+
+.watchlist-modal.open .watchlist-modal-content {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+@keyframes wl-fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .watchlist-modal-header {
@@ -4971,12 +4992,11 @@ main { padding-bottom: 72px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background .2s ease;
+  transition: background .2s ease, transform 120ms ease;
 }
 
-.watchlist-modal-close:hover {
-  background: rgba(255,255,255,0.12);
-}
+.watchlist-modal-close:hover  { background: rgba(255,255,255,0.12); }
+.watchlist-modal-close:active { transform: scale(0.88); }
 
 .watchlist-modal-body {
   flex: 1;
@@ -4992,11 +5012,23 @@ main { padding-bottom: 72px; }
   align-items: center;
   padding: 10px 8px;
   border-radius: 8px;
-  transition: background .15s ease;
+  transition: background .15s ease, opacity 180ms ease, transform 180ms ease;
 }
 
-.watchlist-modal-row:hover {
-  background: rgba(255,255,255,0.04);
+.watchlist-modal-row:hover { background: rgba(255,255,255,0.04); }
+
+.watchlist-modal-row.new {
+  animation: wl-fade-in-up 220ms cubic-bezier(0.4,0,0.2,1);
+}
+
+.watchlist-modal-row.highlight {
+  background: rgba(0,255,150,0.08) !important;
+}
+
+.watchlist-modal-row.removing {
+  opacity: 0;
+  transform: translateX(10px);
+  pointer-events: none;
 }
 
 .watchlist-modal-sym {
@@ -5049,13 +5081,12 @@ main { padding-bottom: 72px; }
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background .2s ease, color .2s ease;
+  transition: background .2s ease, color .2s ease, transform 120ms ease;
   backdrop-filter: blur(6px);
 }
 
-.add-button:hover {
-  background: rgba(255,255,255,0.12);
-}
+.add-button:hover  { background: rgba(255,255,255,0.12); }
+.add-button:active { transform: scale(0.88); }
 
 .add-button--active {
   background: rgba(100,220,160,0.12);
