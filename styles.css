@@ -1283,20 +1283,49 @@ body.modal-open {
 
 /* ── Distribution Section ─────────────────────────────── */
 .distribution-section {
+  margin-bottom: 32px;
+  min-width: 0;
+}
+
+.portfolio-combined-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 28px 24px 24px;
-  margin-bottom: 32px;
-  transition: border-color .22s var(--ease-out);
-  min-width: 0;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  gap: 20px;
+  transition: border-color .22s var(--ease-out), transform .22s var(--ease-out);
   will-change: transform;
+  cursor: pointer;
 }
 
-.distribution-section:hover { border-color: var(--border-hi); }
+.portfolio-combined-card:hover { border-color: var(--border-hi); }
+
+.distribution-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.watchlist-section {
+  display: none;
+}
+
+.watchlist-cta {
+  margin-top: 12px;
+  padding: 10px 12px;
+  text-align: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: background .2s ease;
+}
+
+.watchlist-cta:hover {
+  background: rgba(255,255,255,0.07);
+}
 
 .distribution-header { margin-bottom: 16px; }
 
@@ -2497,9 +2526,12 @@ body.modal-open {
   /* btn-primary / btn-secondary: NO colour overrides — desktop values apply unchanged */
 
   /* Distribution — stack donut + legend vertically */
-  .distribution-section {
-    padding: 20px 16px 20px;
+  .portfolio-combined-card {
+    padding: 20px 16px;
     border-radius: 14px;
+    gap: 16px;
+  }
+  .distribution-section {
     margin-bottom: 28px;
   }
   .distribution-header { margin-bottom: 12px; }
@@ -2749,6 +2781,7 @@ body.modal-open {
 /* Suppress hover transforms while entrance sequence is running */
 .app--animating .hero-card:hover,
 .app--animating .distribution-section:hover,
+.app--animating .portfolio-combined-card:hover,
 .app--animating .cat-card:hover {
   transform: none !important;
 }
@@ -3887,6 +3920,7 @@ body.modal-open {
 @media (hover: none) {
   .hero-card:hover,
   .distribution-section:hover,
+  .portfolio-combined-card:hover,
   .asset-card:hover,
   .cat-card:hover { transform: none; border-color: var(--border); }
 }
@@ -4745,31 +4779,38 @@ main { padding-bottom: 72px; }
     padding: 16px;
   }
 
-  /* Distribution section: two equal cards side by side */
-  .distribution-section {
-    display: flex !important;
-    gap: 24px;
+  /* Distribution: single unified horizontal card */
+  .portfolio-combined-card {
+    flex-direction: row;
+    gap: 32px;
+    padding: 24px 28px;
+    border-radius: 20px;
+    background: rgba(20, 24, 32, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: border-color 0.25s, transform 0.25s;
     align-items: stretch;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
   }
 
-  .distribution-block,
-  .tracking-block {
-    flex: 1;
+  .portfolio-combined-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.12);
+  }
+
+  .distribution-panel {
+    flex: 1.1;
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding: 24px;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid var(--border);
-    border-radius: 16px;
   }
 
-  .tracking-block {
-    margin-top: 0;
+  .watchlist-section {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    padding-left: 28px;
   }
 
   .section-title {
@@ -4785,12 +4826,13 @@ main { padding-bottom: 72px; }
     align-items: center;
     gap: 20px;
     background: transparent;
+    flex: 1;
   }
 
   .donut-wrap {
-    flex: 0 0 180px;
-    width: 180px;
-    height: 180px;
+    flex: 0 0 160px;
+    width: 160px;
+    height: 160px;
   }
 
   #donutChart {
@@ -4804,30 +4846,12 @@ main { padding-bottom: 72px; }
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-width: 150px;
+    min-width: 0;
     margin-top: 0;
+    overflow: visible;
   }
 
-  .distribution-legend-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    width: auto;
-    max-width: none;
-  }
-
-  .distribution-legend-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .distribution-legend-value {
-    margin-left: 2px;
-    opacity: 0.85;
-  }
-
-  /* tracking-card is transparent — tracking-block is the card */
+  /* tracking-card transparent — watchlist-section is the container */
   .tracking-card {
     background: transparent !important;
     border: none !important;
@@ -4848,33 +4872,28 @@ main { padding-bottom: 72px; }
   }
 
   .watchlist-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 10px 0;
     font-size: 13px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
     line-height: 1.3;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
   }
 
-  .watchlist-footer {
+  .watchlist-cta {
     margin-top: 16px;
     padding: 12px;
     text-align: center;
     border-radius: 12px;
-    background: rgba(255,255,255,0.04);
-    cursor: pointer;
+    background: rgba(255,255,255,0.05);
     font-size: 13px;
     color: var(--text-muted);
     transition: background .2s ease;
   }
 
-  .watchlist-footer:hover {
-    background: rgba(255,255,255,0.07);
-  }
-
-  .watchlist-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    line-height: 1.2;
+  .watchlist-cta:hover {
+    background: rgba(255,255,255,0.1);
   }
 
   .ticker-item {

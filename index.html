@@ -103,25 +103,27 @@
       </section>
 
       <section class="distribution-section" id="distributionSection" style="display:none">
-        <div class="distribution-block">
-          <div class="section-title card-title" data-i18n="distribution">Distribución del patrimonio</div>
-          <div class="distribution-inner">
-            <div class="donut-wrap">
-              <canvas id="donutChart"></canvas>
-              <div class="donut-center-label">
-                <div class="donut-center-val" id="donutCenterVal"></div>
-                <div class="donut-center-sub" id="donutCenterSub">total</div>
+        <div class="portfolio-combined-card">
+          <div class="distribution-panel">
+            <div class="section-title card-title" data-i18n="distribution">Distribución del patrimonio</div>
+            <div class="distribution-inner">
+              <div class="donut-wrap">
+                <canvas id="donutChart"></canvas>
+                <div class="donut-center-label">
+                  <div class="donut-center-val" id="donutCenterVal"></div>
+                  <div class="donut-center-sub" id="donutCenterSub">total</div>
+                </div>
               </div>
+              <div class="distribution-legend" id="distributionLegend"></div>
             </div>
-            <div class="distribution-legend" id="distributionLegend"></div>
           </div>
-        </div>
-        <div class="tracking-block">
-          <div class="section-title">Seguimiento</div>
-          <div class="tracking-card" id="trackingCard">
-            <div class="tracking-content" id="trackingContent"></div>
+          <div class="watchlist-section">
+            <div class="section-title">Seguimiento</div>
+            <div class="tracking-card" id="trackingCard">
+              <div class="tracking-content" id="trackingContent"></div>
+            </div>
+            <div class="watchlist-cta" id="watchlistFooter">+ Añadir activo a seguimiento</div>
           </div>
-          <div class="watchlist-footer" id="watchlistFooter">+ Añadir activo a seguimiento</div>
         </div>
       </section>
 
