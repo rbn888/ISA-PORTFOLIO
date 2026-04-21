@@ -7368,30 +7368,46 @@ const marketStore = (() => {
   function _drawSpark(key) {
     const canvas = document.querySelector('.watchlist-spark[data-key="' + key + '"]');
     if (!canvas) return;
-    const raw = _prices[key]?.history;
-    if (!raw || raw.length < 2) return;
-
-    // Light one-pass smoothing
-    const h = raw.length < 3 ? raw.slice() :
-      raw.map((v, i) => i === 0 ? v : (v + raw[i - 1]) / 2);
 
     const dpr = window.devicePixelRatio || 1;
-    const W = 52, H = 16;
+    const W = 60, H = 20;
     canvas.width  = W * dpr;
     canvas.height = H * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
+    const raw = _prices[key]?.history;
+    if (!raw || raw.length < 2) {
+      // Placeholder: flat centered line — always something visible immediately
+      canvas.classList.add('placeholder');
+      canvas.classList.remove('ready');
+      ctx.beginPath();
+      ctx.moveTo(4,       H / 2);
+      ctx.lineTo(W - 4,  H / 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth   = 1;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+      return;
+    }
+
+    canvas.classList.remove('placeholder');
+    canvas.classList.add('ready');
+
+    // Light one-pass smoothing
+    const h = raw.length < 3 ? raw.slice() :
+      raw.map((v, i) => i === 0 ? v : (v + raw[i - 1]) / 2);
+
     const min       = Math.min(...h);
     const max       = Math.max(...h);
     const range     = max - min || 1;
     const delta     = h[h.length - 1] - h[0];
-    const threshold = Math.max(max * 0.001, 0.01);  // 0.1% of max, min $0.01
+    const threshold = Math.max(max * 0.001, 0.01);
     const isUp   = delta >  threshold;
     const isDown = delta < -threshold;
     const endColor = isUp ? '#00ff9c' : isDown ? '#ff4d4f' : '#888888';
 
-    // Horizontal gradient: faded past → vivid present
+    // Gradient: faded past → vivid present
     const grad = ctx.createLinearGradient(0, 0, W, 0);
     grad.addColorStop(0, 'rgba(255,255,255,0.05)');
     grad.addColorStop(1, endColor);
@@ -7615,7 +7631,7 @@ const marketStore = (() => {
       const price = pd?.display ?? pd?.price ?? a.price;
       return '<div class="watchlist-row" data-key="' + key + '">' +
         '<span class="watchlist-sym">' + key + '</span>' +
-        '<canvas class="watchlist-spark" data-key="' + key + '"></canvas>' +
+        '<canvas class="watchlist-spark placeholder" data-key="' + key + '"></canvas>' +
         '<span class="watchlist-price" data-key="' + key + '">' + (price ? formatBase(price) : '--') + '</span>' +
       '</div>';
     }).join('');

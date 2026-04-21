@@ -4721,7 +4721,7 @@ main { padding-bottom: 72px; }
 
 .watchlist-row {
   display: grid;
-  grid-template-columns: 1fr 52px auto;
+  grid-template-columns: 1fr 60px auto;
   align-items: center;
   gap: 8px;
   padding: 7px 4px;
@@ -4732,13 +4732,17 @@ main { padding-bottom: 72px; }
 }
 
 .watchlist-spark {
-  width: 52px;
-  height: 16px;
+  width: 60px;
+  height: 20px;
   opacity: 0.45;
   flex-shrink: 0;
   filter: blur(0.2px);
-  transition: opacity 0.12s ease;
+  transition: opacity 0.2s ease;
+  display: block;
 }
+
+.watchlist-spark.placeholder { opacity: 0.25; }
+.watchlist-spark.ready       { opacity: 0.45; }
 
 .watchlist-row:hover .watchlist-spark {
   opacity: 0.85;
@@ -4786,7 +4790,7 @@ main { padding-bottom: 72px; }
   font-size: 12px;
   font-weight: 600;
   text-align: right;
-  min-width: 90px;
+  min-width: 100px;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
   animation: subtleDrift 4s ease-in-out infinite;
@@ -4930,7 +4934,7 @@ main { padding-bottom: 72px; }
 
   .watchlist-row {
     display: grid;
-    grid-template-columns: 1fr 52px auto;
+    grid-template-columns: 1fr 60px auto;
     align-items: center;
     gap: 8px;
     padding: 8px 6px;
@@ -4955,7 +4959,7 @@ main { padding-bottom: 72px; }
 
   .watchlist-price {
     font-size: 13px;
-    min-width: 90px;
+    min-width: 100px;
   }
 
   .ticker-item {
