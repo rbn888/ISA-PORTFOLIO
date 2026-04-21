@@ -7515,9 +7515,13 @@ const marketStore = (() => {
       );
       if (!res.ok) return;
       const data = await res.json();
+      // Stagger per-asset to feel like real market data arriving
       cryptos.forEach(a => {
         const usd = data[a.coinId]?.usd;
-        if (usd > 0) _set(a.sym || a.name, usd);
+        if (usd > 0) {
+          const delay = Math.round(Math.random() * 80);
+          setTimeout(() => _set(a.sym || a.name, usd), delay);
+        }
       });
     } catch {}
   }
@@ -7592,7 +7596,11 @@ const marketStore = (() => {
       .slice(0, 5);
 
     if (top.length === 0) {
-      content.innerHTML = '<div class="watchlist-row" style="opacity:.45;font-size:12px">Sin activos en seguimiento</div>';
+      content.innerHTML =
+        '<div class="watchlist-empty">' +
+          '<div class="watchlist-empty-dot"></div>' +
+          '<span>Añade activos para seguir el mercado</span>' +
+        '</div>';
       return;
     }
 
