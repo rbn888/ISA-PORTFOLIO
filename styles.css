@@ -4728,20 +4728,20 @@ main { padding-bottom: 72px; }
   border-bottom: 1px solid rgba(255,255,255,.06);
   font-size: 12px;
   position: relative;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 
 .watchlist-spark {
   width: 52px;
   height: 16px;
-  opacity: 0.55;
+  opacity: 0.45;
   flex-shrink: 0;
   filter: blur(0.2px);
-  transition: opacity 0.25s ease;
+  transition: opacity 0.12s ease;
 }
 
 .watchlist-row:hover .watchlist-spark {
-  opacity: 0.95;
+  opacity: 0.85;
 }
 
 .watchlist-row:last-child { border-bottom: none; }
@@ -4751,9 +4751,12 @@ main { padding-bottom: 72px; }
   align-items: center;
   gap: 8px;
   padding: 10px 4px;
-  opacity: 0.38;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.watchlist-empty span {
+  opacity: 0.45;
 }
 
 .watchlist-empty-dot {
@@ -4762,6 +4765,7 @@ main { padding-bottom: 72px; }
   border-radius: 50%;
   background: rgba(255,255,255,0.4);
   flex-shrink: 0;
+  opacity: 0.6;
   animation: pulseLive 2s ease-in-out infinite;
 }
 
@@ -4783,6 +4787,8 @@ main { padding-bottom: 72px; }
   font-weight: 600;
   text-align: right;
   min-width: 90px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
   animation: subtleDrift 4s ease-in-out infinite;
 }
 
@@ -4904,6 +4910,7 @@ main { padding-bottom: 72px; }
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
     cursor: pointer;
     transition: background .25s ease, border-color .25s ease, transform .25s ease;
     display: flex;
@@ -4942,8 +4949,8 @@ main { padding-bottom: 72px; }
   }
 
   .watchlist-row:active {
-    transform: translateX(1px);
-    transition-duration: 80ms;
+    transform: translateX(1px) scale(0.995);
+    transition-duration: 60ms;
   }
 
   .watchlist-price {
@@ -5250,8 +5257,8 @@ main { padding-bottom: 72px; }
 }
 
 @keyframes pulseLive {
-  0%,100% { opacity: 0.2; transform: translateY(-50%) scale(0.8); }
-  50%     { opacity: 0.9; transform: translateY(-50%) scale(1.25); }
+  0%,100% { opacity: 0.25; transform: translateY(-50%) scale(0.9); }
+  50%     { opacity: 0.7;  transform: translateY(-50%) scale(1.15); }
 }
 
 .watchlist-section .card-title {
@@ -5274,14 +5281,14 @@ main { padding-bottom: 72px; }
 
 /* ── Price-change flash (glow + movement) ── */
 @keyframes wl-price-up {
-  0%   { color: #00ff9c; text-shadow: 0 0 8px rgba(0,255,156,0.5); transform: translateY(-2px); }
+  0%   { color: #00ff9c; text-shadow: 0 0 6px rgba(0,255,156,0.4); transform: translateY(-2px); }
   100% { color: inherit; text-shadow: none; transform: translateY(0); }
 }
 
 @keyframes wl-price-down {
-  0%   { color: #ff4d4f; text-shadow: 0 0 8px rgba(255,77,79,0.5); transform: translateY(2px); }
+  0%   { color: #ff4d4f; text-shadow: 0 0 6px rgba(255,77,79,0.35); transform: translateY(2px); }
   100% { color: inherit; text-shadow: none; transform: translateY(0); }
 }
 
-.price-up   { animation: wl-price-up   700ms ease-out; }
-.price-down { animation: wl-price-down 700ms ease-out; }
+.price-up   { animation: wl-price-up   600ms ease-out; }
+.price-down { animation: wl-price-down 600ms ease-out; }

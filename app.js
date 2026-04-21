@@ -7450,7 +7450,7 @@ const marketStore = (() => {
 
     if (_rafMap[key]) cancelAnimationFrame(_rafMap[key]);
 
-    const duration = Math.min(500, Math.max(200, delta * 5));
+    const duration = Math.min(400, Math.max(250, delta * 5));
     const start    = performance.now();
 
     function frame(now) {
@@ -7519,7 +7519,7 @@ const marketStore = (() => {
       cryptos.forEach(a => {
         const usd = data[a.coinId]?.usd;
         if (usd > 0) {
-          const delay = Math.round(Math.random() * 80);
+          const delay = Math.round(Math.random() * Math.random() * 120);
           setTimeout(() => _set(a.sym || a.name, usd), delay);
         }
       });
