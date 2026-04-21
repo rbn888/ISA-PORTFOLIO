@@ -46,9 +46,11 @@
     <main>
 
       <section class="hero" id="heroSection">
+        <div class="hero-fade"></div>
         <div class="hero-core">
           <div class="orb-wrapper">
-            <div class="orb"></div>
+            <div class="hero-glow"></div>
+            <canvas id="orb-canvas" class="orb-canvas"></canvas>
           </div>
           <div class="hero-copy">
             <p class="hero-text" id="heroText">
@@ -540,6 +542,7 @@
   <script src="services/prices.js"></script>
   <script src="services/history.js"></script>
   <script src="aurora-bg.js"></script>
+  <script src="orb.js"></script>
 
   <!-- Watchlist Modal -->
   <div id="watchlist-modal" class="watchlist-modal hidden">
