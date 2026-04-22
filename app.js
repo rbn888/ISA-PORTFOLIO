@@ -4198,11 +4198,22 @@ function renderInsights() {
 
 // ── Bottom nav ─────────────────────────────────────────────
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
+const NAV_ORDER = ['home', 'market', 'add', 'insights', 'profile'];
+
+function enforceNavOrder() {
+  const container = document.getElementById('bottomNav');
+  if (!container) return;
+  NAV_ORDER.forEach(tab => {
+    const el = container.querySelector(`[data-tab="${tab}"]`);
+    if (el) container.appendChild(el);
+  });
+}
 
 function updateBottomNavActive() {
   document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
     el.classList.toggle('active', el.dataset.tab === currentTab);
   });
+  enforceNavOrder();
 }
 
 function switchView(view) {
@@ -7871,6 +7882,8 @@ function closeWatchlistModal() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  enforceNavOrder();
+
   const modal = document.getElementById('watchlist-modal');
   if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeWatchlistModal(); });
 
