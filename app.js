@@ -4466,7 +4466,7 @@ function renderCryptoList(data, stale = false) {
     ${data.map(c => {
       const chg   = c.price_change_percentage_24h ?? 0;
       const chart = renderSparkline(generateSparkline(chg), chg >= 0);
-      return `<div class="market-row">
+      return `<div class="market-row" data-symbol="${c.symbol.toUpperCase()}">
         <div class="market-row-left">
           <img class="market-coin-img" src="${c.image}" alt="" loading="lazy">
           <div>
@@ -4570,7 +4570,7 @@ function renderStockItem(item) {
     : '—';
   const chart = renderSparkline(generateSparkline(item.change ?? 0), (item.change ?? 0) >= 0);
   return `
-    <div class="market-row">
+    <div class="market-row" data-symbol="${_normalizeWLSymbol(item.symbol)}">
       <div class="market-left">
         <div class="market-icon">${item.symbol.charAt(0)}</div>
         <div class="market-symbol">${item.symbol}</div>
@@ -7778,6 +7778,39 @@ const watchlistStore = (() => {
     subscribe:    fn  => _subs.push(fn),
   };
 })();
+
+// ── Global Watchlist API (thin wrappers over watchlistStore) ─
+const WATCHLIST_KEY = 'aurix_watchlist'; // same key as watchlistStore
+
+function _normalizeWLSymbol(symbol) {
+  // Strip slashes so XAU/USD → XAUUSD, keep everything else as-is
+  return String(symbol).toUpperCase().replace(/\//g, '');
+}
+
+function getWatchlist() {
+  return watchlistStore.getWatchlist();
+}
+
+function setWatchlist(list) {
+  const norm    = list.map(_normalizeWLSymbol);
+  const current = watchlistStore.getWatchlist();
+  current.forEach(k => { if (!norm.includes(k)) watchlistStore.remove(k); });
+  norm.forEach(k  => { if (!current.includes(k)) watchlistStore.add(k); });
+}
+
+function isInWatchlist(symbol) {
+  return watchlistStore.includes(_normalizeWLSymbol(symbol));
+}
+
+function toggleWatchlist(symbol) {
+  const norm = _normalizeWLSymbol(symbol);
+  if (watchlistStore.includes(norm)) {
+    watchlistStore.remove(norm);
+    return false;
+  }
+  watchlistStore.add(norm);
+  return true;
+}
 
 // ── Market Store (live prices + smooth interpolation) ──────
 const marketStore = (() => {
