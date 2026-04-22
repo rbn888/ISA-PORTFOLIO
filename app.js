@@ -4202,7 +4202,41 @@ function renderMarket() {
   if (!container) return;
   container.innerHTML = `
     <div class="market-screen">
-      <div class="market-header">Market</div>
+      <div class="market-header">
+        <div class="market-title">Mercado</div>
+        <div class="market-subtitle">Activos en tiempo real</div>
+      </div>
+      <div class="market-search-wrap">
+        <input
+          type="text"
+          id="marketSearchInput"
+          placeholder="Buscar BTC, Apple, SPY..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+      <div class="market-tabs">
+        <button class="market-tab active" data-market="crypto">Cripto</button>
+        <button class="market-tab" data-market="stocks">Acciones</button>
+        <button class="market-tab" data-market="etfs">ETFs</button>
+      </div>
+      <div class="market-featured" id="marketFeatured">
+        <div class="featured-card">
+          <div>BTC</div>
+          <div>$97,000</div>
+          <div class="green">+1.2%</div>
+        </div>
+        <div class="featured-card">
+          <div>SPY</div>
+          <div>$520</div>
+          <div class="green">+0.4%</div>
+        </div>
+        <div class="featured-card">
+          <div>Gold</div>
+          <div>$2,350</div>
+          <div class="red">-0.2%</div>
+        </div>
+      </div>
       <div class="market-section" id="market-crypto"></div>
       <div class="market-section" id="market-stocks"></div>
     </div>
@@ -4232,7 +4266,7 @@ function renderCryptoList(data, stale = false) {
   const el = document.getElementById('market-crypto');
   if (!el) return;
   el.innerHTML = `
-    <div class="market-title">Cripto${stale ? ' <span class="market-stale">sin actualizar</span>' : ''}</div>
+    <div class="market-section-title">Cripto${stale ? ' <span class="market-stale">sin actualizar</span>' : ''}</div>
     ${data.map(c => {
       const chg = c.price_change_percentage_24h ?? 0;
       return `<div class="market-row">
@@ -4279,7 +4313,7 @@ async function loadStocks() {
   const symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META'];
   const el = document.getElementById('market-stocks');
   if (!el) return;
-  el.innerHTML = `<div class="market-title">Acciones</div>`;
+  el.innerHTML = `<div class="market-section-title">Acciones</div>`;
   for (const s of symbols) {
     const result = await fetchTwelveData(s);
     const price  = result?.price ?? getFallbackData(s)?.price;
