@@ -4269,7 +4269,7 @@ function renderMarketByType(type) {
   if (!container) return;
   container.innerHTML = '';
   if (type === 'crypto')  { loadCrypto(); return; }
-  if (type === 'stocks')  { renderStocksPlaceholder(container); return; }
+  if (type === 'stocks')  { loadStocks(); return; }
   if (type === 'etfs')    { renderETFsPlaceholder(container); return; }
 }
 
@@ -4282,8 +4282,7 @@ function renderETFsPlaceholder(container) {
 }
 
 async function loadMarketData() {
-  loadCrypto();
-  loadStocks();
+  renderMarketByType(currentMarketTab);
 }
 
 const CRYPTO_FALLBACK = [
@@ -4346,28 +4345,64 @@ async function loadCrypto() {
   }
 }
 
+const MARKET_STOCKS = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT'];
+
 async function loadStocks() {
-  const symbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META'];
-  const el = document.getElementById('marketList');
-  if (!el) return;
-  el.innerHTML = `<div class="market-section-title">Acciones</div>`;
-  for (const s of symbols) {
-    const result = await fetchTwelveData(s);
-    const price  = result?.price ?? getFallbackData(s)?.price;
-    el.innerHTML += `
-      <div class="market-row">
-        <div class="market-row-left">
-          <div class="market-icon">${s.charAt(0)}</div>
-          <div>
-            <span class="market-sym">${s}</span>
-          </div>
-        </div>
-        <div class="market-row-right">
-          <span class="market-price">${price ? '$' + fmtMktPrice(price) : '—'}</span>
-        </div>
-      </div>
-    `;
+  const container = document.getElementById('marketList');
+  if (!container) return;
+  container.innerHTML = '<div class="market-loading">Cargando acciones...</div>';
+  try {
+    const results = await Promise.all(
+      MARKET_STOCKS.map(async symbol => {
+        try {
+          const data  = await fetchTwelveData(symbol);
+          const price = data?.price ?? null;
+          if (!price) throw new Error('no price');
+          return { symbol, price, change: 0, fallback: false };
+        } catch {
+          const fb = getFallbackData(symbol);
+          return { symbol, price: fb?.price ?? null, change: fb?.change24h ?? 0, fallback: true };
+        }
+      })
+    );
+    renderStocks(results, results.every(r => r.fallback));
+  } catch (err) {
+    console.error('[market] stocks load error:', err);
+    renderStocks(
+      MARKET_STOCKS.map(symbol => {
+        const fb = getFallbackData(symbol);
+        return { symbol, price: fb?.price ?? null, change: fb?.change24h ?? 0, fallback: true };
+      }),
+      true
+    );
   }
+}
+
+function renderStocks(data, isFallback = false) {
+  const container = document.getElementById('marketList');
+  if (!container) return;
+  const badge = isFallback ? '<span class="market-badge">sin actualizar</span>' : '';
+  container.innerHTML = `
+    <div class="market-section-header">ACCIONES ${badge}</div>
+    ${data.map(renderStockItem).join('')}
+  `;
+}
+
+function renderStockItem(item) {
+  const price = typeof item.price === 'number' && item.price > 0
+    ? `$${fmtMktPrice(item.price)}`
+    : '—';
+  return `
+    <div class="market-row">
+      <div class="market-left">
+        <div class="market-icon">${item.symbol.charAt(0)}</div>
+        <div class="market-symbol">${item.symbol}</div>
+      </div>
+      <div class="market-right">
+        <div class="market-price">${price}</div>
+      </div>
+    </div>
+  `;
 }
 
 function fmtMktPrice(p) {

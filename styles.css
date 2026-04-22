@@ -5577,11 +5577,52 @@ main { padding-bottom: 72px; }
   font-size: 14px;
 }
 
+.market-loading {
+  padding: 30px;
+  text-align: center;
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+}
+
+.market-section-header {
+  padding: 10px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.4);
+}
+
+.market-badge {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--orange);
+  letter-spacing: 0;
+}
+
+.market-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.market-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.market-symbol {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
 .market-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
