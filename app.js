@@ -4280,10 +4280,20 @@ function renderMyAssetsBlock() {
     container.innerHTML = `<div class="empty-watchlist">Añade activos ⭐ para seguirlos aquí</div>`;
     return;
   }
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.change24h == null && b.change24h != null) return 1;
+    if (a.change24h != null && b.change24h == null) return -1;
+    const changeA = Math.abs(a.change24h || 0);
+    const changeB = Math.abs(b.change24h || 0);
+    if (changeB !== changeA) return changeB - changeA;
+    if (b.price !== a.price) return (b.price || 0) - (a.price || 0);
+    return a.symbol.localeCompare(b.symbol);
+  });
+  console.log('[ranking]', sorted.map(i => ({ symbol: i.symbol, change: i.change24h })));
   container.innerHTML = `
     <div class="market-section">
       <div class="market-section-title">My Assets</div>
-      ${filtered.map(renderStockItem).join('')}
+      ${sorted.map(renderStockItem).join('')}
     </div>
   `;
 }
