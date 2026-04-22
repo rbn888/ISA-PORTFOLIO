@@ -5562,3 +5562,12 @@ main { padding-bottom: 72px; }
   color: var(--text-dim);
   padding: 8px 0;
 }
+
+.market-stale {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--orange);
+  margin-left: 6px;
+}

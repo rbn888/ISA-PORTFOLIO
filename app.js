@@ -4215,37 +4215,63 @@ async function loadMarketData() {
   loadStocks();
 }
 
+const CRYPTO_FALLBACK = [
+  { symbol: 'BTC',  name: 'Bitcoin',   current_price: 97000,  price_change_percentage_24h: 1.2,  image: 'https://assets.coingecko.com/coins/images/1/thumb/bitcoin.png' },
+  { symbol: 'ETH',  name: 'Ethereum',  current_price: 3400,   price_change_percentage_24h: 0.8,  image: 'https://assets.coingecko.com/coins/images/279/thumb/ethereum.png' },
+  { symbol: 'USDT', name: 'Tether',    current_price: 1.00,   price_change_percentage_24h: 0.01, image: 'https://assets.coingecko.com/coins/images/325/thumb/Tether.png' },
+  { symbol: 'BNB',  name: 'BNB',       current_price: 680,    price_change_percentage_24h: -0.5, image: 'https://assets.coingecko.com/coins/images/825/thumb/bnb-icon2_2x.png' },
+  { symbol: 'SOL',  name: 'Solana',    current_price: 185,    price_change_percentage_24h: 2.1,  image: 'https://assets.coingecko.com/coins/images/4128/thumb/solana.png' },
+  { symbol: 'XRP',  name: 'XRP',       current_price: 2.40,   price_change_percentage_24h: -1.3, image: 'https://assets.coingecko.com/coins/images/44/thumb/xrp-symbol-white-128.png' },
+  { symbol: 'USDC', name: 'USD Coin',  current_price: 1.00,   price_change_percentage_24h: 0.00, image: 'https://assets.coingecko.com/coins/images/6319/thumb/usdc.png' },
+  { symbol: 'ADA',  name: 'Cardano',   current_price: 0.92,   price_change_percentage_24h: 1.5,  image: 'https://assets.coingecko.com/coins/images/975/thumb/cardano.png' },
+  { symbol: 'AVAX', name: 'Avalanche', current_price: 38,     price_change_percentage_24h: -0.9, image: 'https://assets.coingecko.com/coins/images/12559/thumb/Avalanche_Circle_RedWhite_Trans.png' },
+  { symbol: 'DOGE', name: 'Dogecoin',  current_price: 0.19,   price_change_percentage_24h: 0.6,  image: 'https://assets.coingecko.com/coins/images/5/thumb/dogecoin.png' },
+];
+
+function renderCryptoList(data, stale = false) {
+  const el = document.getElementById('market-crypto');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="market-title">Cripto${stale ? ' <span class="market-stale">sin actualizar</span>' : ''}</div>
+    ${data.map(c => {
+      const chg = c.price_change_percentage_24h ?? 0;
+      return `<div class="market-row">
+        <div class="market-row-left">
+          <img class="market-coin-img" src="${c.image}" alt="" loading="lazy">
+          <div>
+            <span class="market-sym">${c.symbol.toUpperCase()}</span>
+            <span class="market-name">${c.name}</span>
+          </div>
+        </div>
+        <div class="market-row-right">
+          <span class="market-price">$${fmtMktPrice(c.current_price)}</span>
+          <span class="market-chg ${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+        </div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
 async function loadCrypto() {
   const el = document.getElementById('market-crypto');
   if (!el) return;
   try {
-    const res  = await fetch(
+    const res = await fetch(
       'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10',
-      { headers: { Accept: 'application/json' } }
+      { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json' } }
     );
+    if (res.status === 429) {
+      console.warn('[market] CoinGecko rate limit — using fallback');
+      renderCryptoList(CRYPTO_FALLBACK, true);
+      return;
+    }
     if (!res.ok) throw new Error(`http_${res.status}`);
     const data = await res.json();
-    el.innerHTML = `
-      <div class="market-title">Cripto</div>
-      ${data.map(c => {
-        const chg = c.price_change_percentage_24h ?? 0;
-        return `<div class="market-row">
-          <div class="market-row-left">
-            <img class="market-coin-img" src="${c.image}" alt="" loading="lazy">
-            <div>
-              <span class="market-sym">${c.symbol.toUpperCase()}</span>
-              <span class="market-name">${c.name}</span>
-            </div>
-          </div>
-          <div class="market-row-right">
-            <span class="market-price">$${fmtMktPrice(c.current_price)}</span>
-            <span class="market-chg ${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
-          </div>
-        </div>`;
-      }).join('')}
-    `;
+    console.log('[market] CRYPTO RAW sample:', data[0]);
+    renderCryptoList(data);
   } catch (e) {
-    el.innerHTML = `<div class="market-title">Cripto</div><p class="market-err">No disponible</p>`;
+    console.error('[market] Crypto fetch failed:', e.message);
+    renderCryptoList(CRYPTO_FALLBACK, true);
   }
 }
 
