@@ -4334,11 +4334,16 @@ const COMMODITY_FALLBACKS = { 'XAU/USD': 2320, 'XAG/USD': 27, 'WTI': 80 };
 const INDEX_NAMES        = { '^GSPC': 'S&P 500', '^IXIC': 'NASDAQ', '^DJI': 'Dow Jones' };
 const COMMODITY_NAMES    = { 'XAU/USD': 'Gold', 'XAG/USD': 'Silver', 'WTI': 'Oil (WTI)' };
 
-function _buildItem(symbol, data, fallbackMap) {
-  const price = data?.price ?? null;
-  if (price) return { symbol, name: INDEX_NAMES[symbol] ?? COMMODITY_NAMES[symbol] ?? symbol, price, change: 0, fallback: false };
-  const fb  = getFallbackData(symbol) ?? { price: fallbackMap?.[symbol] ?? null, change24h: 0 };
-  return { symbol, name: INDEX_NAMES[symbol] ?? COMMODITY_NAMES[symbol] ?? symbol, price: fb.price, change: fb.change24h ?? 0, fallback: true };
+function _buildItem(symbol, data, fallbackMap, type) {
+  const name = INDEX_NAMES[symbol] ?? COMMODITY_NAMES[symbol] ?? symbol;
+  if (data?.price) {
+    return normalizeMarketData({ name, price: data.price }, type, symbol);
+  }
+  const fb = getFallbackData(symbol) ?? { price: fallbackMap?.[symbol] ?? null, change24h: 0 };
+  return normalizeMarketData(
+    { name, price: fb.price, percent_change_24h: fb.change24h, fallback: true },
+    type, symbol
+  );
 }
 
 async function _loadGeneric(title, symbols, fallbackMap, searchType) {
@@ -4350,12 +4355,13 @@ async function _loadGeneric(title, symbols, fallbackMap, searchType) {
       symbols.map(async symbol => {
         try {
           const data = await fetchTwelveData(symbol);
-          return _buildItem(symbol, data, fallbackMap);
+          return _buildItem(symbol, data, fallbackMap, searchType);
         } catch {
-          return _buildItem(symbol, null, fallbackMap);
+          return _buildItem(symbol, null, fallbackMap, searchType);
         }
       })
     );
+    console.log(`[market] normalized sample (${searchType}):`, results[0]);
     renderGenericList(title, results);
     marketSearchData = [
       ...marketSearchData.filter(a => a.type !== searchType),
@@ -4436,6 +4442,22 @@ function renderSparkline(points, isUp = true) {
   return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><path d="${path}" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
+function normalizeMarketData(raw, type, symbol) {
+  if (!raw) {
+    return { symbol, name: symbol, price: null, change: null, change24h: null, type, fallback: true };
+  }
+  const change = raw.percent_change_24h ?? raw.change24h ?? raw.change ?? null;
+  return {
+    symbol,
+    name:     raw.name    || symbol,
+    price:    raw.price   ?? raw.close ?? null,
+    change,              // alias kept for renderStockItem compatibility
+    change24h: change,
+    type,
+    fallback: raw.fallback || false
+  };
+}
+
 function renderCryptoList(data, stale = false) {
   const el = document.getElementById('marketList');
   if (!el) return;
@@ -4499,27 +4521,33 @@ async function loadStocks() {
     const results = await Promise.all(
       MARKET_STOCKS.map(async symbol => {
         try {
-          const data  = await fetchTwelveData(symbol);
-          const price = data?.price ?? null;
-          if (!price) throw new Error('no price');
-          return { symbol, price, change: 0, fallback: false };
+          const data = await fetchTwelveData(symbol);
+          if (!data?.price) throw new Error('no price');
+          return normalizeMarketData({ price: data.price }, 'stock', symbol);
         } catch {
           const fb = getFallbackData(symbol);
-          return { symbol, price: fb?.price ?? null, change: fb?.change24h ?? 0, fallback: true };
+          return normalizeMarketData(
+            fb ? { price: fb.price, percent_change_24h: fb.change24h, fallback: true } : null,
+            'stock', symbol
+          );
         }
       })
     );
+    console.log('[market] normalized sample (stock):', results[0]);
     renderStocks(results, results.every(r => r.fallback));
     marketSearchData = [
       ...marketSearchData.filter(a => a.type !== 'stock'),
-      ...results.map(s => ({ symbol: s.symbol, name: s.symbol, price: s.price, type: 'stock' }))
+      ...results.map(s => ({ symbol: s.symbol, name: s.name, price: s.price, type: 'stock' }))
     ];
   } catch (err) {
     console.error('[market] stocks load error:', err);
     renderStocks(
       MARKET_STOCKS.map(symbol => {
         const fb = getFallbackData(symbol);
-        return { symbol, price: fb?.price ?? null, change: fb?.change24h ?? 0, fallback: true };
+        return normalizeMarketData(
+          fb ? { price: fb.price, percent_change_24h: fb.change24h, fallback: true } : null,
+          'stock', symbol
+        );
       }),
       true
     );
