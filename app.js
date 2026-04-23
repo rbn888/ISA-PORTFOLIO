@@ -4307,11 +4307,11 @@ function renderMarket() {
         </div>
       </div>
       <div class="market-tabs">
-        <button class="market-tab active" data-market="crypto">${t('tab_crypto')}</button>
-        <button class="market-tab" data-market="stocks">${t('tab_stocks')}</button>
-        <button class="market-tab" data-market="etfs">${t('tab_etfs')}</button>
-        <button class="market-tab" data-market="indices">${t('tab_indices')}</button>
-        <button class="market-tab" data-market="commodities">${t('tab_commodities')}</button>
+        <button class="market-tab ${currentMarketTab==='crypto'?'active':''}" data-market="crypto">${t('tab_crypto')}</button>
+        <button class="market-tab ${currentMarketTab==='stocks'?'active':''}" data-market="stocks">${t('tab_stocks')}</button>
+        <button class="market-tab ${currentMarketTab==='etfs'?'active':''}" data-market="etfs">${t('tab_etfs')}</button>
+        <button class="market-tab ${currentMarketTab==='indices'?'active':''}" data-market="indices">${t('tab_indices')}</button>
+        <button class="market-tab ${currentMarketTab==='commodities'?'active':''}" data-market="commodities">${t('tab_commodities')}</button>
       </div>
       <div class="market-body">
         <div class="market-main">
@@ -4509,13 +4509,6 @@ function renderMarketByType(type) {
   if (type === 'commodities') { loadCommodities(); return; }
 }
 
-function renderStocksPlaceholder(container) {
-  container.innerHTML = `<div class="market-empty">Acciones disponibles próximamente</div>`;
-}
-
-function renderETFsPlaceholder(container) {
-  container.innerHTML = `<div class="market-empty">ETFs disponibles próximamente</div>`;
-}
 
 const MARKET_ETFS        = ['SPY','QQQ','VOO','VTI','URTH'];
 const MARKET_INDICES     = ['^GSPC','^IXIC','^DJI'];
