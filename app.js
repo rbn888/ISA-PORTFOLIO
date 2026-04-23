@@ -974,6 +974,33 @@ let MARKET_DATA      = [];
 
 const MARKET_METRICS_CACHE = { ts: 0, data: null };
 const METRICS_TTL = 60 * 1000;
+
+const MARKET_HEADER_CONFIG = {
+  crypto: [
+    { key: 'marketCap',  label: 'Market Cap'   },
+    { key: 'btcDom',     label: 'BTC Dom'       },
+    { key: 'fearGreed',  label: 'Fear & Greed'  },
+    { key: 'volume24h',  label: '24h Volume'    }
+  ],
+  stocks: [
+    { key: 'marketCap',  label: 'Market Cap'   },
+    { key: 'sp500',      label: 'S&P 500'       },
+    { key: 'vix',        label: 'VIX'           },
+    { key: 'topMovers',  label: 'Top Movers'    }
+  ],
+  etfs: [
+    { key: 'marketCap',  label: 'Total AUM'    },
+    { key: 'spy',        label: 'SPY'           },
+    { key: 'qqq',        label: 'QQQ'           },
+    { key: 'flows',      label: 'Flows'         }
+  ],
+  commodities: [
+    { key: 'gold',            label: 'Gold'      },
+    { key: 'oil',             label: 'Oil'       },
+    { key: 'commodityIndex',  label: 'Index'     },
+    { key: 'inflation',       label: 'Inflation' }
+  ]
+};
 let showAllTx        = false;
 let insightIndex        = 0;
 let insightCache            = [];
@@ -4231,17 +4258,47 @@ async function fetchMarketMetrics() {
   }
 }
 
-async function renderMarketMetrics() {
-  const data = await fetchMarketMetrics();
-  if (!data) return;
-  const cap = document.getElementById('metricMarketCap');
-  const dom = document.getElementById('metricBTCdom');
-  if (cap) cap.textContent = '$' + formatNumber(data.marketCap);
-  if (dom) dom.textContent = data.btcDom.toFixed(1) + '%';
-  const fg  = document.getElementById('metricFearGreed');
-  const liq = document.getElementById('metricLiquidations');
-  if (fg)  fg.textContent  = '—';
-  if (liq) liq.textContent = '—';
+function safeValue(value, fallback) {
+  return (value === undefined || value === null || value === '') ? fallback : value;
+}
+
+function getMetricValue(key) {
+  const cache = MARKET_METRICS_CACHE.data || {};
+  switch (key) {
+    case 'marketCap':  return cache.marketCap ? '$' + formatNumber(cache.marketCap) : '$2.5T';
+    case 'btcDom':     return cache.btcDom    != null ? cache.btcDom.toFixed(1) + '%' : '52%';
+    case 'fearGreed':  return safeValue(cache.fearGreed,  '—');
+    case 'volume24h':  return safeValue(cache.volume24h,  '—');
+    case 'sp500':      return safeValue(cache.sp500,      '—');
+    case 'vix':        return safeValue(cache.vix,        '—');
+    case 'spy':        return safeValue(cache.spy,        '—');
+    case 'qqq':        return safeValue(cache.qqq,        '—');
+    case 'gold':       return safeValue(cache.gold,       '—');
+    case 'oil':        return safeValue(cache.oil,        '—');
+    default:           return 'N/A';
+  }
+}
+
+function renderMarketMetrics() {
+  const config = MARKET_HEADER_CONFIG[currentMarketTab] || MARKET_HEADER_CONFIG.crypto;
+  const container = document.querySelector('.market-metrics-scroll');
+  if (!container) return;
+  container.innerHTML = config.map(metric => `
+    <div class="market-metric-card">
+      <div class="label">${metric.label}</div>
+      <div class="value">${getMetricValue(metric.key)}</div>
+    </div>
+  `).join('');
+  fetchMarketMetrics().then(data => {
+    if (data && container.isConnected) {
+      container.innerHTML = config.map(metric => `
+        <div class="market-metric-card">
+          <div class="label">${metric.label}</div>
+          <div class="value">${getMetricValue(metric.key)}</div>
+        </div>
+      `).join('');
+    }
+  });
 }
 
 // ── Market tab ─────────────────────────────────────────────
@@ -4311,8 +4368,8 @@ function renderMarket() {
       <div id="marketList" class="market-section"></div>
     </div>
   `;
-  renderMarketMetrics();
   currentMarketTab = 'crypto';
+  renderMarketMetrics();
   initMarketTabs();
   initMarketSearch();
   // Event delegation for star toggles — set once, covers all dynamic rows
@@ -4410,6 +4467,7 @@ function initMarketTabs() {
       if (!type || type === currentMarketTab) return;
       currentMarketTab = type;
       updateMarketTabUI();
+      renderMarketMetrics();
       renderMarketByType(type);
     });
   });

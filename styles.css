@@ -5760,6 +5760,11 @@ main { padding-bottom: 72px; }
   border-radius: 12px;
   padding: 12px;
   backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.market-metric-card:active {
+  transform: scale(0.97);
 }
 
 .market-metric-card .label {
@@ -5771,4 +5776,5 @@ main { padding-bottom: 72px; }
   font-size: 16px;
   font-weight: 600;
   color: #fff;
+  transition: all 0.25s ease;
 }
