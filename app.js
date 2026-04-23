@@ -4363,43 +4363,48 @@ function generateMarketInsights() {
   if (tab === 'crypto' || tab === 'indices' || !tab) {
     const btc = _findMktItem('BTC');
     const eth = _findMktItem('ETH');
-    if (btc?.change24h > 2)
+    const btcChg = btc?.change24h ?? btc?.change ?? null;
+    const ethChg = eth?.change24h ?? eth?.change ?? null;
+    if (btcChg !== null && btcChg > 0.8)
       insights.push({ type: 'bullish', text: 'Crypto showing strength',
         signal: 'Momentum building — watch BTC breakout' });
-    if (btc?.change24h < -2)
+    else if (btcChg !== null && btcChg < -0.8)
       insights.push({ type: 'bearish', text: 'Crypto under pressure',
         signal: 'Watch for support levels — volatility elevated' });
-    if (eth && btc && Math.abs((eth.change24h ?? 0) - (btc.change24h ?? 0)) > 3)
+    if (ethChg !== null && btcChg !== null && Math.abs(ethChg - btcChg) > 2)
       insights.push({ type: 'neutral', text: 'Altcoin divergence detected',
         signal: 'ETH moving independently from BTC — watch spreads' });
   }
 
   if (tab === 'stocks' || tab === 'indices' || !tab) {
     const spy = _findMktItem('SPY');
-    if (spy?.change24h > 1)
+    const spyChg = spy?.change24h ?? spy?.change ?? null;
+    if (spyChg !== null && spyChg > 0.5)
       insights.push({ type: 'bullish', text: 'Equities rallying',
         signal: 'Broad market strength — risk-on momentum' });
-    if (spy?.change24h < -1)
+    else if (spyChg !== null && spyChg < -0.5)
       insights.push({ type: 'bearish', text: 'Equities under pressure',
         signal: 'Risk-off sentiment — watch defensive assets' });
   }
 
   if (tab === 'commodities' || !tab) {
     const gold = _findMktItem('XAUUSD');
-    if (gold?.change24h > 1)
+    const goldChg = gold?.change24h ?? gold?.change ?? null;
+    if (goldChg !== null && goldChg > 0.5)
       insights.push({ type: 'neutral', text: 'Gold rising',
         signal: 'Possible hedge demand increasing — risk-off signal' });
-    if (gold?.change24h < -1)
+    else if (goldChg !== null && goldChg < -0.5)
       insights.push({ type: 'neutral', text: 'Gold falling',
         signal: 'Risk-on mood — capital rotating to equities' });
   }
 
   if (tab === 'etfs') {
     const qqq = _findMktItem('QQQ');
-    if (qqq?.change24h > 1.5)
+    const qqqChg = qqq?.change24h ?? qqq?.change ?? null;
+    if (qqqChg !== null && qqqChg > 0.8)
       insights.push({ type: 'bullish', text: 'Tech ETFs outperforming',
         signal: 'Growth momentum — watch mega-cap tech' });
-    if (qqq?.change24h < -1)
+    else if (qqqChg !== null && qqqChg < -0.5)
       insights.push({ type: 'bearish', text: 'Tech ETFs selling off',
         signal: 'Tech rotation underway — watch value vs growth' });
   }
@@ -4783,10 +4788,11 @@ async function loadCrypto() {
     if (!res.ok) throw new Error(`http_${res.status}`);
     const data = await res.json();
     console.log('[market] CRYPTO RAW sample:', data[0]);
-    const cryptoItems = data.map(c => ({
-      symbol: c.symbol.toUpperCase(), name: c.name,
-      price: c.current_price, change: c.price_change_percentage_24h ?? 0, type: 'crypto'
-    }));
+    const cryptoItems = data.map(c => {
+      const chg = c.price_change_percentage_24h ?? 0;
+      return { symbol: c.symbol.toUpperCase(), name: c.name,
+        price: c.current_price, change: chg, change24h: chg, type: 'crypto' };
+    });
     marketSearchData = [
       ...marketSearchData.filter(a => a.type !== 'crypto'),
       ...cryptoItems.map(c => ({ symbol: c.symbol, name: c.name, price: c.price, type: 'crypto' }))
