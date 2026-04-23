@@ -4315,23 +4315,7 @@ function renderMarket() {
       </div>
       <div class="market-body">
         <div class="market-main">
-          <div class="market-featured" id="marketFeatured">
-            <div class="featured-card">
-              <div>BTC</div>
-              <div>$97,000</div>
-              <div class="green">+1.2%</div>
-            </div>
-            <div class="featured-card">
-              <div>SPY</div>
-              <div>$520</div>
-              <div class="green">+0.4%</div>
-            </div>
-            <div class="featured-card">
-              <div>Gold</div>
-              <div>$2,350</div>
-              <div class="red">-0.2%</div>
-            </div>
-          </div>
+          <div class="market-featured" id="marketFeatured"></div>
           <div id="marketList" class="market-section"></div>
         </div>
         <div class="market-sidebar">
@@ -4340,7 +4324,9 @@ function renderMarket() {
       </div>
     </div>
   `;
-  currentMarketTab = 'crypto';
+  // Preserve currentMarketTab across re-renders (e.g. language switch)
+  if (!currentMarketTab) currentMarketTab = 'crypto';
+  updateMarketTabUI();
   updateMarketHeader();
   initMarketTabs();
   initMarketSearch();
@@ -4360,10 +4346,11 @@ function renderMarket() {
       renderMyAssetsBlock();
     });
   }
-  loadMarketData();
+  ensureMarketData();
 }
 
 function renderMyAssetsBlock() {
+  renderFeaturedBlock();
   const container = document.getElementById('marketMyAssets');
   if (!container) return;
   const watchedSet = new Set(getWatchlist().map(normalizeSymbol));
@@ -4394,7 +4381,7 @@ function initMarketSearch() {
   if (!input) return;
   input.addEventListener('input', e => {
     const query = e.target.value.trim().toLowerCase();
-    if (!query) { renderMarketByType(currentMarketTab); return; }
+    if (!query) { ensureMarketData(); return; }
     const results = MARKET_DATA.filter(item =>
       (item.symbol || '').toLowerCase().includes(query) ||
       (item.name   || '').toLowerCase().includes(query)
@@ -4437,6 +4424,61 @@ function updateMarketHeader() {
   });
 }
 
+const _TYPE_LABEL = {
+  crypto: () => t('tab_crypto'), stock: () => t('tab_stocks'),
+  etf: () => t('tab_etfs'), index: () => t('tab_indices'), commodity: () => t('tab_commodities'),
+};
+const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etf', indices: 'index', commodities: 'commodity' };
+
+function renderFromCache(type) {
+  const cached = MARKET_DATA.filter(d => d.type === type);
+  if (!cached.length) return false;
+  const container = document.getElementById('marketList');
+  if (!container) return false;
+  const label = _TYPE_LABEL[type]?.() ?? type;
+  container.innerHTML = `
+    <div class="market-section-header">${label}</div>
+    ${cached.map(renderStockItem).join('')}
+  `;
+  return true;
+}
+
+function ensureMarketData() {
+  const type = _TAB_TO_TYPE[currentMarketTab];
+  if (type && renderFromCache(type)) return; // cache hit — no fetch needed
+  switch (currentMarketTab) {
+    case 'crypto':      loadCrypto();      break;
+    case 'stocks':      loadStocks();      break;
+    case 'etfs':        loadETFs();        break;
+    case 'indices':     loadIndices();     break;
+    case 'commodities': loadCommodities(); break;
+  }
+}
+
+const _SNAPSHOT = [
+  { symbol: 'BTC',    label: 'Bitcoin' },
+  { symbol: 'ETH',    label: 'Ethereum' },
+  { symbol: 'SPY',    label: 'S&P 500' },
+  { symbol: 'XAUUSD', label: 'Gold' },
+];
+
+function renderFeaturedBlock() {
+  const container = document.getElementById('marketFeatured');
+  if (!container) return;
+  const cards = _SNAPSHOT.map(({ symbol, label }) => {
+    const item = MARKET_DATA.find(d => normalizeSymbol(d.symbol) === normalizeSymbol(symbol));
+    if (!item) return '';
+    const chg = item.change24h ?? item.change ?? null;
+    const cls = chg == null ? '' : chg >= 0 ? 'green' : 'red';
+    return `<div class="featured-card">
+      <div>${label}</div>
+      <div>${safePrice(item.price)}</div>
+      ${chg != null ? `<div class="${cls}">${safeChange(chg)}</div>` : ''}
+    </div>`;
+  }).filter(Boolean).join('');
+  container.innerHTML = cards;
+}
+
 function initMarketTabs() {
   document.querySelectorAll('.market-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -4445,7 +4487,7 @@ function initMarketTabs() {
       currentMarketTab = type;
       updateMarketTabUI();
       updateMarketHeader();
-      renderMarketByType(type);
+      ensureMarketData();
     });
   });
 }
@@ -4556,7 +4598,7 @@ function renderFallbackList(title, symbols) {
 }
 
 async function loadMarketData() {
-  renderMarketByType(currentMarketTab);
+  ensureMarketData();
 }
 
 const CRYPTO_FALLBACK = [
@@ -4745,6 +4787,18 @@ function renderStockItem(item) {
       </div>
     </div>
   `;
+}
+
+function safeNumber(val, fallback = '—') {
+  return (typeof val === 'number' && !isNaN(val)) ? val : fallback;
+}
+function safePrice(val) {
+  if (typeof val !== 'number' || isNaN(val)) return '—';
+  return `$${fmtMktPrice(val)}`;
+}
+function safeChange(val) {
+  if (typeof val !== 'number' || isNaN(val)) return '—';
+  return `${val >= 0 ? '+' : ''}${val.toFixed(2)}%`;
 }
 
 function fmtMktPrice(p) {
