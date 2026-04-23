@@ -4331,11 +4331,8 @@ function renderMarket() {
 function renderMyAssetsBlock() {
   const container = document.getElementById('marketMyAssets');
   if (!container) return;
-  const watchlist = getWatchlist();
-  const filtered  = MARKET_DATA.filter(item => watchlist.includes(normalizeSymbol(item.symbol)));
-  console.log('[watchlist]', watchlist);
-  console.log('[market symbols]', MARKET_DATA.map(i => i.symbol));
-  console.log('[filtered]', filtered.map(i => i.symbol));
+  const watchedSet = new Set(getWatchlist().map(normalizeSymbol));
+  const filtered   = MARKET_DATA.filter(item => watchedSet.has(normalizeSymbol(item.symbol)));
   if (!filtered.length) {
     container.innerHTML = `<div class="empty-watchlist">Añade activos ⭐ para seguirlos aquí</div>`;
     return;
@@ -4349,7 +4346,6 @@ function renderMyAssetsBlock() {
     if (b.price !== a.price) return (b.price || 0) - (a.price || 0);
     return a.symbol.localeCompare(b.symbol);
   });
-  console.log('[ranking]', sorted.map(i => ({ symbol: i.symbol, change: i.change24h })));
   container.innerHTML = `
     <div class="market-section">
       <div class="market-section-title">My Assets</div>
@@ -4364,9 +4360,9 @@ function initMarketSearch() {
   input.addEventListener('input', e => {
     const query = e.target.value.trim().toLowerCase();
     if (!query) { renderMarketByType(currentMarketTab); return; }
-    const results = marketSearchData.filter(item =>
-      item.symbol.toLowerCase().includes(query) ||
-      item.name.toLowerCase().includes(query)
+    const results = MARKET_DATA.filter(item =>
+      (item.symbol || '').toLowerCase().includes(query) ||
+      (item.name   || '').toLowerCase().includes(query)
     ).slice(0, 15);
     renderSearchResults(results);
   });
@@ -4504,7 +4500,7 @@ function renderGenericList(title, data) {
   const badge = hasFallback ? '<span class="market-badge">sin actualizar</span>' : '';
   container.innerHTML = `
     <div class="market-section-header">${title} ${badge}</div>
-    ${data.map(item => renderStockItem({ ...item, symbol: item.name || item.symbol })).join('')}
+    ${data.map(item => renderStockItem(item)).join('')}
   `;
 }
 
@@ -7917,7 +7913,13 @@ const WATCHLIST_KEY = 'aurix_watchlist'; // same key as watchlistStore
 
 function normalizeSymbol(symbol) {
   if (!symbol) return '';
-  return String(symbol).toUpperCase().replace(/\//g, '').replace(/-/g, '').trim();
+  return String(symbol)
+    .toUpperCase()
+    .replace(/\.[A-Z]{1,3}$/, '') // strip exchange suffixes: .US .L .DE .F etc.
+    .replace(/\//g, '')
+    .replace(/-/g, '')
+    .replace(/^\^/, '')           // strip index prefix: ^GSPC → GSPC
+    .trim();
 }
 
 function _normalizeWLSymbol(symbol) { return normalizeSymbol(symbol); }
