@@ -5811,3 +5811,31 @@ main { padding-bottom: 72px; }
 .snapshot-card .price { font-size: 16px; font-weight: 600; }
 .snapshot-card .change.pos { color: #22c55e; }
 .snapshot-card .change.neg { color: #ef4444; }
+
+/* Market Top Movers */
+.market-movers {
+  display: flex;
+  gap: 16px;
+  padding: 0 16px 12px;
+}
+
+.movers-block { flex: 1; }
+
+.movers-block .title {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.mover-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.mover-item .symbol { color: #ccc; }
+.mover-item .change.pos { color: #22c55e; }
+.mover-item .change.neg { color: #ef4444; }
+
+.empty { font-size: 12px; color: #666; }

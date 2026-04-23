@@ -4351,6 +4351,47 @@ function renderMarketSnapshot() {
   return `<div class="snapshot-scroll">${html}</div>`;
 }
 
+// ── Market top movers ──────────────────────────────────────
+function getTopMovers(data, limit = 3) {
+  try {
+    if (!Array.isArray(data)) return { gainers: [], losers: [] };
+    const valid  = data.filter(x => typeof x.change24h === 'number');
+    const sorted = [...valid].sort((a, b) => b.change24h - a.change24h);
+    return {
+      gainers: sorted.slice(0, limit),
+      losers:  sorted.slice(-limit).reverse()
+    };
+  } catch (e) {
+    return { gainers: [], losers: [] };
+  }
+}
+
+function renderMarketMovers() {
+  const { gainers, losers } = getTopMovers(MARKET_DATA, 3);
+
+  const renderRow = item => {
+    const symbol = item?.symbol ?? '--';
+    const change = item?.change24h;
+    return `
+      <div class="mover-item">
+        <span class="symbol">${symbol}</span>
+        <span class="change ${getChangeClass(change)}">${formatChange(change)}</span>
+      </div>`;
+  };
+
+  return `
+    <div class="market-movers">
+      <div class="movers-block">
+        <div class="title">Top Gainers</div>
+        ${gainers.map(renderRow).join('') || '<div class="empty">No data</div>'}
+      </div>
+      <div class="movers-block">
+        <div class="title">Top Losers</div>
+        ${losers.map(renderRow).join('') || '<div class="empty">No data</div>'}
+      </div>
+    </div>`;
+}
+
 // ── Market tab ─────────────────────────────────────────────
 function renderMarket() {
   const container = document.getElementById('tabPlaceholder');
@@ -4398,6 +4439,7 @@ function renderMarket() {
         <button class="market-tab" data-market="commodities">Materias</button>
       </div>
       <div id="marketSnapshot"></div>
+      <div id="marketMovers"></div>
       <div id="marketMyAssets"></div>
       <div id="marketList" class="market-section"></div>
     </div>
@@ -4407,6 +4449,8 @@ function renderMarket() {
   requestAnimationFrame(() => {
     const el = document.getElementById('marketSnapshot');
     if (el) el.innerHTML = renderMarketSnapshot();
+    const mv = document.getElementById('marketMovers');
+    if (mv) mv.innerHTML = renderMarketMovers();
   });
   initMarketTabs();
   initMarketSearch();
@@ -4508,6 +4552,8 @@ function initMarketTabs() {
       renderMarketMetrics();
       const snap = document.getElementById('marketSnapshot');
       if (snap) snap.innerHTML = renderMarketSnapshot();
+      const mv = document.getElementById('marketMovers');
+      if (mv) mv.innerHTML = renderMarketMovers();
       renderMarketByType(type);
     });
   });
