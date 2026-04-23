@@ -971,6 +971,9 @@ let currentTab       = 'home';
 let currentMarketTab = 'crypto';
 let marketSearchData = [];
 let MARKET_DATA      = [];
+
+const MARKET_METRICS_CACHE = { ts: 0, data: null };
+const METRICS_TTL = 60 * 1000;
 let showAllTx        = false;
 let insightIndex        = 0;
 let insightCache            = [];
@@ -4199,6 +4202,48 @@ function renderInsights() {
     </div>`;
 }
 
+// ── Market metrics ─────────────────────────────────────────
+function formatNumber(num) {
+  if (num > 1e12) return (num / 1e12).toFixed(2) + 'T';
+  if (num > 1e9)  return (num / 1e9).toFixed(2) + 'B';
+  if (num > 1e6)  return (num / 1e6).toFixed(2) + 'M';
+  return num.toFixed(0);
+}
+
+async function fetchMarketMetrics() {
+  const now = Date.now();
+  if (MARKET_METRICS_CACHE.data && (now - MARKET_METRICS_CACHE.ts) < METRICS_TTL) {
+    return MARKET_METRICS_CACHE.data;
+  }
+  try {
+    const res  = await fetch('https://api.coingecko.com/api/v3/global');
+    const json = await res.json();
+    const data = {
+      marketCap: json.data.total_market_cap.usd,
+      btcDom:    json.data.market_cap_percentage.btc
+    };
+    MARKET_METRICS_CACHE.data = data;
+    MARKET_METRICS_CACHE.ts   = now;
+    return data;
+  } catch (e) {
+    console.error('[market] metrics fetch failed', e);
+    return null;
+  }
+}
+
+async function renderMarketMetrics() {
+  const data = await fetchMarketMetrics();
+  if (!data) return;
+  const cap = document.getElementById('metricMarketCap');
+  const dom = document.getElementById('metricBTCdom');
+  if (cap) cap.textContent = '$' + formatNumber(data.marketCap);
+  if (dom) dom.textContent = data.btcDom.toFixed(1) + '%';
+  const fg  = document.getElementById('metricFearGreed');
+  const liq = document.getElementById('metricLiquidations');
+  if (fg)  fg.textContent  = '—';
+  if (liq) liq.textContent = '—';
+}
+
 // ── Market tab ─────────────────────────────────────────────
 function renderMarket() {
   const container = document.getElementById('tabPlaceholder');
@@ -4266,10 +4311,7 @@ function renderMarket() {
       <div id="marketList" class="market-section"></div>
     </div>
   `;
-  document.getElementById('metricMarketCap').textContent = '$2.5T';
-  document.getElementById('metricFearGreed').textContent = '59';
-  document.getElementById('metricBTCdom').textContent = '52%';
-  document.getElementById('metricLiquidations').textContent = '$120M';
+  renderMarketMetrics();
   currentMarketTab = 'crypto';
   initMarketTabs();
   initMarketSearch();
