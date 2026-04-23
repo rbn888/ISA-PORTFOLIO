@@ -4397,22 +4397,7 @@ function renderSearchResults(results) {
     container.innerHTML = `<div class="market-empty">${t('market_no_results')}</div>`;
     return;
   }
-  container.innerHTML = results.map(item => {
-    const price = typeof item.price === 'number' && item.price > 0
-      ? `$${fmtMktPrice(item.price)}`
-      : '—';
-    return `
-      <div class="market-row">
-        <div class="market-left">
-          <div class="market-symbol">${item.symbol}</div>
-          <div class="market-type">${item.type}</div>
-        </div>
-        <div class="market-right">
-          <div class="market-price">${price}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = results.map(renderStockItem).join('');
 }
 
 function updateMarketHeader() {
@@ -4579,14 +4564,20 @@ function renderFallbackList(title, symbols) {
   if (!container) return;
   container.innerHTML = `
     <div class="market-section-header">${title} <span class="market-badge">${t('stale')}</span></div>
-    ${symbols.map(s => `
-      <div class="market-row">
-        <div class="market-left">
-          <div class="market-symbol">${INDEX_NAMES[s] ?? COMMODITY_NAMES[s] ?? s}</div>
+    ${symbols.map(s => {
+      const label = INDEX_NAMES[s] ?? COMMODITY_NAMES[s] ?? s;
+      return `<div class="market-row">
+        <div class="market-row-rank">—</div>
+        <div class="market-row-name">
+          <div class="market-icon">${label.charAt(0)}</div>
+          <div class="market-symbol">${label}</div>
         </div>
-        <div class="market-right"><div class="market-price">—</div></div>
-      </div>
-    `).join('')}
+        <div class="market-row-price">—</div>
+        <div class="market-row-change">—</div>
+        <div class="market-row-spark"></div>
+        <div class="market-row-action"></div>
+      </div>`;
+    }).join('')}
   `;
 }
 
@@ -4656,17 +4647,20 @@ function renderCryptoList(data, stale = false) {
       const sym     = c.symbol.toUpperCase();
       const watched = isInWatchlist(sym);
       return `<div class="market-row" data-symbol="${sym}">
-        <div class="market-row-left">
+        <div class="market-row-rank">—</div>
+        <div class="market-row-name">
           <img class="market-coin-img" src="${c.image}" alt="" loading="lazy">
           <div>
-            <span class="market-sym">${sym}</span>
-            <span class="market-name">${c.name}</span>
+            <div class="market-symbol">${sym}</div>
+            <div class="market-name-sub">${c.name}</div>
           </div>
         </div>
-        <div class="market-chart">${chart}</div>
-        <div class="market-row-right">
-          <span class="market-price">$${fmtMktPrice(c.current_price)}</span>
+        <div class="market-row-price">$${fmtMktPrice(c.current_price)}</div>
+        <div class="market-row-change">
           <span class="market-chg ${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+        </div>
+        <div class="market-row-spark">${chart}</div>
+        <div class="market-row-action">
           <button class="watchlist-btn ${watched ? 'active' : ''}" data-symbol="${sym}">${watched ? '★' : '☆'}</button>
         </div>
       </div>`;
@@ -4763,19 +4757,31 @@ function renderStocks(data, isFallback = false) {
 }
 
 function renderStockItem(item) {
-  const price     = typeof item.price === 'number' && item.price > 0 ? `$${fmtMktPrice(item.price)}` : '—';
-  const chart     = renderSparkline(generateSparkline(item.change ?? 0), (item.change ?? 0) >= 0);
-  const normSym   = _normalizeWLSymbol(item.symbol);
-  const watched   = isInWatchlist(normSym);
+  const price    = safePrice(item.price);
+  const chg      = item.change24h ?? item.change ?? null;
+  const chgStr   = chg !== null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : '—';
+  const chgClass = chg !== null ? (chg >= 0 ? 'up' : 'down') : '';
+  const chart    = renderSparkline(generateSparkline(chg ?? 0), (chg ?? 0) >= 0);
+  const normSym  = _normalizeWLSymbol(item.symbol);
+  const watched  = isInWatchlist(normSym);
+  const nameSub  = item.name && item.name !== item.symbol
+    ? `<div class="market-name-sub">${item.name}</div>` : '';
   return `
     <div class="market-row" data-symbol="${normSym}">
-      <div class="market-left">
+      <div class="market-row-rank">—</div>
+      <div class="market-row-name">
         <div class="market-icon">${item.symbol.charAt(0)}</div>
-        <div class="market-symbol">${item.symbol}</div>
+        <div>
+          <div class="market-symbol">${item.symbol}</div>
+          ${nameSub}
+        </div>
       </div>
-      <div class="market-chart">${chart}</div>
-      <div class="market-right">
-        <div class="market-price">${price}</div>
+      <div class="market-row-price">${price}</div>
+      <div class="market-row-change">
+        <span class="market-chg ${chgClass}">${chgStr}</span>
+      </div>
+      <div class="market-row-spark">${chart}</div>
+      <div class="market-row-action">
         <button class="watchlist-btn ${watched ? 'active' : ''}" data-symbol="${normSym}">${watched ? '★' : '☆'}</button>
       </div>
     </div>
