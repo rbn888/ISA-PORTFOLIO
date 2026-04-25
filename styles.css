@@ -6078,18 +6078,27 @@ main { padding-bottom: 72px; }
 
 /* Hidden by default — desktop never sees it */
 .portfolio-mobile-slider { display: none; }
+.portfolio-mobile-card   { display: none; }
 
 @media (max-width: 768px) {
   /* Hide desktop chart and distribution so slider takes over */
   .hero-right           { display: none; }
   .distribution-section { display: none; }
 
+  /* Card container — consistent UI with rest of dashboard */
+  .portfolio-mobile-card {
+    display: block;
+    padding: 0;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
   /* Show slider */
   .portfolio-mobile-slider {
     display: block;
     overflow: hidden;
     width: 100%;
-    margin-bottom: 24px;
+    touch-action: pan-y;
   }
 
   /* Track: 200% wide so each 50%-wide slide = 100% of container */
@@ -6154,7 +6163,8 @@ main { padding-bottom: 72px; }
   }
 }
 
-/* Explicit desktop guard — slider never visible at ≥769px */
+/* Explicit desktop guard — slider and card never visible at ≥769px */
 @media (min-width: 769px) {
   .portfolio-mobile-slider { display: none; }
+  .portfolio-mobile-card   { display: none; }
 }

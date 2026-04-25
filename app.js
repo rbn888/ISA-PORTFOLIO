@@ -7526,8 +7526,13 @@ function initMobileSlider() {
   const container = document.getElementById('portfolioMobileSlider');
   const dots = document.querySelectorAll('.m-dot');
   let current = 0;
-  let startX = 0;
   const THRESHOLD = 40;
+
+  // Directional gesture state
+  let startX = 0;
+  let startY = 0;
+  let isDragging = false;
+  let isHorizontal = null;
 
   function goTo(idx) {
     current = idx;
@@ -7535,11 +7540,34 @@ function initMobileSlider() {
     dots.forEach((d, i) => d.classList.toggle('active', i === idx));
   }
 
-  container.addEventListener('touchstart', e => {
-    startX = e.touches[0].clientX;
+  track.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    isDragging = true;
+    isHorizontal = null;
   }, { passive: true });
 
-  container.addEventListener('touchend', e => {
+  // non-passive so preventDefault() can block scroll on horizontal swipe
+  track.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+
+    if (isHorizontal === null) {
+      isHorizontal = Math.abs(dx) > Math.abs(dy);
+    }
+
+    if (isHorizontal) {
+      e.preventDefault(); // block page scroll on horizontal swipe
+    }
+  }, { passive: false });
+
+  track.addEventListener('touchend', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    isHorizontal = null;
     const diff = startX - e.changedTouches[0].clientX;
     if (diff > THRESHOLD && current < 1) goTo(1);
     if (diff < -THRESHOLD && current > 0) goTo(0);
