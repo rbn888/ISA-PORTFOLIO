@@ -6090,39 +6090,56 @@ main { padding-bottom: 72px; }
     display: block;
     padding: 0;
     overflow: hidden;
-    margin-bottom: 24px;
+    margin: 16px 0;
   }
 
-  /* Show slider */
+  /* Slider: fixed height + position:relative for absolute dots */
   .portfolio-mobile-slider {
     display: block;
     overflow: hidden;
     width: 100%;
+    height: 320px;
+    position: relative;
     touch-action: pan-y;
   }
 
-  /* Track: 200% wide so each 50%-wide slide = 100% of container */
+  /* Track: 200% wide, full height so slides can fill it */
   .mobile-slider-track {
     display: flex;
     width: 200%;
+    height: 100%;
     transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
   }
 
-  /* Each slide fills the visible container */
+  /* Each slide: fills half the track = 100% of the container */
   .mobile-slide {
     width: 50%;
+    height: 100%;
     flex-shrink: 0;
     box-sizing: border-box;
-    padding: 16px 20px 20px;
+    padding: 16px;
   }
 
-  /* Chart slide: chart-wrap height */
-  .mobile-slide .chart-wrap {
-    height: 180px;
+  /* Chart slide: flex column so chart-wrap fills remaining space */
+  .mobile-slide-chart {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-slide-chart .chart-wrap {
+    flex: 1;
+    min-height: 0;
     position: relative;
     margin-top: 10px;
     overflow: hidden;
+  }
+
+  /* Donut slide: center content vertically */
+  .mobile-slide-donut {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   /* Donut slide: stack donut + legend vertically */
@@ -6130,23 +6147,25 @@ main { padding-bottom: 72px; }
     flex-direction: column;
     align-items: center;
     gap: 16px;
-    margin-top: 12px;
   }
 
   .mobile-donut-wrap {
     position: relative;
     flex-shrink: 0;
-    width: min(180px, 50vw);
-    height: min(180px, 50vw);
+    width: min(160px, 45vw);
+    height: min(160px, 45vw);
     overflow: visible;
   }
 
-  /* Dots navigation */
+  /* Dots: absolute inside slider, stable position regardless of content */
   .mobile-slider-dots {
+    position: absolute;
+    bottom: 8px;
+    left: 0;
+    width: 100%;
     display: flex;
     justify-content: center;
     gap: 6px;
-    padding: 8px 0 12px;
   }
 
   .m-dot {

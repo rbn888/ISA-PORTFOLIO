@@ -7569,9 +7569,13 @@ function initMobileSlider() {
     if (isHorizontal === null) {
       isHorizontal = Math.abs(dx) > Math.abs(dy);
     }
-    if (!isHorizontal) return;
+    if (!isHorizontal) {
+      document.body.style.overflow = '';
+      return;
+    }
 
     e.preventDefault(); // block page scroll — horizontal gesture confirmed
+    document.body.style.overflow = 'hidden';
 
     // Edge resistance: pulling beyond first/last slide feels weighted
     let effectiveDx = dx;
@@ -7585,6 +7589,7 @@ function initMobileSlider() {
     if (!isDragging) return;
     isDragging   = false;
     isHorizontal = null;
+    document.body.style.overflow = '';
 
     const dx       = e.changedTouches[0].clientX - startX;
     const dt       = Date.now() - startTime;
