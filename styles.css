@@ -6100,7 +6100,7 @@ main { padding-bottom: 72px; }
 
   .portfolio-slider-card:hover { border-color: var(--border-hi); }
 
-  /* Slider: adaptive height, no padding (card handles it) */
+  /* Slider: adaptive height, padding-bottom reserves space for dots */
   .portfolio-mobile-slider {
     display: block;
     overflow: hidden;
@@ -6108,6 +6108,7 @@ main { padding-bottom: 72px; }
     min-height: 280px;
     height: auto;
     position: relative;
+    padding-bottom: 24px;
     touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
@@ -6171,12 +6172,12 @@ main { padding-bottom: 72px; }
     overflow: visible;
   }
 
-  /* Dots: absolute inside slider, stable regardless of content */
+  /* Dots: sit in the 24px padding-bottom zone — never over the chart */
   .mobile-slider-dots {
     position: absolute;
-    bottom: 8px;
+    bottom: 6px;
     left: 0;
-    width: 100%;
+    right: 0;
     display: flex;
     justify-content: center;
     gap: 6px;
@@ -6218,12 +6219,13 @@ main { padding-bottom: 72px; }
   /* Hide bottom-nav add tab — action moved into FAB */
   .bottom-nav [data-tab="add"] { display: none; }
 
-  /* FAB container — absolute top-right of hero-left (position:relative) */
+  /* FAB container — optically aligned with meta line (activos · actualizado) */
   .portfolio-actions-mobile {
     display: block;
     position: absolute;
-    top: 12px;
-    right: 16px;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-10%);
     z-index: 6;
   }
 
@@ -6231,19 +6233,20 @@ main { padding-bottom: 72px; }
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    background: var(--accent);
-    color: #fff;
-    border: none;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: #60a5fa;
     font-size: 20px;
     line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    backdrop-filter: blur(6px);
     transition: opacity 0.15s ease;
   }
 
-  .fab-trigger:active { opacity: 0.8; }
+  .fab-trigger:active { opacity: 0.7; }
 
   /* Dropdown menu */
   .fab-menu {
