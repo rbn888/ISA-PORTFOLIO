@@ -7525,52 +7525,78 @@ function initMobileSlider() {
 
   const container = document.getElementById('portfolioMobileSlider');
   const dots = document.querySelectorAll('.m-dot');
-  let current = 0;
-  const THRESHOLD = 40;
 
-  // Directional gesture state
-  let startX = 0;
-  let startY = 0;
-  let isDragging = false;
+  const totalSlides = 2;
+  const lastIndex   = totalSlides - 1;
+  let currentIndex  = 0;
+
+  const DISTANCE_THRESHOLD = 50;   // px  — minimum drag to count as swipe
+  const VELOCITY_THRESHOLD = 0.3;  // px/ms — flick speed override
+
+  // Gesture state
+  let startX       = 0;
+  let startY       = 0;
+  let startTime    = 0;
+  let isDragging   = false;
   let isHorizontal = null;
+  let slideW       = 0;  // container width captured on touchstart
 
   function goTo(idx) {
-    current = idx;
-    track.style.transform = `translateX(-${idx * 50}%)`;
-    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    currentIndex = Math.max(0, Math.min(idx, lastIndex));
+    track.style.transition = 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)';
+    track.style.transform  = `translateX(${-(currentIndex * slideW)}px)`;
+    dots.forEach((d, i) => d.classList.toggle('active', i === currentIndex));
   }
 
   track.addEventListener('touchstart', e => {
     const t = e.touches[0];
-    startX = t.clientX;
-    startY = t.clientY;
-    isDragging = true;
+    startX    = t.clientX;
+    startY    = t.clientY;
+    startTime = Date.now();
+    isDragging   = true;
     isHorizontal = null;
+    slideW = container.offsetWidth;
+    track.style.transition = 'none';
   }, { passive: true });
 
-  // non-passive so preventDefault() can block scroll on horizontal swipe
+  // non-passive — preventDefault() needed to block scroll on horizontal swipe
   track.addEventListener('touchmove', e => {
     if (!isDragging) return;
-    const t = e.touches[0];
+    const t  = e.touches[0];
     const dx = t.clientX - startX;
     const dy = t.clientY - startY;
 
     if (isHorizontal === null) {
       isHorizontal = Math.abs(dx) > Math.abs(dy);
     }
+    if (!isHorizontal) return;
 
-    if (isHorizontal) {
-      e.preventDefault(); // block page scroll on horizontal swipe
-    }
+    e.preventDefault(); // block page scroll — horizontal gesture confirmed
+
+    // Edge resistance: pulling beyond first/last slide feels weighted
+    let effectiveDx = dx;
+    if (currentIndex === 0        && dx > 0) effectiveDx *= 0.35;
+    if (currentIndex === lastIndex && dx < 0) effectiveDx *= 0.35;
+
+    track.style.transform = `translateX(${-(currentIndex * slideW) + effectiveDx}px)`;
   }, { passive: false });
 
   track.addEventListener('touchend', e => {
     if (!isDragging) return;
-    isDragging = false;
+    isDragging   = false;
     isHorizontal = null;
-    const diff = startX - e.changedTouches[0].clientX;
-    if (diff > THRESHOLD && current < 1) goTo(1);
-    if (diff < -THRESHOLD && current > 0) goTo(0);
+
+    const dx       = e.changedTouches[0].clientX - startX;
+    const dt       = Date.now() - startTime;
+    const velocity = dx / dt; // px/ms
+
+    let nextIndex = currentIndex;
+    if (Math.abs(dx) > DISTANCE_THRESHOLD || Math.abs(velocity) > VELOCITY_THRESHOLD) {
+      if (dx < 0) nextIndex++;
+      else        nextIndex--;
+    }
+
+    goTo(nextIndex);
   }, { passive: true });
 }
 
