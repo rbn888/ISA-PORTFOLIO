@@ -6328,11 +6328,16 @@ main { padding-bottom: 72px; }
     white-space: nowrap;
   }
 
-  /* ── Donut title alignment ── */
+  /* ── Donut title: reset section-title overrides to match chart-title ── */
   .mobile-slide-donut .section-title.card-title {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: .14em !important;
+    opacity: 1 !important;
+    line-height: 1 !important;
     margin-top: 0 !important;
     margin-bottom: 28px !important;
-    transform: translateY(-2px);
+    transform: none;
   }
 }
 
@@ -6411,8 +6416,13 @@ body.is-detail-view .mobile-slide          { height: auto !important; }
 /* ── Donut spacing override ── */
 @media (max-width: 768px) {
   .mobile-slide-donut .section-title.card-title {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: .14em !important;
+    opacity: 1 !important;
+    line-height: 1 !important;
     margin-top: 0 !important;
     margin-bottom: 28px !important;
-    transform: translateY(-2px);
+    transform: none !important;
   }
 }
