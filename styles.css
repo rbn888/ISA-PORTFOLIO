@@ -6277,31 +6277,35 @@ main { padding-bottom: 72px; }
   .fab-option:hover { border-color: var(--border-hi); }
 }
 
-/* ─── FAB position override — aligned with "activos · actualizado" text ─── */
+/* ─── FAB position override — fixed px, aligned with "activos · actualizado" ─── */
 @media (max-width: 768px) {
   .portfolio-actions-mobile {
+    top: 56px !important;
     right: 20px !important;
-    top: 58% !important;
     bottom: auto !important;
-    transform: translateY(-50%) !important;
+    transform: none !important;
   }
 }
 
-/* ─── Donut legend — 2-column grid on mobile ─── */
+/* ─── Donut legend — compact auto-column grid on mobile ─── */
 @media (max-width: 768px) {
   .distribution-legend {
     display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px 12px;
+    grid-template-columns: auto auto !important;
+    justify-content: start;
+    column-gap: 24px;
+    row-gap: 10px;
+    width: fit-content;
+    margin: 0 auto;
   }
 
-  .distribution-legend > * {
-    width: 100%;
+  .distribution-legend .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .distribution-legend .legend-label {
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 }
