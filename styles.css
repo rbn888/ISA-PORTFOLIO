@@ -6316,3 +6316,58 @@ main { padding-bottom: 72px; }
   .distribution-title { margin-bottom: 16px; }
   .mobile-slide-donut { padding-top: 8px; }
 }
+
+/* ─── FAB UX — overflow unclip + tap feedback + floating menu ─── */
+@media (max-width: 768px) {
+
+  /* Fix: hero-left clips the menu with overflow:hidden — unclip on mobile */
+  .hero-left {
+    overflow: visible !important;
+  }
+
+  /* Tap feedback */
+  .fab-trigger:active {
+    transform: scale(0.92) !important;
+    opacity: 0.85 !important;
+  }
+
+  /* Opacity-based visibility so transitions work (overrides display:none/flex) */
+  .fab-menu {
+    display: flex !important;
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 999 !important;
+    background: rgba(18, 20, 28, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    gap: 8px;
+  }
+
+  .fab-menu.open {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+  }
+
+  /* Menu button visual */
+  .fab-option {
+    background: transparent;
+    border: 1px solid rgba(100, 150, 255, 0.3);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .fab-option:hover {
+    background: rgba(100, 150, 255, 0.08);
+    border-color: rgba(100, 150, 255, 0.5);
+  }
+}
