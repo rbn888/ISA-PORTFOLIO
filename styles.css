@@ -464,7 +464,7 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
   background: rgba(79,142,247,.08);
   border: 1px solid rgba(79,142,247,.22);
   color: var(--accent);
-  box-shadow: none;
+  box-shadow: 0 4px 12px rgba(47,107,255,0.25);
   font-weight: var(--font-weight-semibold);
 }
 .btn-primary:hover,
@@ -1499,10 +1499,15 @@ body:not(.hero-active) #orb-canvas {
 }
 
 .hero-card {
-  background: var(--surface-3);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 20px rgba(47,107,255,0.06);
+  box-shadow:
+    0 10px 40px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(255,255,255,0.03),
+    0 0 20px rgba(47,107,255,0.06);
   position: relative;
   overflow: hidden;
   display: grid;
@@ -1567,6 +1572,7 @@ body:not(.hero-active) #orb-canvas {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
   transition: border-color .22s var(--ease-out), transform .22s var(--ease-out);
   will-change: transform;
   cursor: pointer;
@@ -1589,6 +1595,7 @@ body:not(.hero-active) #orb-canvas {
   border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
   cursor: pointer;
   transition: background .2s ease, border-color .2s ease;
 }
@@ -1739,6 +1746,17 @@ body:not(.hero-active) #orb-canvas {
 /* Chart is now embedded inside .hero-right — no card wrapper */
 .chart-section {
   /* no-op: chart lives inside .hero-right */
+}
+
+.chart-line {
+  stroke-width: 2.2;
+  filter:
+    drop-shadow(0 0 6px rgba(255,255,255,0.25))
+    drop-shadow(0 0 12px rgba(255,255,255,0.15));
+}
+
+.chart-grid line {
+  opacity: 0.15;
 }
 
 .chart-header {
