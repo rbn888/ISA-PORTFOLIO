@@ -2642,7 +2642,7 @@ body:not(.hero-active) #orb-canvas {
   /* Dashboard top — breathing room */
   .dashboard-top {
     margin-top: 20px;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
   }
 
   /* Hero card — vertical flex column on mobile */
@@ -6088,7 +6088,7 @@ main { padding-bottom: 72px; }
   /* Card container — same visual hierarchy as hero-card */
   .portfolio-slider-card {
     display: block;
-    margin: 16px 0;
+    margin: 8px 0;
     padding: 16px;
     background: var(--bg-card);
     border: 1px solid var(--border);
