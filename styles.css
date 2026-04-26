@@ -6361,7 +6361,16 @@ main { padding-bottom: 72px; }
   pointer-events: auto;
 }
 
-/* ── Reuse existing fab-option styles for global menu buttons ── */
+/* ── On mobile FAB opens modal directly — menu not needed ── */
+@media (max-width: 768px) {
+  .fab-menu,
+  .fab-menu-global { display: none !important; }
+}
+
+/* ── Tap feedback ── */
+@media (max-width: 768px) {
+  .fab-trigger:active { transform: scale(0.96); }
+}
 
 /* ── Category drill-down: collapse donut slide entirely (no gap) ── */
 body.is-detail-view .mobile-slide-donut    { display: none !important; }

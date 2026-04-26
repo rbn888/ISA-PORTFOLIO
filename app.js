@@ -8959,23 +8959,32 @@ document.addEventListener('DOMContentLoaded', () => {
 (function initFab() {
   const fab  = document.getElementById('portfolioFab');
   const menu = document.getElementById('fabMenuGlobal');
-  if (!fab || !menu) return;
+  if (!fab) return;
 
   fab.addEventListener('click', e => {
     e.stopPropagation();
+
+    if (window.innerWidth <= 768) {
+      openModal();
+      return;
+    }
+
+    if (!menu) return;
     const rect = fab.getBoundingClientRect();
     menu.style.top  = (rect.bottom + 10) + 'px';
     menu.style.left = (rect.right - 190) + 'px';
     menu.classList.toggle('open');
   });
 
-  document.addEventListener('click', e => {
-    if (!fab.contains(e.target) && !menu.contains(e.target)) {
-      menu.classList.remove('open');
-    }
-  });
+  if (menu) {
+    document.addEventListener('click', e => {
+      if (!fab.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.remove('open');
+      }
+    });
 
-  menu.querySelector('[data-action="asset"]').onclick    = openModal;
-  menu.querySelector('[data-action="liquidity"]').onclick = openLiquidityModal;
+    menu.querySelector('[data-action="asset"]').onclick    = openModal;
+    menu.querySelector('[data-action="liquidity"]').onclick = openLiquidityModal;
+  }
 })();
 
