@@ -6150,12 +6150,10 @@ main { padding-bottom: 72px; }
     overflow: hidden;
   }
 
-  /* Donut slide: center content vertically */
+  /* Donut slide: top-aligned to match chart slide title position */
   .mobile-slide-donut {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    transform: translateY(-12px);
   }
 
   /* Donut slide: stack donut + legend vertically */
@@ -6328,8 +6326,7 @@ main { padding-bottom: 72px; }
   }
 
   /* ── Donut card spacing ── */
-  .distribution-title { margin-bottom: 28px; }
-  .mobile-slide-donut { padding-top: 4px; }
+  .mobile-slide-donut .section-title { margin-bottom: 28px; }
 }
 
 /* ── Global FAB menu — position: fixed, never clipped by any container ── */
@@ -6406,6 +6403,5 @@ body.is-detail-view .mobile-slide          { height: auto !important; }
 
 /* ── Donut spacing override ── */
 @media (max-width: 768px) {
-  .distribution-title  { margin-bottom: 28px !important; }
-  .mobile-slide-donut  { transform: translateY(-12px) !important; padding-top: 24px !important; }
+  .mobile-slide-donut .section-title { margin-bottom: 28px !important; }
 }
