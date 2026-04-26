@@ -6284,6 +6284,7 @@ main { padding-bottom: 72px; }
 
   /* ── Unclip ancestors so menu floats freely ── */
   .hero-left,
+  .summary-card,
   .summary-meta-row,
   .portfolio-actions-mobile {
     overflow: visible !important;
@@ -6299,6 +6300,8 @@ main { padding-bottom: 72px; }
     display: flex !important;
     align-items: center;
     flex-shrink: 0;
+    z-index: 20;
+    padding-right: 6px;
   }
 
   /* ── FAB trigger ── */
@@ -6328,7 +6331,7 @@ main { padding-bottom: 72px; }
     transform: translateY(-6px) scale(0.98);
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
-    z-index: 9999 !important;
+    z-index: 99999 !important;
     background: rgba(18, 20, 28, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 14px;
@@ -6386,8 +6389,8 @@ main { padding-bottom: 72px; }
   }
 
   /* ── Donut card spacing ── */
-  .distribution-title { margin-bottom: 20px; }
-  .mobile-slide-donut { padding-top: 12px; }
+  .distribution-title { margin-bottom: 26px; }
+  .mobile-slide-donut { padding-top: 16px; }
 }
 
 /* ── Category drill-down: collapse donut slide entirely (no gap) ── */
