@@ -2656,7 +2656,7 @@ body:not(.hero-active) #orb-canvas {
   .hero-left {
     flex-shrink: 0;         /* never compress the value block */
     height: auto;           /* reset the desktop height:100% */
-    padding: 18px 20px 10px 20px;
+    padding: 18px 20px 6px 20px !important;
     border-right: none;
     border-bottom: none;
   }
@@ -2682,7 +2682,7 @@ body:not(.hero-active) #orb-canvas {
     gap: 10px;
   }
   .summary-footer {
-    margin-top: 10px;
+    margin-top: 6px !important;
     padding-top: 12px;
     border-top: none;
     gap: 6px;
@@ -6090,7 +6090,7 @@ main { padding-bottom: 72px; }
   .portfolio-slider-card {
     display: block;
     margin: 8px 0;
-    padding: 16px 16px 14px;
+    padding: 16px 16px 10px !important;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 20px;
@@ -6109,7 +6109,7 @@ main { padding-bottom: 72px; }
     min-height: 280px;
     height: auto;
     position: relative;
-    padding-bottom: 24px;
+    padding-bottom: 18px !important;
     touch-action: pan-y;
     user-select: none;
     -webkit-user-select: none;
@@ -6413,6 +6413,12 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   background: rgba(100, 150, 255, 0.15);
   border-color: rgba(100, 150, 255, 0.4);
   color: #fff;
+}
+
+/* ── Mobile card bottom margin reset ── */
+@media (max-width: 768px) {
+  .hero-left > *:last-child          { margin-bottom: 0 !important; }
+  .portfolio-slider-card > *:last-child { margin-bottom: 0 !important; }
 }
 
 /* ── Donut spacing override ── */
