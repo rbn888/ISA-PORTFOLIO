@@ -73,12 +73,28 @@ select:focus-visible {
   --color-cash:        #16A34A;
   --color-metals:      #CA8A04;
 
-  /* ── Spacing tokens (mobile-first, extend to desktop later) ── */
+  /* ── Spacing tokens ── */
   --space-1: 8px;
   --space-2: 12px;
   --space-3: 16px;
   --space-4: 20px;
   --space-5: 24px;
+  --space-6: 32px;
+
+  /* ── Radius tokens (additive — --radius/--radius-sm/--radius-xs kept for compat) ── */
+  --radius-md: 16px;
+  --radius-lg: 20px;
+
+  /* ── Typography tokens ── */
+  --font-size-xs:  12px;
+  --font-size-sm:  14px;
+  --font-size-md:  16px;
+  --font-size-lg:  20px;
+  --font-size-xl:  28px;
+
+  --font-weight-regular:   400;
+  --font-weight-medium:    500;
+  --font-weight-semibold:  600;
 }
 
 body {
