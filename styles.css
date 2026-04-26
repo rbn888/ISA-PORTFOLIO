@@ -6096,8 +6096,8 @@ main { padding-bottom: 72px; }
   /* Card container — same visual hierarchy as hero-card */
   .portfolio-slider-card {
     display: block;
-    margin: 8px 0;
-    padding: 16px 16px var(--space-2) !important;
+    margin: var(--space-1) 0;
+    padding: var(--space-3) var(--space-3) var(--space-2) !important;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 20px;
@@ -6171,7 +6171,7 @@ main { padding-bottom: 72px; }
   .mobile-distribution-inner {
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: var(--space-3);
   }
 
   .mobile-donut-wrap {
@@ -6265,7 +6265,7 @@ main { padding-bottom: 72px; }
     right: 0;
     display: none;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-1);
     z-index: 7;
   }
 
@@ -6306,7 +6306,7 @@ main { padding-bottom: 72px; }
 
   /* ── FAB trigger ── */
   .fab-trigger {
-    margin-right: 8px;
+    margin-right: var(--space-1);
     transition: transform 0.15s ease;
   }
 
@@ -6320,16 +6320,16 @@ main { padding-bottom: 72px; }
     display: grid !important;
     grid-template-columns: auto auto !important;
     justify-content: start;
-    column-gap: 24px;
+    column-gap: var(--space-5);
     row-gap: 10px;
     width: fit-content;
-    margin: 12px auto 0;
+    margin: var(--space-2) auto 0;
   }
 
   .distribution-legend .legend-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-1);
   }
 
   .distribution-legend .legend-label {
