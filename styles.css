@@ -6282,14 +6282,6 @@ main { padding-bottom: 72px; }
    ══════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
 
-  /* ── Unclip ancestors so menu floats freely ── */
-  .hero-left,
-  .summary-card,
-  .summary-meta-row,
-  .portfolio-actions-mobile {
-    overflow: visible !important;
-  }
-
   /* ── FAB container — flex child of summary-meta-row ── */
   .portfolio-actions-mobile {
     position: relative !important;
@@ -6300,71 +6292,17 @@ main { padding-bottom: 72px; }
     display: flex !important;
     align-items: center;
     flex-shrink: 0;
-    z-index: 20;
-    padding-right: 6px;
   }
 
   /* ── FAB trigger ── */
   .fab-trigger {
-    position: relative;
-    z-index: 2;
+    margin-right: 8px;
     transition: transform 0.15s ease;
   }
 
   .fab-trigger:active {
     transform: scale(0.95) !important;
     opacity: 0.85 !important;
-  }
-
-  /* ── FAB menu — absolute, anchored below trigger ── */
-  .fab-menu {
-    position: absolute !important;
-    top: calc(100% + 10px) !important;
-    right: 0 !important;
-    display: flex !important;
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px;
-    min-width: 180px;
-    transform-origin: top right;
-    opacity: 0;
-    transform: translateY(-6px) scale(0.98);
-    pointer-events: none;
-    transition: opacity 0.18s ease, transform 0.18s ease;
-    z-index: 99999 !important;
-    background: rgba(18, 20, 28, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 14px;
-    box-shadow:
-      0 12px 40px rgba(0, 0, 0, 0.6),
-      0 0 0 1px rgba(255, 255, 255, 0.02);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .fab-menu.open {
-    opacity: 1 !important;
-    transform: translateY(0) scale(1) !important;
-    pointer-events: auto !important;
-  }
-
-  /* ── Menu buttons ── */
-  .fab-option {
-    background: rgba(100, 150, 255, 0.05);
-    border: 1px solid rgba(100, 150, 255, 0.25);
-    color: #fff;
-    padding: 12px 14px;
-    border-radius: 10px;
-    text-align: left;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .fab-option:active {
-    background: rgba(100, 150, 255, 0.15) !important;
-    transform: scale(0.97);
   }
 
   /* ── Donut legend — 2-column compact grid ── */
@@ -6389,9 +6327,41 @@ main { padding-bottom: 72px; }
   }
 
   /* ── Donut card spacing ── */
-  .distribution-title { margin-bottom: 26px; }
-  .mobile-slide-donut { padding-top: 16px; }
+  .distribution-title { margin-bottom: 28px; }
+  .mobile-slide-donut { padding-top: 18px; }
 }
+
+/* ── Global FAB menu — position: fixed, never clipped by any container ── */
+.fab-menu-global {
+  position: fixed;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  min-width: 190px;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform-origin: top right;
+  background: rgba(18, 20, 28, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.fab-menu-global.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* ── Reuse existing fab-option styles for global menu buttons ── */
 
 /* ── Category drill-down: collapse donut slide entirely (no gap) ── */
 body.is-detail-view .mobile-slide-donut    { display: none !important; }

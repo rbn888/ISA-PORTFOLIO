@@ -64,10 +64,6 @@
             <!-- Mobile FAB — inline with "activos · actualizado", hidden on desktop -->
             <div class="portfolio-actions-mobile">
               <button class="fab-trigger" id="portfolioFab">+</button>
-              <div class="fab-menu" id="fabMenu">
-                <button class="fab-option" data-action="asset">Añadir activo</button>
-                <button class="fab-option" data-action="liquidity">Añadir liquidez</button>
-              </div>
             </div>
           </div>
           <div class="summary-footer">
@@ -627,5 +623,10 @@
       </div>
     </div>
   </div>
+<!-- Global FAB menu — outside card, position: fixed via JS, never clipped -->
+<div id="fabMenuGlobal" class="fab-menu-global">
+  <button class="fab-option" data-action="asset">Añadir activo</button>
+  <button class="fab-option" data-action="liquidity">Añadir liquidez</button>
+</div>
 </body>
 </html>

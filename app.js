@@ -8958,11 +8958,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Mobile FAB ─────────────────────────────────────────────
 (function initFab() {
   const fab  = document.getElementById('portfolioFab');
-  const menu = document.getElementById('fabMenu');
+  const menu = document.getElementById('fabMenuGlobal');
   if (!fab || !menu) return;
 
   fab.addEventListener('click', e => {
     e.stopPropagation();
+    const rect = fab.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + 10) + 'px';
+    menu.style.left = (rect.right - 190) + 'px';
     menu.classList.toggle('open');
   });
 
@@ -8972,7 +8975,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.querySelector('[data-action="asset"]').onclick    = openModal;
-  document.querySelector('[data-action="liquidity"]').onclick = openLiquidityModal;
+  menu.querySelector('[data-action="asset"]').onclick    = openModal;
+  menu.querySelector('[data-action="liquidity"]').onclick = openLiquidityModal;
 })();
 
