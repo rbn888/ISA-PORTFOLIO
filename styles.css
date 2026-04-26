@@ -6155,6 +6155,7 @@ main { padding-bottom: 72px; }
     display: flex;
     flex-direction: column;
     justify-content: center;
+    margin-top: -12px;
   }
 
   /* Donut slide: stack donut + legend vertically */
@@ -6328,7 +6329,7 @@ main { padding-bottom: 72px; }
 
   /* ── Donut card spacing ── */
   .distribution-title { margin-bottom: 28px; }
-  .mobile-slide-donut { padding-top: 18px; }
+  .mobile-slide-donut { padding-top: 4px; }
 }
 
 /* ── Global FAB menu — position: fixed, never clipped by any container ── */
