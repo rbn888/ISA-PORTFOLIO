@@ -6331,7 +6331,7 @@ main { padding-bottom: 72px; }
   .mobile-slide-donut .section-title.card-title {
     margin-top: 0 !important;
     margin-bottom: 28px !important;
-    transform: translateY(-3px);
+    transform: translateY(-4px);
   }
 }
 
@@ -6412,6 +6412,6 @@ body.is-detail-view .mobile-slide          { height: auto !important; }
   .mobile-slide-donut .section-title.card-title {
     margin-top: 0 !important;
     margin-bottom: 28px !important;
-    transform: translateY(-3px);
+    transform: translateY(-4px);
   }
 }
