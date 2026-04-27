@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aurix — SPEC A Audit</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Courier New', monospace; background: #0B0B0B; color: #d4d4d4;
+           padding: 32px; line-height: 1.6; font-size: 13px; }
+    h1  { color: #3FBF7F; font-size: 20px; margin-bottom: 4px; }
+    .ts { color: #555; font-size: 11px; margin-bottom: 32px; }
+    h2  { color: #8BE5C3; font-size: 14px; margin: 32px 0 12px;
+          border-bottom: 1px solid #222; padding-bottom: 6px; }
+    h3  { color: #aaa; font-size: 12px; margin: 18px 0 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 16px; }
+    th  { background: #161616; padding: 7px 10px; text-align: left; color: #888;
+          border-bottom: 1px solid #2a2a2a; }
+    td  { padding: 6px 10px; border-bottom: 1px solid #1a1a1a; vertical-align: top; }
+    tr:hover td { background: #111; }
+    .ok   { color: #3FBF7F; }
+    .warn { color: #F59E0B; }
+    .crit { color: #E05A5A; }
+    .dim  { color: #555; }
+    .tag  { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 10px;
+            font-weight: bold; letter-spacing: .4px; }
+    .tag-ok   { background: #0f2a1e; color: #3FBF7F; }
+    .tag-warn { background: #2a1f08; color: #F59E0B; }
+    .tag-crit { background: #2a0f0f; color: #E05A5A; }
+    .tag-miss { background: #1a1a2a; color: #8888ff; }
+    .box  { background: #111; border: 1px solid #222; border-radius: 6px;
+            padding: 16px; margin-bottom: 12px; }
+    .box pre { overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+               font-size: 11px; color: #bbb; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 12px; margin-bottom: 24px; }
+    .stat { background: #111; border: 1px solid #222; border-radius: 6px; padding: 14px 16px; }
+    .stat .label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: .6px; }
+    .stat .value { font-size: 24px; font-weight: bold; margin-top: 4px; }
+    .mono { font-family: monospace; font-size: 11px; }
+    .rec  { background: #0f1f17; border-left: 3px solid #3FBF7F; padding: 12px 16px;
+            border-radius: 0 6px 6px 0; margin: 8px 0; }
+    .rec.warn { background: #1f1a0a; border-left-color: #F59E0B; }
+    .rec.crit { background: #1f0d0d; border-left-color: #E05A5A; }
+  </style>
+</head>
+<body>
+<h1>Aurix — SPEC A · Auditoría Profunda</h1>
+<div class="ts" id="ts"></div>
+<div id="report"></div>
+
+<script>
+/* ─── UTILS ──────────────────────────────────────────────────── */
+function tag(level, text) {
+  const cls = level === 'OK' ? 'tag-ok' : level === 'WARN' ? 'tag-warn'
+            : level === 'CRIT' ? 'tag-crit' : 'tag-miss';
+  return `<span class="tag ${cls}">${level}</span>`;
+}
+function val(v) {
+  if (v === null || v === undefined) return '<span class="dim">null</span>';
+  if (v === '') return '<span class="dim">""</span>';
+  return `<span class="mono">${String(v)}</span>`;
+}
+function fmt(n) {
+  if (n === null || n === undefined) return '<span class="dim">—</span>';
+  return Number(n).toLocaleString('es-ES', { maximumFractionDigits: 6 });
+}
+
+/* ─── READ STORAGE ───────────────────────────────────────────── */
+function readKey(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return { exists: false, data: null, raw: null, bytes: 0 };
+    return { exists: true, data: JSON.parse(raw), raw, bytes: raw.length };
+  } catch(e) {
+    return { exists: true, data: null, raw: null, bytes: 0, error: e.message };
+  }
+}
+
+const STORAGE_KEY = 'portfolio_assets';
+const aurixAssets_s   = readKey('aurix_assets');
+const aurixHoldings_s = readKey('aurix_holdings');
+const portfolioAssets_s = readKey(STORAGE_KEY);
+const migFlag = localStorage.getItem('aurix_migrated_v2');
+const version  = localStorage.getItem('aurix_data_version');
+
+const aurixAssets   = aurixAssets_s.data   || [];
+const aurixHoldings = aurixHoldings_s.data || [];
+const legacyFlat    = (() => {
+  const d = portfolioAssets_s.data;
+  if (!d) return [];
+  return Array.isArray(d) ? d : (d.assets || []);
+})();
+
+/* ─── VALIDATION ─────────────────────────────────────────────── */
+const issues = { crit: [], warn: [], ok: [] };
+function addIssue(level, assetId, symbol, check, detail) {
+  issues[level === 'CRIT' ? 'crit' : level === 'WARN' ? 'warn' : 'ok']
+    .push({ assetId, symbol, check, detail });
+}
+
+// Build lookup maps
+const assetById = new Map(aurixAssets.map(a => [a.id, a]));
+const holdingByAssetId = new Map(aurixHoldings.map(h => [h.asset_id, h]));
+const legacyById = new Map(legacyFlat.map(a => [a.id, a]));
+
+/* A — Relational integrity */
+aurixHoldings.forEach(h => {
+  if (!assetById.has(h.asset_id)) {
+    addIssue('CRIT', h.id, '?', 'relational_integrity',
+      `holding.asset_id "${h.asset_id}" sin asset correspondiente`);
+  } else {
+    addIssue('ok', h.asset_id, assetById.get(h.asset_id)?.symbol, 'relational_integrity', 'OK');
+  }
+});
+
+/* B — Identificación de precio */
+aurixAssets.forEach(a => {
+  if (a.type === 'crypto') {
+    if (!a.coinId) {
+      addIssue('CRIT', a.id, a.symbol, 'price_id_coinId',
+        `crypto sin coinId — no se puede buscar precio en CoinGecko`);
+    } else {
+      addIssue('ok', a.id, a.symbol, 'price_id_coinId', `coinId: ${a.coinId}`);
+    }
+  } else if (['stock','etf','metal'].includes(a.type)) {
+    if (!a.marketSymbol) {
+      addIssue('CRIT', a.id, a.symbol, 'price_id_marketSymbol',
+        `${a.type} sin marketSymbol — no se puede buscar precio en Yahoo/Twelve`);
+    } else {
+      addIssue('ok', a.id, a.symbol, 'price_id_marketSymbol', `marketSymbol: ${a.marketSymbol}`);
+    }
+  } else if (['cash','real_estate','other'].includes(a.type)) {
+    addIssue('ok', a.id, a.symbol, 'price_id_marketSymbol', `type=${a.type} — no requiere precio externo`);
+  }
+
+  // provider_id (futuro campo SPEC B)
+  if (!a.provider_id) {
+    addIssue('WARN', a.id, a.symbol, 'provider_id',
+      `provider_id ausente — se inferirá en SPEC B`);
+  } else {
+    addIssue('ok', a.id, a.symbol, 'provider_id', `provider_id: ${a.provider_id}`);
+  }
+});
+
+/* C — Inconsistencias cross-store */
+aurixAssets.forEach(a => {
+  const leg = legacyById.get(a.id);
+  if (!leg) {
+    addIssue('WARN', a.id, a.symbol, 'cross_store_presence',
+      `asset existe en aurix_assets pero NO en portfolio_assets`);
+    return;
+  }
+  if (leg.ticker !== a.symbol) {
+    addIssue('CRIT', a.id, a.symbol, 'cross_store_symbol',
+      `symbol mismatch: aurix="${a.symbol}" vs legacy ticker="${leg.ticker}"`);
+  } else {
+    addIssue('ok', a.id, a.symbol, 'cross_store_symbol', 'symbols coinciden');
+  }
+});
+
+// Duplicados por symbol en aurix_assets
+const symbolCount = {};
+aurixAssets.forEach(a => { symbolCount[a.symbol] = (symbolCount[a.symbol] || 0) + 1; });
+Object.entries(symbolCount).forEach(([sym, count]) => {
+  if (count > 1) {
+    addIssue('WARN', '—', sym, 'duplicate_symbol',
+      `symbol "${sym}" aparece ${count} veces en aurix_assets`);
+  }
+});
+
+/* D — Legacy vs new model consistency */
+aurixHoldings.forEach(h => {
+  const asset  = assetById.get(h.asset_id);
+  const legacy = legacyById.get(h.id);
+  if (!legacy || !asset) return;
+
+  // qty vs quantity
+  const qtyMatch = Math.abs((legacy.qty || 0) - (h.quantity || 0)) < 0.000001;
+  if (!qtyMatch) {
+    addIssue('CRIT', h.id, asset?.symbol, 'qty_mismatch',
+      `qty legacy=${legacy.qty} ≠ holding.quantity=${h.quantity}`);
+  } else {
+    addIssue('ok', h.id, asset?.symbol, 'qty_match', `qty=${h.quantity} ✓`);
+  }
+
+  // costBasis consistency
+  const cbLeg = legacy.costBasis || 0;
+  const cbNew = h.costBasis || 0;
+  const cbMatch = Math.abs(cbLeg - cbNew) < 0.01;
+  if (!cbMatch) {
+    addIssue('CRIT', h.id, asset?.symbol, 'costBasis_mismatch',
+      `costBasis legacy=${cbLeg} ≠ holding.costBasis=${cbNew}`);
+  } else {
+    addIssue('ok', h.id, asset?.symbol, 'costBasis_match', `costBasis=${cbNew} ✓`);
+  }
+
+  // avg_price internal consistency
+  if (h.quantity > 0) {
+    const expectedAvg = cbNew / h.quantity;
+    const avgOk = Math.abs(expectedAvg - (h.avg_price || 0)) < 0.01;
+    if (!avgOk) {
+      addIssue('WARN', h.id, asset?.symbol, 'avg_price_internal',
+        `avg_price=${h.avg_price} pero costBasis/qty=${expectedAvg.toFixed(6)}`);
+    } else {
+      addIssue('ok', h.id, asset?.symbol, 'avg_price_internal', `avg_price=${h.avg_price} ✓`);
+    }
+  }
+});
+
+/* E — Root cause de "sin precio" */
+const noPrice = [];
+aurixAssets.forEach(a => {
+  if (!['crypto','stock','etf','metal'].includes(a.type)) return;
+  if (!a.currentPrice || a.currentPrice === 0) {
+    let cause = 'unknown';
+    if (a.type === 'crypto' && !a.coinId) cause = 'missing_coinId';
+    else if (['stock','etf','metal'].includes(a.type) && !a.marketSymbol) cause = 'missing_marketSymbol';
+    else if (a.type === 'crypto' && a.coinId) cause = 'api_fail_or_not_fetched';
+    else cause = 'api_fail_or_not_fetched';
+    noPrice.push({ id: a.id, symbol: a.symbol, type: a.type, cause,
+                   coinId: a.coinId, marketSymbol: a.marketSymbol, price: a.currentPrice });
+  }
+});
+
+/* ─── RENDER REPORT ──────────────────────────────────────────── */
+document.getElementById('ts').textContent =
+  `Generado: ${new Date().toLocaleString('es-ES')} · migrated_v2=${migFlag||'null'} · data_version=${version||'null'}`;
+
+const totalAssets   = aurixAssets.length;
+const totalHoldings = aurixHoldings.length;
+const totalLegacy   = legacyFlat.length;
+const critCount     = issues.crit.length;
+const warnCount     = issues.warn.length;
+const okCount       = issues.ok.length;
+
+let html = '';
+
+/* ── Storage status ── */
+html += `<h2>1. Estado del Storage</h2>`;
+html += `<table><tr><th>Key</th><th>Existe</th><th>Items</th><th>Tamaño</th><th>Error</th></tr>`;
+[
+  { key: 'aurix_assets',   s: aurixAssets_s,   count: aurixAssets.length },
+  { key: 'aurix_holdings', s: aurixHoldings_s, count: aurixHoldings.length },
+  { key: 'portfolio_assets', s: portfolioAssets_s, count: legacyFlat.length },
+].forEach(({ key, s, count }) => {
+  html += `<tr>
+    <td class="mono">${key}</td>
+    <td>${s.exists ? `<span class="ok">✓ sí</span>` : `<span class="crit">✗ no</span>`}</td>
+    <td>${s.exists ? count : '—'}</td>
+    <td class="dim">${s.bytes ? (s.bytes/1024).toFixed(1)+' KB' : '—'}</td>
+    <td class="crit">${s.error || ''}</td>
+  </tr>`;
+});
+html += `</table>`;
+
+/* ── Summary stats ── */
+html += `<h2>2. Resumen de Validaciones</h2>`;
+html += `<div class="summary-grid">
+  <div class="stat"><div class="label">Assets (new)</div><div class="value">${totalAssets}</div></div>
+  <div class="stat"><div class="label">Holdings (new)</div><div class="value">${totalHoldings}</div></div>
+  <div class="stat"><div class="label">Assets (legacy)</div><div class="value">${totalLegacy}</div></div>
+  <div class="stat"><div class="label crit">CRÍTICOS</div><div class="value crit">${critCount}</div></div>
+  <div class="stat"><div class="label warn">WARNINGS</div><div class="value warn">${warnCount}</div></div>
+  <div class="stat"><div class="label ok">OK</div><div class="value ok">${okCount}</div></div>
+</div>`;
+
+/* ── Validation matrix ── */
+html += `<h2>3. Matriz de Validación por Asset</h2>`;
+html += `<table>
+  <tr>
+    <th>ID (parcial)</th><th>Symbol</th><th>Type</th>
+    <th>coinId</th><th>marketSymbol</th><th>provider_id</th>
+    <th>Rel.Int</th><th>Price ID</th><th>Cross</th><th>Qty</th><th>CostBasis</th>
+  </tr>`;
+
+aurixAssets.forEach(a => {
+  const h = holdingByAssetId.get(a.id);
+  const leg = legacyById.get(a.id);
+
+  const relOk = h ? (holdingByAssetId.has(a.id) ? 'ok' : 'crit') : 'warn';
+  const priceOk = a.type === 'crypto' ? (a.coinId ? 'ok' : 'crit')
+    : ['stock','etf','metal'].includes(a.type) ? (a.marketSymbol ? 'ok' : 'crit') : 'ok';
+  const crossOk = leg ? (leg.ticker === a.symbol ? 'ok' : 'crit') : 'warn';
+  const qtyOk = h && leg ? (Math.abs((leg.qty||0)-(h.quantity||0)) < 0.000001 ? 'ok' : 'crit') : 'warn';
+  const cbOk  = h && leg ? (Math.abs((leg.costBasis||0)-(h.costBasis||0)) < 0.01 ? 'ok' : 'crit') : 'warn';
+
+  const statusTag = (s) => s === 'ok' ? tag('OK','') : s === 'warn' ? tag('WARN','') : tag('CRIT','');
+
+  html += `<tr>
+    <td class="mono dim">${a.id.slice(0,8)}…</td>
+    <td><strong>${a.symbol}</strong></td>
+    <td class="dim">${a.type}</td>
+    <td>${val(a.coinId)}</td>
+    <td>${val(a.marketSymbol)}</td>
+    <td>${a.provider_id ? val(a.provider_id) : tag('MISS','—')}</td>
+    <td>${statusTag(relOk)}</td>
+    <td>${statusTag(priceOk)}</td>
+    <td>${statusTag(crossOk)}</td>
+    <td>${statusTag(qtyOk)}</td>
+    <td>${statusTag(cbOk)}</td>
+  </tr>`;
+});
+
+if (aurixAssets.length === 0) {
+  html += `<tr><td colspan="11" class="dim" style="text-align:center;padding:20px">
+    Sin datos en aurix_assets — añade activos primero
+  </td></tr>`;
+}
+html += `</table>`;
+
+/* ── Críticos ── */
+html += `<h2>4. Assets CRÍTICOS</h2>`;
+if (issues.crit.length === 0) {
+  html += `<p class="ok">✓ Ningún issue crítico encontrado.</p>`;
+} else {
+  html += `<table><tr><th>Asset</th><th>Symbol</th><th>Check</th><th>Detalle</th></tr>`;
+  issues.crit.forEach(i => {
+    html += `<tr>
+      <td class="mono dim">${String(i.assetId).slice(0,10)}</td>
+      <td><strong>${i.symbol}</strong></td>
+      <td class="mono">${i.check}</td>
+      <td class="crit">${i.detail}</td>
+    </tr>`;
+  });
+  html += `</table>`;
+}
+
+/* ── Warnings ── */
+html += `<h2>5. Assets con WARNING</h2>`;
+const warnFiltered = issues.warn.filter(i => i.check !== 'provider_id'); // provider_id es esperado aún
+const providerWarn = issues.warn.filter(i => i.check === 'provider_id').length;
+if (warnFiltered.length === 0) {
+  html += `<p class="ok">✓ Sin warnings relevantes.</p>`;
+} else {
+  html += `<table><tr><th>Asset</th><th>Symbol</th><th>Check</th><th>Detalle</th></tr>`;
+  warnFiltered.forEach(i => {
+    html += `<tr>
+      <td class="mono dim">${String(i.assetId).slice(0,10)}</td>
+      <td><strong>${i.symbol}</strong></td>
+      <td class="mono">${i.check}</td>
+      <td class="warn">${i.detail}</td>
+    </tr>`;
+  });
+  html += `</table>`;
+}
+if (providerWarn > 0) {
+  html += `<p class="dim">+ ${providerWarn} assets sin <code>provider_id</code> (pendiente SPEC B — no es bloqueante)</p>`;
+}
+
+/* ── Sin precio ── */
+html += `<h2>6. Root Cause — Assets sin Precio</h2>`;
+if (noPrice.length === 0) {
+  html += `<p class="ok">✓ Todos los assets tienen currentPrice > 0.</p>`;
+} else {
+  html += `<table><tr><th>Symbol</th><th>Type</th><th>Causa</th><th>coinId</th><th>marketSymbol</th></tr>`;
+  noPrice.forEach(a => {
+    const causeLabel = {
+      missing_coinId:           '<span class="crit">missing coinId</span>',
+      missing_marketSymbol:     '<span class="crit">missing marketSymbol</span>',
+      api_fail_or_not_fetched:  '<span class="warn">API fail / no fetched yet</span>',
+      unknown:                  '<span class="dim">desconocida</span>',
+    }[a.cause] || a.cause;
+    html += `<tr>
+      <td><strong>${a.symbol}</strong></td>
+      <td class="dim">${a.type}</td>
+      <td>${causeLabel}</td>
+      <td>${val(a.coinId)}</td>
+      <td>${val(a.marketSymbol)}</td>
+    </tr>`;
+  });
+  html += `</table>`;
+}
+
+/* ── Holdings detail ── */
+html += `<h2>7. Holdings — Detalle Numérico</h2>`;
+if (aurixHoldings.length === 0) {
+  html += `<p class="dim">Sin holdings.</p>`;
+} else {
+  html += `<table>
+    <tr><th>Symbol</th><th>Quantity</th><th>Avg Price</th><th>CostBasis</th>
+        <th>CostBasis (legacy)</th><th>Δ CB</th><th>Qty (legacy)</th><th>Δ Qty</th><th>Txs</th></tr>`;
+  aurixHoldings.forEach(h => {
+    const asset = assetById.get(h.asset_id);
+    const sym = asset?.symbol || '?';
+    const leg = legacyById.get(h.id);
+    const deltaCb = leg ? Math.abs((leg.costBasis||0) - (h.costBasis||0)) : null;
+    const deltaQty = leg ? Math.abs((leg.qty||0) - (h.quantity||0)) : null;
+    html += `<tr>
+      <td><strong>${sym}</strong></td>
+      <td>${fmt(h.quantity)}</td>
+      <td>${fmt(h.avg_price)}</td>
+      <td>${fmt(h.costBasis)}</td>
+      <td>${leg ? fmt(leg.costBasis) : '<span class="dim">—</span>'}</td>
+      <td class="${deltaCb > 0.01 ? 'crit' : 'ok'}">${deltaCb !== null ? deltaCb.toFixed(4) : '—'}</td>
+      <td>${leg ? fmt(leg.qty) : '<span class="dim">—</span>'}</td>
+      <td class="${deltaQty > 0.000001 ? 'crit' : 'ok'}">${deltaQty !== null ? deltaQty.toFixed(8) : '—'}</td>
+      <td class="dim">${(h.transactions||[]).length}</td>
+    </tr>`;
+  });
+  html += `</table>`;
+}
+
+/* ── Recomendaciones ── */
+html += `<h2>8. Recomendaciones</h2>`;
+
+if (critCount === 0 && warnFiltered.length === 0 && noPrice.length === 0) {
+  html += `<div class="rec"><strong>✓ Data layer limpio.</strong> Proceder con SPEC B.</div>`;
+} else {
+  if (critCount > 0) {
+    html += `<div class="rec crit"><strong>CRIT (${critCount}):</strong> Resolver antes de SPEC B.
+      Checks fallidos: ${[...new Set(issues.crit.map(i=>i.check))].join(', ')}</div>`;
+  }
+  if (warnFiltered.length > 0) {
+    html += `<div class="rec warn"><strong>WARN (${warnFiltered.length}):</strong>
+      Revisar: ${[...new Set(warnFiltered.map(i=>i.check))].join(', ')}</div>`;
+  }
+  if (noPrice.length > 0) {
+    const missingMapping = noPrice.filter(a =>
+      a.cause === 'missing_coinId' || a.cause === 'missing_marketSymbol');
+    if (missingMapping.length > 0) {
+      html += `<div class="rec crit"><strong>Sin precio por mapping (${missingMapping.length}):</strong>
+        ${missingMapping.map(a=>`${a.symbol} (${a.cause})`).join(', ')} —
+        Fix en SPEC B: completar coinId/marketSymbol.</div>`;
+    }
+    const apiFail = noPrice.filter(a => a.cause === 'api_fail_or_not_fetched');
+    if (apiFail.length > 0) {
+      html += `<div class="rec warn"><strong>Sin precio por API (${apiFail.length}):</strong>
+        ${apiFail.map(a=>a.symbol).join(', ')} —
+        Posible fallo de red o app no ha refrescado. Abrir app principal y esperar 60s.</div>`;
+    }
+  }
+  if (providerWarn > 0) {
+    html += `<div class="rec"><strong>provider_id (${providerWarn} assets):</strong>
+      Se añade en SPEC B. No es bloqueante ahora.</div>`;
+  }
+}
+
+/* ── Raw dump ── */
+html += `<h2>9. Raw Data (aurix_assets)</h2>`;
+html += `<div class="box"><pre>${JSON.stringify(aurixAssets, null, 2)}</pre></div>`;
+html += `<h2>10. Raw Data (aurix_holdings)</h2>`;
+html += `<div class="box"><pre>${JSON.stringify(aurixHoldings, null, 2)}</pre></div>`;
+
+document.getElementById('report').innerHTML = html;
+</script>
+</body>
+</html>

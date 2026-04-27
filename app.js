@@ -553,6 +553,20 @@ const CLEAN_LOGO_OVERRIDE = {
   if (dirty) save();
 })();
 
+// One-time migration: populate aurix_assets + aurix_holdings from existing portfolio_assets.
+(function migrateV2() {
+  if (localStorage.getItem('aurix_migrated_v2')) return;
+  save();
+  localStorage.setItem('aurix_migrated_v2', 'true');
+})();
+
+// SPEC B: backfill price_source + provider_id on all existing aurix_assets.
+(function migrateSpecB() {
+  if (localStorage.getItem('aurix_migrated_spec_b')) return;
+  save();
+  localStorage.setItem('aurix_migrated_spec_b', 'true');
+})();
+
 let pendingCoinId       = null;
 let pendingMarketSymbol = null; // Yahoo Finance symbol for stock/etf/metal
 let pendingPrice        = null; // fetched price for selected asset
@@ -686,12 +700,9 @@ const qtyLabelEl      = document.getElementById('qtyLabel');
 // ── Storage ────────────────────────────────────────────────
 function load() {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!raw) return [];
-    // Support legacy format (plain array) and current envelope format
-    if (Array.isArray(raw)) return raw;
-    if (raw && Array.isArray(raw.assets)) return raw.assets;
-    return [];
+    const data = getPortfolioData();
+    if (data.source === 'new') return convertFromNewToFlat(data.assets, data.holdings);
+    return data.legacy;
   } catch {
     return [];
   }
@@ -699,13 +710,125 @@ function load() {
 
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      assets,
-      lastUpdated: Date.now(),
-    }));
+    const { assets: catalogAssets, holdings } = convertToNewModel(assets);
+    saveData({ assets: catalogAssets, holdings });
   } catch (e) {
     console.warn('[portfolio] save failed (localStorage full or unavailable):', e);
   }
+}
+
+// ── Aurix Data Layer — Phase 1 + SPEC B ───────────────────
+function inferPriceSource(a) {
+  if (a.type === 'cash')         return 'fx';
+  if (a.type === 'real_estate')  return 'manual';
+  if (['crypto','stock','etf','metal'].includes(a.type)) return 'api';
+  return 'manual';
+}
+
+function inferProviderId(a) {
+  if (a.type === 'crypto') {
+    if (!a.coinId) { console.warn('[DATA][CRITICAL] Missing coinId for crypto:', a.symbol); return null; }
+    return `coingecko:${a.coinId}`;
+  }
+  if (['stock','etf','metal'].includes(a.type)) {
+    if (!a.marketSymbol) { console.warn('[DATA][CRITICAL] Missing marketSymbol:', a.symbol); return null; }
+    return `twelvedata:${a.marketSymbol}`;
+  }
+  if (a.type === 'cash' || a.type === 'real_estate') return null;
+  return `manual:${a.id}`;
+}
+
+function getPortfolioData() {
+  try {
+    const newAssets   = localStorage.getItem('aurix_assets');
+    const newHoldings = localStorage.getItem('aurix_holdings');
+    if (newAssets && newHoldings) {
+      return {
+        assets:   JSON.parse(newAssets),
+        holdings: JSON.parse(newHoldings),
+        source:   'new',
+      };
+    }
+  } catch { /* fall through to legacy */ }
+  try {
+    const raw    = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const legacy = Array.isArray(raw) ? raw : (raw?.assets || []);
+    return { legacy, source: 'legacy' };
+  } catch {
+    return { legacy: [], source: 'legacy' };
+  }
+}
+
+function convertToNewModel(flatAssets) {
+  const catalogAssets = flatAssets.map(a => ({
+    id:            a.id,
+    name:          a.name,
+    symbol:        a.ticker,
+    type:          a.type,
+    currentPrice:  a.price || 0,
+    assetCurrency: a.assetCurrency || 'USD',
+    change24h:     a.change24h  ?? null,
+    prevPrice:     a.prevPrice  ?? null,
+    coinId:        a.coinId     ?? null,
+    marketSymbol:  a.marketSymbol ?? null,
+    karat:         a.karat      ?? null,
+    goldUnit:      a.goldUnit   ?? null,
+    isin:          a.isin       ?? null,
+    rent:          a.rent       ?? null,
+    price_source:  inferPriceSource(a),
+    provider_id:   inferProviderId(a),
+  }));
+  catalogAssets.forEach(c => {
+    if (c.price_source === 'api' && !c.provider_id) {
+      console.error('[DATA][INVALID] Asset cannot be priced via API:', { id: c.id, symbol: c.symbol, type: c.type });
+    }
+  });
+  const holdings = flatAssets.map(a => ({
+    id:        a.id,
+    asset_id:  a.id,
+    quantity:  a.qty,
+    avg_price: a.qty > 0 ? (a.costBasis || 0) / a.qty : 0,
+    costBasis: a.costBasis || 0,
+    transactions: a.transactions || [],
+  }));
+  return { assets: catalogAssets, holdings };
+}
+
+function convertFromNewToFlat(catalogAssets, holdings) {
+  return holdings.map(h => {
+    const asset = catalogAssets.find(a => a.id === h.asset_id);
+    if (!asset) return null;
+    return {
+      id:            h.id,
+      name:          asset.name,
+      ticker:        asset.symbol,
+      type:          asset.type,
+      qty:           h.quantity,
+      price:         asset.currentPrice || 0,
+      assetCurrency: asset.assetCurrency || 'USD',
+      change24h:     asset.change24h  ?? null,
+      prevPrice:     asset.prevPrice  ?? null,
+      costBasis:     h.costBasis,
+      transactions:  h.transactions || [],
+      coinId:        asset.coinId     ?? null,
+      marketSymbol:  asset.marketSymbol ?? null,
+      karat:         asset.karat      ?? null,
+      goldUnit:      asset.goldUnit   ?? null,
+      isin:          asset.isin       ?? null,
+      rent:          asset.rent       ?? null,
+    };
+  }).filter(Boolean);
+}
+
+function convertToLegacyFormat(catalogAssets, holdings) {
+  return convertFromNewToFlat(catalogAssets, holdings);
+}
+
+function saveData({ assets: catalogAssets, holdings }) {
+  localStorage.setItem('aurix_assets',   JSON.stringify(catalogAssets));
+  localStorage.setItem('aurix_holdings', JSON.stringify(holdings));
+  const legacy = convertToLegacyFormat(catalogAssets, holdings);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ assets: legacy, lastUpdated: Date.now() }));
 }
 
 // ── Input number formatting ────────────────────────────────
@@ -1770,14 +1893,32 @@ document.querySelectorAll('.perf-btn').forEach(btn => {
 
 // ── CoinGecko API ──────────────────────────────────────────
 async function fetchLivePrices(coinIds) {
-  const ids = [...new Set(coinIds)].join(',');
-  const res = await fetch(
-    `${COINGECKO}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
-    { headers: { 'Accept': 'application/json' } }
-  );
+  const unique    = [...new Set(coinIds)];
+  const providers = unique.map(id => `coingecko:${id}`);
+
+  const res = await fetch('https://isa-portfolio-ten.vercel.app/api/prices', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ providers }),
+  });
+
   if (res.status === 429) throw new Error('rate_limit');
-  if (!res.ok) throw new Error(`http_${res.status}`);
-  return res.json();
+  if (!res.ok)            throw new Error(`http_${res.status}`);
+
+  const { prices } = await res.json();
+
+  // Adapt proxy format → CoinGecko format expected by callers
+  const result = {};
+  for (const id of unique) {
+    const entry = prices?.[`coingecko:${id}`];
+    if (entry) {
+      result[id] = {
+        usd:            entry.price     ?? null,
+        usd_24h_change: entry.change24h ?? null,
+      };
+    }
+  }
+  return result;
 }
 
 // Fall back to search API only for unknown symbols
