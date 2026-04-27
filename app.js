@@ -900,12 +900,7 @@ function formatShort(amount) {
 
 // ── Currency conversion ─────────────────────────────────────
 async function fetchExchangeRate() {
-  try {
-    const res  = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.rates?.EUR) usdToEur = data.rates.EUR;
-  } catch { /* keep default */ }
+  // FX fetch removed — uses hardcoded default (usdToEur = 0.92)
 }
 
 function toBase(amount, fromCurrency) {
@@ -1921,19 +1916,9 @@ async function fetchLivePrices(coinIds) {
   return result;
 }
 
-// Fall back to search API only for unknown symbols
-async function searchCoinFallback(query) {
-  const res = await fetch(
-    `${COINGECKO}/search?query=${encodeURIComponent(query)}`,
-    { headers: { 'Accept': 'application/json' } }
-  );
-  if (!res.ok) throw new Error('search failed');
-  const { coins } = await res.json();
-  const q = query.toLowerCase().trim();
-  return coins.find(c => c.symbol.toLowerCase() === q)
-      || coins.find(c => c.id.toLowerCase() === q)
-      || coins[0]
-      || null;
+// CoinGecko search removed — search limited to ASSET_DB
+async function searchCoinFallback(_query) {
+  return null;
 }
 
 // ── Twelve Data API (stocks / ETFs / metals) ───────────────
@@ -4812,14 +4797,30 @@ async function refreshMarketInBackground(tab) {
 }
 
 async function _refreshCrypto() {
+  const CRYPTO_IDS = [
+    { id: 'bitcoin',     symbol: 'BTC',  name: 'Bitcoin'   },
+    { id: 'ethereum',    symbol: 'ETH',  name: 'Ethereum'  },
+    { id: 'tether',      symbol: 'USDT', name: 'Tether'    },
+    { id: 'binancecoin', symbol: 'BNB',  name: 'BNB'       },
+    { id: 'solana',      symbol: 'SOL',  name: 'Solana'    },
+    { id: 'ripple',      symbol: 'XRP',  name: 'XRP'       },
+    { id: 'usd-coin',    symbol: 'USDC', name: 'USD Coin'  },
+    { id: 'cardano',     symbol: 'ADA',  name: 'Cardano'   },
+    { id: 'avalanche-2', symbol: 'AVAX', name: 'Avalanche' },
+    { id: 'dogecoin',    symbol: 'DOGE', name: 'Dogecoin'  },
+  ];
   try {
     marketLog('background refresh: crypto');
-    const res = await fetch(
-      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10'
-    );
-    if (!res.ok) throw new Error(`http_${res.status}`);
-    const raw = await res.json();
-    if (!raw?.length) return;
+    const prices = await fetchLivePrices(CRYPTO_IDS.map(c => c.id));
+    const raw = CRYPTO_IDS
+      .map(c => {
+        const p = prices[c.id];
+        return { symbol: c.symbol, name: c.name,
+                 current_price: p?.usd ?? null,
+                 price_change_percentage_24h: p?.usd_24h_change ?? 0 };
+      })
+      .filter(c => c.current_price != null);
+    if (!raw.length) return;
     _setCryptoData(raw);
     if (currentMarketTab === 'crypto') renderMyAssetsBlock();
     marketLog('updated from API: crypto');
@@ -5583,11 +5584,8 @@ async function _loadCgMap() {
   try {
     const raw = localStorage.getItem('_cg_map');
     if (raw) { _cgMap = JSON.parse(raw); return _cgMap; }
-    const data = await (await fetch('https://api.coingecko.com/api/v3/coins/list')).json();
-    _cgMap = {};
-    data.forEach(c => { if (c.symbol) _cgMap[c.symbol.toLowerCase()] = c.id; });
-    try { localStorage.setItem('_cg_map', JSON.stringify(_cgMap)); } catch {}
-  } catch { _cgMap = {}; }
+  } catch {}
+  _cgMap = {};
   return _cgMap;
 }
 
@@ -5596,15 +5594,8 @@ async function _fetchLogoFromCG(sym) {
   const lsKey  = `_logo_${sym}`;
   const cached = localStorage.getItem(lsKey);
   if (cached !== null) { LOGO_CACHE[sym] = cached || null; return LOGO_CACHE[sym]; }
-  try {
-    const id = (await _loadCgMap())[sym];
-    if (!id) { LOGO_CACHE[sym] = null; try { localStorage.setItem(lsKey, ''); } catch {} return null; }
-    const data = await (await fetch(`https://api.coingecko.com/api/v3/coins/${id}`)).json();
-    const url  = data?.image?.small || null;
-    LOGO_CACHE[sym] = url;
-    try { localStorage.setItem(lsKey, url || ''); } catch {}
-    return url;
-  } catch { LOGO_CACHE[sym] = null; return null; }
+  LOGO_CACHE[sym] = null;
+  return null;
 }
 
 function _logoFallback(img) {
@@ -5731,19 +5722,9 @@ async function searchYahooFinance(query, signal) {
   return null; // all proxies failed
 }
 
-async function searchCoinGeckoAPI(query, signal) {
-  const res = await fetch(
-    `${COINGECKO}/search?query=${encodeURIComponent(query)}`,
-    { signal, headers: { Accept: 'application/json' } }
-  );
-  if (!res.ok) throw new Error('CG search failed');
-  const data = await res.json();
-  return (data.coins || []).slice(0, 8).map(c => ({
-    ticker: c.symbol.toUpperCase(),
-    name:   c.name,
-    type:   'crypto',
-    coinId: c.id,
-  }));
+// CoinGecko search removed — search limited to ASSET_DB
+async function searchCoinGeckoAPI(_query, _signal) {
+  return [];
 }
 
 function searchMetalsLocal(query) {
@@ -8828,13 +8809,8 @@ const marketStore = (() => {
       .filter(Boolean);
     if (!cryptos.length) return;
     try {
-      const ids = [...new Set(cryptos.map(a => a.coinId))].join(',');
-      const res = await fetch(
-        `${COINGECKO}/simple/price?ids=${ids}&vs_currencies=usd`,
-        { headers: { Accept: 'application/json' } }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
+      const coinIds = [...new Set(cryptos.map(a => a.coinId))];
+      const data    = await fetchLivePrices(coinIds);
       // Stagger per-asset to feel like real market data arriving
       cryptos.forEach(a => {
         const usd = data[a.coinId]?.usd;
@@ -8879,12 +8855,9 @@ const marketStore = (() => {
   ];
 
   async function fetchTickerPrices() {
-    const ids = TICKER_ASSETS.filter(a => a.id).map(a => a.id).join(',');
+    const coinAssets = TICKER_ASSETS.filter(a => a.id);
     try {
-      const data = await (await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=' + ids +
-        '&vs_currencies=usd&include_24hr_change=true'
-      )).json();
+      const data = await fetchLivePrices(coinAssets.map(a => a.id));
       TICKER_ASSETS.forEach(a => {
         if (!a.id || !data[a.id]) return;
         const usd = data[a.id].usd;
