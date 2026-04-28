@@ -9,6 +9,19 @@ function log(...args) {
   if (IS_DEV) console.log('[API]', ...args);
 }
 
+function logError(provider, message) {
+  console.error(`[API][ERROR][${provider}] ${new Date().toISOString()} ${message}`);
+}
+
+// ── Cache ──────────────────────────────────────────────────
+const cache      = new Map(); // key → { data, ts }
+const CACHE_TTL  = 15_000;   // 15 s
+
+// ── Rate limit ─────────────────────────────────────────────
+const rateLimits   = new Map(); // ip → [timestamps]
+const RATE_LIMIT   = 10;
+const RATE_WINDOW  = 10_000; // 10 s
+
 // ── Parsing ────────────────────────────────────────────────
 
 function parseProviders(providers) {
@@ -97,9 +110,26 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST')   return res.status(405).json({ error: 'method_not_allowed' });
 
+  // ── Rate limit ─────────────────────────────────────────
+  const ip  = req.headers['x-forwarded-for']?.split(',')[0].trim()
+              || req.socket?.remoteAddress
+              || 'unknown';
+  const now = Date.now();
+  const hits = (rateLimits.get(ip) || []).filter(t => now - t < RATE_WINDOW);
+  if (hits.length >= RATE_LIMIT) return res.status(429).json({ error: 'rate_limit' });
+  hits.push(now);
+  rateLimits.set(ip, hits);
+
   const { providers } = req.body ?? {};
   if (!Array.isArray(providers) || providers.length === 0) {
     return res.status(400).json({ error: 'providers_required' });
+  }
+
+  // ── Cache ──────────────────────────────────────────────
+  const cacheKey = JSON.stringify(providers);
+  const cached   = cache.get(cacheKey);
+  if (cached && now - cached.ts < CACHE_TTL) {
+    return res.status(200).json(cached.data);
   }
 
   log('request start · providers:', providers.length);
@@ -113,24 +143,27 @@ export default async function handler(req, res) {
     tasks.push(
       fetchCoinGecko(coingecko)
         .then(r  => Object.assign(prices, r))
-        .catch(err => console.error('[API][ERROR] coingecko:', err.message))
+        .catch(err => logError('coingecko', err.message))
     );
   }
 
   if (twelvedata.length > 0) {
     if (!TWELVE_KEY) {
-      console.error('[API][ERROR] TWELVE_API_KEY not configured in env');
+      logError('twelvedata', 'TWELVE_API_KEY not configured in env');
     } else {
       tasks.push(
         fetchTwelveData(twelvedata, TWELVE_KEY)
           .then(r  => Object.assign(prices, r))
-          .catch(err => console.error('[API][ERROR] twelvedata:', err.message))
+          .catch(err => logError('twelvedata', err.message))
       );
     }
   }
 
   await Promise.all(tasks);
 
+  const data = { prices };
+  cache.set(cacheKey, { data, ts: Date.now() });
+
   log('success · prices returned:', Object.keys(prices).length);
-  return res.status(200).json({ prices });
+  return res.status(200).json(data);
 }
