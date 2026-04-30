@@ -33,9 +33,6 @@
     /* ── Invite section ── */
     .invite-section {
       width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-1);
       margin-bottom: var(--space-5);
     }
 
@@ -60,7 +57,7 @@
       transform: scale(1);
     }
 
-    /* ── Shared input style ── */
+    /* ── Inputs ── */
     .auth-input {
       width: 100%;
       background: rgba(255, 255, 255, 0.04);
@@ -82,7 +79,7 @@
     .auth-input::placeholder { color: var(--text-dim); }
     .auth-input:disabled     { opacity: 0.35; }
 
-    /* ── Auth section ── */
+    /* ── Auth section (locked/unlocked) ── */
     .auth-section {
       width: 100%;
       display: flex;
@@ -91,32 +88,39 @@
     }
 
     .locked {
-      opacity: 0.35;
-      filter: blur(3px);
+      opacity: 0.4;
+      filter: blur(4px);
+      transform: translateY(10px);
       pointer-events: none;
-      transition: opacity 0.3s ease, filter 0.3s ease;
+      transition: opacity 0.3s ease, filter 0.3s ease, transform 0.3s ease;
     }
 
     .unlocked {
       opacity: 1;
       filter: blur(0);
+      transform: translateY(0);
       pointer-events: auto;
-      transition: opacity 0.3s ease, filter 0.3s ease;
+      transition: opacity 0.3s ease, filter 0.3s ease, transform 0.3s ease;
     }
 
-    .auth-divider {
-      width: 100%;
-      height: 1px;
-      background: rgba(255, 255, 255, 0.06);
-      margin: 2px 0;
+    /* ── Auth title ── */
+    #auth-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.01em;
+      margin-bottom: 2px;
     }
 
-    /* ── Buttons ── */
+    /* ── Submit button ── */
     .auth-btn {
       width: 100%;
+      margin-top: 2px;
       padding: 12px;
       border-radius: var(--radius-sm);
-      border: 1px solid transparent;
+      border: 1px solid rgba(79, 142, 247, 0.25);
+      background: rgba(79, 142, 247, 0.14);
+      color: #7fb8ff;
       font-size: 14px;
       font-weight: 600;
       font-family: inherit;
@@ -129,31 +133,26 @@
     .auth-btn:active:not(:disabled) { transform: scale(0.97); }
     .auth-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-    .btn-login  {
-      background: rgba(74, 222, 128, 0.10);
-      color: #7fff9a;
-      border-color: rgba(74, 222, 128, 0.18);
-    }
-
-    .btn-signup {
-      background: rgba(79, 142, 247, 0.10);
-      color: #7fb8ff;
-      border-color: rgba(79, 142, 247, 0.18);
-    }
-
-    /* ── Status message ── */
-    .auth-status {
+    /* ── Switch link ── */
+    .auth-switch {
+      cursor: pointer;
       font-size: 12px;
       color: var(--text-muted);
       text-align: center;
-      min-height: 18px;
-      margin-top: var(--space-1);
       letter-spacing: 0.01em;
-      transition: color 200ms ease;
+      transition: color 160ms ease;
+      margin-top: 2px;
     }
 
-    .auth-status.error   { color: var(--red); }
-    .auth-status.success { color: var(--green); }
+    .auth-switch:hover { color: var(--text); }
+
+    /* ── Error / feedback message ── */
+    .auth-error {
+      font-size: 12px;
+      text-align: center;
+      min-height: 16px;
+      letter-spacing: 0.01em;
+    }
   </style>
 </head>
 <body>
@@ -180,20 +179,20 @@
         </div>
       </div>
 
-      <!-- Auth (locked until invite code is correct) -->
+      <!-- Auth form (locked until invite) -->
       <div id="authSection" class="auth-section locked">
+        <h2 id="auth-title">Iniciar sesión</h2>
         <input id="email" type="email" class="auth-input"
                placeholder="correo electrónico"
                autocomplete="email" disabled>
         <input id="password" type="password" class="auth-input"
                placeholder="contraseña"
                autocomplete="current-password" disabled>
-        <div class="auth-divider"></div>
-        <button id="login"  class="auth-btn btn-login"  disabled>Iniciar sesión</button>
-        <button id="signup" class="auth-btn btn-signup" disabled>Crear cuenta</button>
+        <button id="auth-submit" class="auth-btn" disabled>Entrar</button>
+        <p id="auth-switch" class="auth-switch"></p>
+        <p id="auth-error" class="auth-error"></p>
       </div>
 
-      <p class="auth-status" id="authStatus"></p>
       <p class="beta-version">Private Beta &bull; v0.1</p>
     </div>
 
@@ -217,70 +216,124 @@
       });
     }
 
-    // ── Invite gate ────────────────────────────────────────────
-    const VALID_CODE   = 'AURIX123';
-    const inviteInput  = document.getElementById('inviteCode');
-    const authSection  = document.getElementById('authSection');
-    const inviteCheck  = document.getElementById('inviteCheck');
+    // ── Auth functions ─────────────────────────────────────────
+    async function signIn(email, password) {
+      return client.auth.signInWithPassword({ email, password });
+    }
 
+    async function signUp(email, password) {
+      return client.auth.signUp({ email, password });
+    }
+
+    // ── State ──────────────────────────────────────────────────
+    let authMode       = 'login';
+    let inviteUnlocked = false;
+
+    // ── DOM refs ───────────────────────────────────────────────
+    const VALID_CODE  = 'AURIX123';
+    const inviteInput = document.getElementById('inviteCode');
+    const authSection = document.getElementById('authSection');
+    const inviteCheck = document.getElementById('inviteCheck');
+    const emailEl     = document.getElementById('email');
+    const passwordEl  = document.getElementById('password');
+    const submitBtn   = document.getElementById('auth-submit');
+    const errorEl     = document.getElementById('auth-error');
+
+    // ── Invite gate ────────────────────────────────────────────
     inviteInput.addEventListener('input', () => {
       if (inviteInput.value.trim().toUpperCase() === VALID_CODE) {
         unlockAuth();
       }
     });
 
+    function updateInviteState(unlocked) {
+      inviteUnlocked      = unlocked;
+      emailEl.disabled    = !unlocked;
+      passwordEl.disabled = !unlocked;
+      submitBtn.disabled  = !unlocked;
+    }
+
     function unlockAuth() {
       authSection.classList.remove('locked');
       authSection.classList.add('unlocked');
-      document.querySelectorAll('#authSection input, #authSection button')
-        .forEach(el => el.disabled = false);
+      updateInviteState(true);
       inviteCheck.classList.add('visible');
-      document.getElementById('email').focus();
+      emailEl.focus();
     }
 
-    // ── Auth UI ────────────────────────────────────────────────
-    const emailEl    = document.getElementById('email');
-    const passwordEl = document.getElementById('password');
-    const statusEl   = document.getElementById('authStatus');
-
-    function setStatus(msg, type) {
-      statusEl.textContent = msg;
-      statusEl.className   = 'auth-status' + (type ? ' ' + type : '');
-    }
-
-    document.getElementById('login').onclick = async () => {
-      if (!client) return setStatus('Supabase no disponible', 'error');
-      setStatus('Iniciando sesión…');
-      const { error } = await client.auth.signInWithPassword({
-        email:    emailEl.value.trim(),
-        password: passwordEl.value,
-      });
-      if (error) {
-        setStatus(error.message, 'error');
+    // ── Auth mode toggle ───────────────────────────────────────
+    function setAuthMode(mode) {
+      authMode = mode;
+      const title      = document.getElementById('auth-title');
+      const switchLink = document.getElementById('auth-switch');
+      if (mode === 'login') {
+        title.innerText      = 'Iniciar sesión';
+        submitBtn.innerText  = 'Entrar';
+        switchLink.innerText = '¿No tienes cuenta? Crear cuenta';
       } else {
-        setStatus('¡Bienvenido!', 'success');
-        setTimeout(() => { window.location.href = 'index.html'; }, 280);
+        title.innerText      = 'Crear cuenta';
+        submitBtn.innerText  = 'Crear cuenta';
+        switchLink.innerText = '¿Ya tienes cuenta? Iniciar sesión';
+      }
+      errorEl.innerText  = '';
+      errorEl.style.color = '';
+    }
+
+    document.getElementById('auth-switch').onclick = () => {
+      setAuthMode(authMode === 'login' ? 'signup' : 'login');
+    };
+
+    // ── Error handling ─────────────────────────────────────────
+    function handleAuthError(error) {
+      const msg = error.message || '';
+      errorEl.style.color = 'var(--red)';
+      if (msg.includes('rate limit')) {
+        errorEl.innerText = 'Demasiados intentos. Espera un momento.';
+      } else if (msg.includes('Invalid login') || msg.includes('Invalid email or password')) {
+        errorEl.innerText = 'Email o contraseña incorrectos.';
+      } else {
+        errorEl.innerText = 'Ha ocurrido un error. Inténtalo de nuevo.';
+      }
+    }
+
+    // ── Submit ─────────────────────────────────────────────────
+    submitBtn.onclick = async () => {
+      if (!inviteUnlocked) return;
+      if (!client) {
+        errorEl.style.color = 'var(--red)';
+        errorEl.innerText   = 'Supabase no disponible.';
+        return;
+      }
+
+      errorEl.innerText       = '';
+      submitBtn.disabled      = true;
+      submitBtn.innerText     = authMode === 'login' ? 'Entrando…' : 'Creando cuenta…';
+
+      const res = await (authMode === 'login'
+        ? signIn(emailEl.value.trim(), passwordEl.value)
+        : signUp(emailEl.value.trim(), passwordEl.value));
+
+      if (res?.error) {
+        handleAuthError(res.error);
+        submitBtn.disabled  = false;
+        submitBtn.innerText = authMode === 'login' ? 'Entrar' : 'Crear cuenta';
+      } else if (authMode === 'login') {
+        window.location.href = 'index.html';
+      } else {
+        errorEl.style.color = 'var(--green)';
+        errorEl.innerText   = 'Cuenta creada — revisa tu email para confirmar.';
+        submitBtn.disabled  = false;
+        submitBtn.innerText = 'Crear cuenta';
       }
     };
 
-    document.getElementById('signup').onclick = async () => {
-      if (!client) return setStatus('Supabase no disponible', 'error');
-      setStatus('Creando cuenta…');
-      const { error } = await client.auth.signUp({
-        email:    emailEl.value.trim(),
-        password: passwordEl.value,
-      });
-      if (error) {
-        setStatus(error.message, 'error');
-      } else {
-        setStatus('Cuenta creada — revisa tu email para confirmar.', 'success');
-      }
-    };
-
-    // Allow Enter key in password field to trigger login
     passwordEl.addEventListener('keydown', e => {
-      if (e.key === 'Enter') document.getElementById('login').click();
+      if (e.key === 'Enter') submitBtn.click();
     });
+
+    // ── Init ───────────────────────────────────────────────────
+    updateInviteState(false);
+    setAuthMode('login');
   </script>
 
 </body>
