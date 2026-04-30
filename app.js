@@ -20,6 +20,44 @@ if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefin
   console.warn('[SUPABASE] client NOT initialized (missing config)');
 }
 
+const SUPABASE_USER_ID = '00000000-0000-0000-0000-000000000001';
+
+async function supabaseLoadPortfolio() {
+  if (!supabaseClient) return null;
+  try {
+    const { data, error } = await supabaseClient
+      .from('portfolio')
+      .select('*')
+      .eq('user_id', SUPABASE_USER_ID)
+      .single();
+    if (error) {
+      if (IS_DEV) console.warn('[SUPABASE] load error', error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    if (IS_DEV) console.warn('[SUPABASE] load exception', err);
+    return null;
+  }
+}
+
+async function supabaseSavePortfolio(catalogAssets, holdings) {
+  if (!supabaseClient) return;
+  try {
+    const { error } = await supabaseClient
+      .from('portfolio')
+      .upsert({
+        user_id: SUPABASE_USER_ID,
+        assets:  catalogAssets,
+        holdings,
+        updated_at: new Date().toISOString()
+      });
+    if (error && IS_DEV) console.warn('[SUPABASE] save error', error);
+  } catch (err) {
+    if (IS_DEV) console.warn('[SUPABASE] save exception', err);
+  }
+}
+
 // ── Internationalisation ───────────────────────────────────
 const LANG_KEY = 'portfolio_lang';
 let lang = localStorage.getItem(LANG_KEY) || 'es';
@@ -765,6 +803,7 @@ function save() {
   try {
     const { assets: catalogAssets, holdings } = convertToNewModel(assets);
     saveData({ assets: catalogAssets, holdings });
+    supabaseSavePortfolio(catalogAssets, holdings);
   } catch (e) {
     console.warn('[portfolio] save failed (localStorage full or unavailable):', e);
   }
@@ -7806,6 +7845,18 @@ const _perfCurrBtn = document.getElementById('perfCurrBtn');
 if (_perfCurrBtn) _perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$';
 
 render(true);
+
+(async () => {
+  const remote = await supabaseLoadPortfolio();
+  if (remote && remote.assets && remote.holdings) {
+    if (IS_DEV) console.log('[SUPABASE] loaded remote portfolio');
+    assets = convertFromNewToFlat(remote.assets, remote.holdings);
+    saveData({ assets: remote.assets, holdings: remote.holdings });
+    render(true);
+  } else {
+    if (IS_DEV) console.log('[SUPABASE] using local portfolio');
+  }
+})();
 
 // Bootstrap simulated history if this is the first session
 (function bootstrapHistory() {
