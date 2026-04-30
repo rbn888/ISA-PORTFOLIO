@@ -103,7 +103,24 @@ if (supabaseClient) {
         }
       });
     }
+    if (event === 'SIGNED_OUT') {
+      window.location.href = 'login.html';
+    }
   });
+}
+
+async function requireAuth() {
+  if (!supabaseClient) return null;
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+      window.location.href = 'login.html';
+      return null;
+    }
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 // ── Internationalisation ───────────────────────────────────
@@ -7895,6 +7912,9 @@ if (_perfCurrBtn) _perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$
 render(true);
 
 (async () => {
+  const user = await requireAuth();
+  if (!user) return;
+
   const remote = await supabaseLoadPortfolio();
   if (remote && remote.assets && remote.holdings) {
     if (IS_DEV) console.log('[SUPABASE] loaded remote portfolio');
@@ -9241,17 +9261,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Temporary auth UI
-  const emailEl    = document.getElementById('email');
-  const passwordEl = document.getElementById('password');
-  const signupBtn  = document.getElementById('signup');
-  const loginBtn   = document.getElementById('login');
-  const logoutBtn  = document.getElementById('logout');
-  if (emailEl && signupBtn && supabaseClient) {
-    signupBtn.onclick = () => signUp(emailEl.value, passwordEl.value);
-    loginBtn.onclick  = () => signIn(emailEl.value, passwordEl.value);
-    logoutBtn.onclick = () => signOut();
-  }
 });
 
 // ── Mobile FAB ─────────────────────────────────────────────

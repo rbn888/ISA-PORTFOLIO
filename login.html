@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURIX — Acceso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-5);
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: -30%;
+      background:
+        radial-gradient(circle 750px at 22% 32%, rgba(79,142,247,.10) 0%, transparent 60%),
+        radial-gradient(circle 600px at 80% 74%, rgba(39,199,104,.06) 0%, transparent 60%);
+      animation: beta-bg-drift 26s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    /* ── Invite section ── */
+    .invite-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      margin-bottom: var(--space-5);
+    }
+
+    .invite-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .invite-check {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      color: var(--green);
+      opacity: 0;
+      transform: scale(0.6);
+      transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-spring);
+    }
+
+    .invite-check.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ── Shared input style ── */
+    .auth-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 200ms ease, background 200ms ease;
+    }
+
+    .auth-input:focus {
+      border-color: rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .auth-input::placeholder { color: var(--text-dim); }
+    .auth-input:disabled     { opacity: 0.35; }
+
+    /* ── Auth section ── */
+    .auth-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .locked {
+      opacity: 0.35;
+      filter: blur(3px);
+      pointer-events: none;
+      transition: opacity 0.3s ease, filter 0.3s ease;
+    }
+
+    .unlocked {
+      opacity: 1;
+      filter: blur(0);
+      pointer-events: auto;
+      transition: opacity 0.3s ease, filter 0.3s ease;
+    }
+
+    .auth-divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 2px 0;
+    }
+
+    /* ── Buttons ── */
+    .auth-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity 160ms ease, transform 120ms ease;
+    }
+
+    .auth-btn:hover:not(:disabled) { opacity: 0.82; }
+    .auth-btn:active:not(:disabled) { transform: scale(0.97); }
+    .auth-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-login  {
+      background: rgba(74, 222, 128, 0.10);
+      color: #7fff9a;
+      border-color: rgba(74, 222, 128, 0.18);
+    }
+
+    .btn-signup {
+      background: rgba(79, 142, 247, 0.10);
+      color: #7fb8ff;
+      border-color: rgba(79, 142, 247, 0.18);
+    }
+
+    /* ── Status message ── */
+    .auth-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      min-height: 18px;
+      margin-top: var(--space-1);
+      letter-spacing: 0.01em;
+      transition: color 200ms ease;
+    }
+
+    .auth-status.error   { color: var(--red); }
+    .auth-status.success { color: var(--green); }
+  </style>
+</head>
+<body>
+
+  <div class="beta-container">
+
+    <div class="beta-logo-above">
+      <span class="logo-aurix">AURIX</span>
+    </div>
+
+    <div class="beta-card">
+      <div class="beta-access-label">Acceso privado</div>
+      <p class="beta-hint">Introduce tu código de invitación</p>
+
+      <!-- Invite gate -->
+      <div class="invite-section">
+        <div class="invite-row">
+          <input id="inviteCode" class="auth-input" type="text"
+                 placeholder="Código de invitación"
+                 autocomplete="off" spellcheck="false">
+          <svg id="inviteCheck" class="invite-check" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Auth (locked until invite code is correct) -->
+      <div id="authSection" class="auth-section locked">
+        <input id="email" type="email" class="auth-input"
+               placeholder="correo electrónico"
+               autocomplete="email" disabled>
+        <input id="password" type="password" class="auth-input"
+               placeholder="contraseña"
+               autocomplete="current-password" disabled>
+        <div class="auth-divider"></div>
+        <button id="login"  class="auth-btn btn-login"  disabled>Iniciar sesión</button>
+        <button id="signup" class="auth-btn btn-signup" disabled>Crear cuenta</button>
+      </div>
+
+      <p class="auth-status" id="authStatus"></p>
+      <p class="beta-version">Private Beta &bull; v0.1</p>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    'use strict';
+
+    // ── Supabase client ────────────────────────────────────────
+    let client = null;
+    if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined' && window.supabase) {
+      client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // Redirect if already authenticated
+    if (client) {
+      client.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) window.location.href = 'index.html';
+      });
+    }
+
+    // ── Invite gate ────────────────────────────────────────────
+    const VALID_CODE   = 'AURIX123';
+    const inviteInput  = document.getElementById('inviteCode');
+    const authSection  = document.getElementById('authSection');
+    const inviteCheck  = document.getElementById('inviteCheck');
+
+    inviteInput.addEventListener('input', () => {
+      if (inviteInput.value.trim().toUpperCase() === VALID_CODE) {
+        unlockAuth();
+      }
+    });
+
+    function unlockAuth() {
+      authSection.classList.remove('locked');
+      authSection.classList.add('unlocked');
+      document.querySelectorAll('#authSection input, #authSection button')
+        .forEach(el => el.disabled = false);
+      inviteCheck.classList.add('visible');
+      document.getElementById('email').focus();
+    }
+
+    // ── Auth UI ────────────────────────────────────────────────
+    const emailEl    = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const statusEl   = document.getElementById('authStatus');
+
+    function setStatus(msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className   = 'auth-status' + (type ? ' ' + type : '');
+    }
+
+    document.getElementById('login').onclick = async () => {
+      if (!client) return setStatus('Supabase no disponible', 'error');
+      setStatus('Iniciando sesión…');
+      const { error } = await client.auth.signInWithPassword({
+        email:    emailEl.value.trim(),
+        password: passwordEl.value,
+      });
+      if (error) {
+        setStatus(error.message, 'error');
+      } else {
+        setStatus('¡Bienvenido!', 'success');
+        setTimeout(() => { window.location.href = 'index.html'; }, 280);
+      }
+    };
+
+    document.getElementById('signup').onclick = async () => {
+      if (!client) return setStatus('Supabase no disponible', 'error');
+      setStatus('Creando cuenta…');
+      const { error } = await client.auth.signUp({
+        email:    emailEl.value.trim(),
+        password: passwordEl.value,
+      });
+      if (error) {
+        setStatus(error.message, 'error');
+      } else {
+        setStatus('Cuenta creada — revisa tu email para confirmar.', 'success');
+      }
+    };
+
+    // Allow Enter key in password field to trigger login
+    passwordEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('login').click();
+    });
+  </script>
+
+</body>
+</html>
