@@ -5,6 +5,13 @@ const IS_DEV =
   location.hostname === 'localhost' ||
   location.hostname === '127.0.0.1';
 
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
+
+if (IS_DEV) console.log('[SUPABASE] client initialized');
+
 // ── Internationalisation ───────────────────────────────────
 const LANG_KEY = 'portfolio_lang';
 let lang = localStorage.getItem(LANG_KEY) || 'es';
