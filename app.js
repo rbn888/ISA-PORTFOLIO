@@ -70,6 +70,47 @@ async function supabaseSavePortfolio(catalogAssets, holdings) {
   }
 }
 
+async function saveRemoteSafe(catalogAssets, holdings) {
+  try {
+    await supabaseSavePortfolio(catalogAssets, holdings);
+  } catch (e) {
+    if (IS_DEV) console.warn('[DATA] saveRemoteSafe retry', e);
+    try {
+      await supabaseSavePortfolio(catalogAssets, holdings);
+    } catch (e2) {
+      if (IS_DEV) console.warn('[DATA] saveRemoteSafe failed', e2);
+    }
+  }
+}
+
+function isValidPortfolioData(data) {
+  return data &&
+    Array.isArray(data.assets) &&
+    data.holdings !== null &&
+    typeof data.holdings === 'object';
+}
+
+async function loadInitialData() {
+  const remote = await supabaseLoadPortfolio();
+  if (isValidPortfolioData(remote)) {
+    if (IS_DEV) console.log('[DATA] loaded from remote');
+    return { assets: remote.assets, holdings: remote.holdings };
+  }
+
+  try {
+    const localAssets   = JSON.parse(localStorage.getItem('aurix_assets')  || 'null');
+    const localHoldings = JSON.parse(localStorage.getItem('aurix_holdings') || 'null');
+    if (localAssets && localHoldings) {
+      if (IS_DEV) console.log('[DATA] remote unavailable, using local cache');
+      return { assets: localAssets, holdings: localHoldings };
+    }
+  } catch (e) {
+    if (IS_DEV) console.warn('[DATA] local parse error', e);
+  }
+
+  return null;
+}
+
 async function signUp(email, password) {
   const { data, error } = await supabaseClient.auth.signUp({ email, password });
   if (error) console.error('[AUTH] signup error', error);
@@ -86,31 +127,46 @@ async function signOut() {
   await supabaseClient.auth.signOut();
 }
 
-if (supabaseClient) {
-  supabaseClient.auth.onAuthStateChange((event, session) => {
-    if (IS_DEV) console.log('[AUTH]', event);
-    if (session?.user) {
-      if (IS_DEV) console.log('[AUTH] logged in', session.user.id);
-    } else {
-      if (IS_DEV) console.log('[AUTH] logged out');
-    }
+if (supabaseClient && !window.__AUTH_LISTENER__) {
+  window.__AUTH_LISTENER__ = true;
+
+  supabaseClient.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_IN') {
-      supabaseLoadPortfolio().then(remote => {
-        if (remote?.assets && remote?.holdings) {
-          assets = convertFromNewToFlat(remote.assets, remote.holdings);
-          saveData({ assets: remote.assets, holdings: remote.holdings });
-          render(true);
-        }
-      });
+      if (!window.location.pathname.includes('index.html')) {
+        window.location.href = 'index.html';
+      }
     }
     if (event === 'SIGNED_OUT') {
+      sessionStorage.removeItem('otp_sent');
       window.location.href = 'login.html';
-    }
-    if (event === 'TOKEN_REFRESHED') {
-      if (IS_DEV) console.log('[AUTH] session refreshed');
     }
   });
 }
+
+const waitForSession = async () => {
+  try {
+    for (let i = 0; i < 5; i++) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) return session;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return null;
+  } catch (e) {
+    console.error('[SESSION ERROR]', e);
+    return null;
+  }
+};
+
+const ensureSession = async () => {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) {
+    if (!window.location.pathname.includes('login.html')) {
+      window.location.href = 'login.html';
+    }
+    return null;
+  }
+  return session;
+};
 
 async function requireAuth() {
   if (!supabaseClient) {
@@ -875,7 +931,7 @@ function save() {
   try {
     const { assets: catalogAssets, holdings } = convertToNewModel(assets);
     saveData({ assets: catalogAssets, holdings });
-    supabaseSavePortfolio(catalogAssets, holdings);
+    saveRemoteSafe(catalogAssets, holdings);
   } catch (e) {
     console.warn('[portfolio] save failed (localStorage full or unavailable):', e);
   }
@@ -7919,25 +7975,41 @@ if (_perfCurrBtn) _perfCurrBtn.textContent = baseCurrency === 'EUR' ? '€' : '$
 document.getElementById('appRoot').style.opacity = '0';
 
 (async () => {
-  const user = await requireAuth();
-  if (IS_DEV) console.log('User session:', user);
-  if (user === false) return; // redirecting to login.html — do not render
+  if (window.__APP_BOOTED__) return;
+  window.__APP_BOOTED__ = true;
 
-  const remote = await supabaseLoadPortfolio();
-  if (remote && remote.assets && remote.holdings) {
-    if (IS_DEV) console.log('[SUPABASE] loaded remote portfolio');
-    assets = convertFromNewToFlat(remote.assets, remote.holdings);
-    saveData({ assets: remote.assets, holdings: remote.holdings });
-  } else {
-    if (IS_DEV) console.log('[SUPABASE] using local portfolio');
-  }
+  try {
+    const session = await waitForSession();
 
-  document.getElementById('appRoot').style.opacity = '';
-  render(true);
-  const loader = document.getElementById('bootLoader');
-  if (loader) {
-    loader.style.opacity = '0';
-    setTimeout(() => loader.remove(), 200);
+    if (!session) {
+      if (!window.location.pathname.includes('login.html')) {
+        window.location.href = 'login.html';
+      }
+      return;
+    }
+
+    if (window.location.hash) {
+      history.replaceState(null, '', window.location.pathname);
+    }
+
+    const data = await loadInitialData();
+    if (data) {
+      assets = convertFromNewToFlat(data.assets, data.holdings);
+      saveData({ assets: data.assets, holdings: data.holdings });
+    }
+
+    document.getElementById('appRoot').style.opacity = '';
+    render(true);
+    const loader = document.getElementById('bootLoader');
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.remove(), 200);
+    }
+  } catch (e) {
+    console.error('[BOOT ERROR]', e);
+    if (!window.location.pathname.includes('login.html')) {
+      window.location.href = 'login.html';
+    }
   }
 })();
 

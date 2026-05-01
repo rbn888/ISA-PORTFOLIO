@@ -133,8 +133,16 @@
     .auth-btn:active:not(:disabled) { transform: scale(0.97); }
     .auth-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-    /* ── Switch link ── */
-    .auth-switch {
+    /* ── Feedback message ── */
+    .auth-error {
+      font-size: 12px;
+      text-align: center;
+      min-height: 16px;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Secondary links ── */
+    .auth-link {
       cursor: pointer;
       font-size: 12px;
       color: var(--text-muted);
@@ -144,15 +152,7 @@
       margin-top: 2px;
     }
 
-    .auth-switch:hover { color: var(--text); }
-
-    /* ── Error / feedback message ── */
-    .auth-error {
-      font-size: 12px;
-      text-align: center;
-      min-height: 16px;
-      letter-spacing: 0.01em;
-    }
+    .auth-link:hover { color: var(--text); }
   </style>
 </head>
 <body>
@@ -185,13 +185,10 @@
         <input id="email" type="email" class="auth-input"
                placeholder="correo electrónico"
                autocomplete="email" disabled>
-        <input id="password" type="password" class="auth-input"
-               placeholder="contraseña"
-               autocomplete="current-password" disabled>
-        <p id="forgotPassword" class="auth-switch">¿Olvidaste tu contraseña?</p>
-        <button id="auth-submit" class="auth-btn" disabled>Entrar</button>
-        <p id="auth-switch" class="auth-switch"></p>
+        <button id="auth-submit" class="auth-btn" disabled>Enviar enlace</button>
         <p id="auth-error" class="auth-error"></p>
+        <p id="forgot-link" class="auth-link">¿Olvidaste tu contraseña?</p>
+        <p id="back-link" class="auth-link" style="display:none">← Volver al inicio de sesión</p>
       </div>
 
       <p class="beta-version">Private Beta &bull; v0.1</p>
@@ -217,28 +214,15 @@
       if (user) window.location.href = 'index.html';
     })();
 
-    // ── Auth functions ─────────────────────────────────────────
-    async function signIn(email, password) {
-      return client.auth.signInWithPassword({ email, password });
-    }
-
-    async function signUp(email, password) {
-      return client.auth.signUp({ email, password });
-    }
-
-    // ── State ──────────────────────────────────────────────────
-    let authMode       = 'login';
-    let inviteUnlocked = false;
-    let currentInvite  = null;
-
     // ── DOM refs ───────────────────────────────────────────────
     const inviteInput = document.getElementById('inviteCode');
     const authSection = document.getElementById('authSection');
     const inviteCheck = document.getElementById('inviteCheck');
     const emailEl     = document.getElementById('email');
-    const passwordEl  = document.getElementById('password');
     const submitBtn   = document.getElementById('auth-submit');
     const errorEl     = document.getElementById('auth-error');
+    const forgotLink  = document.getElementById('forgot-link');
+    const backLink    = document.getElementById('back-link');
 
     // ── Invite gate ────────────────────────────────────────────
     async function validateInvite(code) {
@@ -263,131 +247,139 @@
       if (!code) return;
       const result = await validateInvite(code);
       if (result.valid) {
-        currentInvite = result.invite;
         unlockAuth();
       } else {
-        currentInvite = null;
-        updateInviteState(false);
+        lockAuth();
       }
     });
 
-    function updateInviteState(unlocked) {
-      inviteUnlocked      = unlocked;
-      emailEl.disabled    = !unlocked;
-      passwordEl.disabled = !unlocked;
-      submitBtn.disabled  = !unlocked;
+    // ── Mode (login | reset) ───────────────────────────────────
+    let mode = 'login';
+
+    function setMode(m) {
+      mode = m;
+      errorEl.innerText = '';
+      if (m === 'reset') {
+        document.getElementById('auth-title').innerText = 'Restablecer contraseña';
+        forgotLink.style.display = 'none';
+        backLink.style.display   = 'block';
+      } else {
+        document.getElementById('auth-title').innerText = 'Iniciar sesión';
+        forgotLink.style.display = 'block';
+        backLink.style.display   = 'none';
+      }
+    }
+
+    forgotLink.addEventListener('click', () => setMode('reset'));
+    backLink.addEventListener('click',   () => setMode('login'));
+
+    function lockAuth() {
+      emailEl.disabled    = true;
+      submitBtn.disabled  = true;
+      authSection.classList.remove('unlocked');
+      authSection.classList.add('locked');
+      inviteCheck.classList.remove('visible');
+      setMode('login');
     }
 
     function unlockAuth() {
+      emailEl.disabled    = false;
+      submitBtn.disabled  = false;
       authSection.classList.remove('locked');
       authSection.classList.add('unlocked');
-      updateInviteState(true);
       inviteCheck.classList.add('visible');
       emailEl.focus();
     }
 
-    // ── Auth mode toggle ───────────────────────────────────────
-    function setAuthMode(mode) {
-      authMode = mode;
-      const title      = document.getElementById('auth-title');
-      const switchLink = document.getElementById('auth-switch');
-      if (mode === 'login') {
-        title.innerText      = 'Iniciar sesión';
-        submitBtn.innerText  = 'Entrar';
-        switchLink.innerText = '¿No tienes cuenta? Crear cuenta';
-      } else {
-        title.innerText      = 'Crear cuenta';
-        submitBtn.innerText  = 'Crear cuenta';
-        switchLink.innerText = '¿Ya tienes cuenta? Iniciar sesión';
-      }
-      errorEl.innerText  = '';
-      errorEl.style.color = '';
-    }
+    // ---------- INIT ----------
 
-    document.getElementById('auth-switch').onclick = () => {
-      setAuthMode(authMode === 'login' ? 'signup' : 'login');
-    };
+    // Prefill email
+    const savedEmail = localStorage.getItem('last_email');
+    if (savedEmail) emailEl.value = savedEmail;
 
-    // ── Error handling ─────────────────────────────────────────
-    function handleAuthError(error) {
-      const msg = error.message || '';
-      errorEl.style.color = 'var(--red)';
-      if (msg.includes('rate limit')) {
-        errorEl.innerText = 'Demasiados intentos. Espera un momento.';
-      } else if (msg.includes('Invalid login') || msg.includes('Invalid email or password')) {
-        errorEl.innerText = 'Email o contraseña incorrectos.';
-      } else {
-        errorEl.innerText = 'Ha ocurrido un error. Inténtalo de nuevo.';
-      }
-    }
-
-    // ── Submit ─────────────────────────────────────────────────
-    submitBtn.onclick = async () => {
-      if (!inviteUnlocked) return;
-      if (!client) {
-        errorEl.style.color = 'var(--red)';
-        errorEl.innerText   = 'Supabase no disponible.';
-        return;
-      }
-
-      errorEl.innerText       = '';
-      submitBtn.disabled      = true;
-      submitBtn.innerText     = authMode === 'login' ? 'Entrando…' : 'Creando cuenta…';
-
-      const res = await (authMode === 'login'
-        ? signIn(emailEl.value.trim(), passwordEl.value)
-        : signUp(emailEl.value.trim(), passwordEl.value));
-
-      if (res?.error) {
-        handleAuthError(res.error);
-        submitBtn.disabled  = false;
-        submitBtn.innerText = authMode === 'login' ? 'Entrar' : 'Crear cuenta';
-      } else if (authMode === 'login') {
-        window.location.href = 'index.html';
-      } else {
-        if (currentInvite) {
-          client.from('invite_codes')
-            .update({ used_count: currentInvite.used_count + 1 })
-            .eq('id', currentInvite.id);
-        }
-        errorEl.style.color = 'var(--green)';
-        errorEl.innerText   = 'Cuenta creada — revisa tu email para confirmar.';
-        submitBtn.disabled  = false;
-        submitBtn.innerText = 'Crear cuenta';
-      }
-    };
-
-    passwordEl.addEventListener('keydown', e => {
+    // Enter → submit (solo en email, no global)
+    emailEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submitBtn.click();
     });
 
-    // ── Password reset ─────────────────────────────────────────
-    async function resetPassword(email) {
-      return client.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/reset.html',
-      });
-    }
+    // Estado inicial
+    lockAuth();
 
-    document.getElementById('forgotPassword').onclick = async () => {
+
+    // ---------- HANDLER ----------
+
+    submitBtn.addEventListener('click', async () => {
+
+      // Anti double submit (CRÍTICO)
+      if (submitBtn.disabled) return;
+
       const email = emailEl.value.trim();
-      if (!email) {
+
+      // Validación básica UX
+      if (!email || !email.includes('@')) {
         errorEl.style.color = 'var(--red)';
-        errorEl.innerText   = 'Introduce tu email primero.';
+        errorEl.innerText = 'Introduce un email válido';
         return;
       }
-      const { error } = await resetPassword(email);
-      if (error) {
-        errorEl.style.color = 'var(--red)';
-        errorEl.innerText   = 'Ha ocurrido un error. Inténtalo de nuevo.';
-      } else {
-        errorEl.style.color = 'var(--green)';
-        errorEl.innerText   = 'Revisa tu email para cambiar la contraseña.';
-      }
-    };
 
-    // ── Init ───────────────────────────────────────────────────
-    updateInviteState(false);
-    setAuthMode('login');
+      // Reset UI
+      errorEl.innerText = '';
+      errorEl.style.color = 'var(--red)';
+
+      // Loading UX
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Enviando enlace...';
+
+      try {
+        if (mode === 'reset') {
+          const { error } = await client.auth.resetPasswordForEmail(email, {
+            redirectTo: 'https://rbn888.github.io/Aurix/reset-password.html'
+          });
+          if (error) throw error;
+
+          submitBtn.innerText = 'Revisa tu email ✉️';
+          errorEl.style.color = 'var(--green)';
+          errorEl.innerText   = 'Te hemos enviado un enlace para restablecer tu contraseña';
+
+        } else {
+          const { error } = await client.auth.signInWithOtp({ email });
+          if (error) throw error;
+
+          localStorage.setItem('last_email', email);
+          sessionStorage.setItem('otp_sent', '1');
+
+          submitBtn.innerText = 'Revisa tu email ✉️';
+          errorEl.style.color = 'var(--green)';
+          errorEl.innerText   = 'Te hemos enviado un enlace de acceso';
+        }
+
+      } catch (err) {
+        const msg = err?.message || '';
+
+        errorEl.style.color = 'var(--red)';
+        errorEl.innerText = msg.includes('rate limit')
+          ? 'Demasiados intentos. Espera un momento.'
+          : 'Ha ocurrido un error. Inténtalo de nuevo.';
+
+        submitBtn.disabled  = false;
+        submitBtn.innerText = 'Enviar enlace';
+      }
+    });
+
+
+    // ---------- UX RESTORE (post refresh) ----------
+
+    if (sessionStorage.getItem('otp_sent')) {
+      submitBtn.innerText = 'Revisa tu email ✉️';
+      errorEl.style.color = 'var(--green)';
+      errorEl.innerText = 'Te hemos enviado un enlace de acceso';
+
+      // Permitir reintento tras unos segundos (UX pro)
+      setTimeout(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Reenviar enlace';
+      }, 5000);
+    }
   </script>
 
 </body>
