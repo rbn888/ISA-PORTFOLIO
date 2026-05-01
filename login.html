@@ -315,6 +315,7 @@
     // ---------- HANDLER ----------
 
     let cooldown = false;
+    let waitDuration = 90; // increases on repeated rate limits, max 180
 
     function startCooldown(seconds) {
       cooldown = true;
@@ -368,6 +369,7 @@
           });
           if (error) throw error;
 
+          waitDuration = 90;
           submitBtn.innerText = 'Revisa tu email ✉️';
           errorEl.style.color = 'var(--green)';
           errorEl.innerText   = 'Te hemos enviado un enlace para restablecer tu contraseña';
@@ -379,6 +381,7 @@
           });
           if (error) throw error;
 
+          waitDuration = 90;
           localStorage.setItem('last_email', email);
           sessionStorage.setItem('otp_sent', '1');
 
@@ -391,8 +394,9 @@
         const msg = err?.message || '';
 
         if (msg.toLowerCase().includes('rate')) {
-          localStorage.setItem('cooldown_until', Date.now() + 90000);
-          startCooldown(90);
+          localStorage.setItem('cooldown_until', Date.now() + waitDuration * 1000);
+          startCooldown(waitDuration);
+          waitDuration = Math.min(waitDuration + 30, 180);
           submitBtn.innerText = 'Enviar enlace';
         } else {
           errorEl.style.color = 'var(--red)';
