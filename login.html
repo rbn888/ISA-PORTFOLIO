@@ -316,6 +316,29 @@
 
     let cooldown = false;
 
+    function startCooldown(seconds) {
+      cooldown = true;
+      submitBtn.disabled = true;
+      errorEl.style.color = 'orange';
+
+      let wait = seconds;
+      errorEl.innerText = `Demasiados intentos. Espera ${wait}s`;
+
+      const interval = setInterval(() => {
+        wait--;
+        errorEl.innerText = `Demasiados intentos. Espera ${wait}s`;
+
+        if (wait <= 0) {
+          clearInterval(interval);
+          cooldown = false;
+          submitBtn.disabled = false;
+          errorEl.innerText = '';
+          errorEl.style.color = 'var(--red)';
+          localStorage.removeItem('cooldown_until');
+        }
+      }, 1000);
+    }
+
     submitBtn.addEventListener('click', async () => {
 
       // Anti double submit + rate-limit cooldown
@@ -367,23 +390,27 @@
       } catch (err) {
         const msg = err?.message || '';
 
-        errorEl.style.color = 'var(--red)';
         if (msg.toLowerCase().includes('rate')) {
-          cooldown = true;
-          errorEl.style.color = 'orange';
-          errorEl.innerText = 'Has hecho varios intentos. Espera 60 segundos.';
-          setTimeout(() => { cooldown = false; }, 60000);
+          localStorage.setItem('cooldown_until', Date.now() + 90000);
+          startCooldown(90);
+          submitBtn.innerText = 'Enviar enlace';
         } else {
+          errorEl.style.color = 'var(--red)';
           errorEl.innerText = 'Ha ocurrido un error. Inténtalo de nuevo.';
+          submitBtn.disabled  = false;
+          submitBtn.innerText = 'Enviar enlace';
         }
-
-        submitBtn.disabled  = false;
-        submitBtn.innerText = 'Enviar enlace';
       }
     });
 
 
     // ---------- UX RESTORE (post refresh) ----------
+
+    // Resume cooldown if page was refreshed mid-countdown
+    const _until = parseInt(localStorage.getItem('cooldown_until') || '0', 10);
+    if (_until && Date.now() < _until) {
+      startCooldown(Math.ceil((_until - Date.now()) / 1000));
+    }
 
     if (sessionStorage.getItem('otp_sent')) {
       submitBtn.innerText = 'Revisa tu email ✉️';
