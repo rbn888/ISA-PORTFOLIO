@@ -1456,6 +1456,7 @@ let MARKET_DATA      = [];
 let MARKET_DATA_FULL = [];
 const MARKET_METRICS_CACHE = {};
 const MARKET_CACHE = {};
+const MARKET_CACHE_TS = {};
 const _LOADING = {};
 const MARKET_DEBUG = true;
 function marketLog(...args) { if (MARKET_DEBUG) console.log('[market]', ...args); }
@@ -5098,11 +5099,13 @@ function _buildFallbackItems(tab) {
   return [];
 }
 
-// Background refresh per type — skips if fresh, prevents concurrent calls
+const MARKET_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Background refresh per type — respects TTL, prevents concurrent calls
 async function refreshMarketInBackground(tab) {
   if (_LOADING[tab]) return;
-  const now   = Date.now();
-  if (MARKET_CACHE[tab]?.length) return; // already cached — skip refresh
+  const age = Date.now() - (MARKET_CACHE_TS[tab] || 0);
+  if (MARKET_CACHE[tab]?.length && age < MARKET_CACHE_TTL) return;
 
   _LOADING[tab] = true;
   try {
@@ -5113,6 +5116,7 @@ async function refreshMarketInBackground(tab) {
       case 'indices':     await _refreshGeneric(tab, MARKET_INDICES,     INDEX_FALLBACKS,      'Índices');    break;
       case 'commodities': await _refreshGeneric(tab, MARKET_COMMODITIES, COMMODITY_FALLBACKS,  'Materias');   break;
     }
+    MARKET_CACHE_TS[tab] = Date.now();
   } finally {
     _LOADING[tab] = false;
   }

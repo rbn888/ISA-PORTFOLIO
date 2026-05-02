@@ -5621,6 +5621,7 @@ main { padding-bottom: 72px; }
   color: #fff;
   outline: none;
   font-size: 16px;
+  opacity: 0.9;
 }
 
 .market-tabs {
@@ -5718,7 +5719,7 @@ main { padding-bottom: 72px; }
 
 .market-row-spark {
   line-height: 0;
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 .market-row-action {
@@ -5971,6 +5972,7 @@ main { padding-bottom: 72px; }
 /* ── Market desktop layout ── */
 .market-body {
   display: block;
+  margin-top: 12px;
 }
 
 .col {
@@ -6060,7 +6062,7 @@ main { padding-bottom: 72px; }
     grid-template-columns: 40px minmax(160px, 2fr) minmax(100px, 1fr) minmax(80px, 1fr) minmax(80px, 1fr) 50px;
     gap: 16px;
     align-items: center;
-    padding: 12px 0;
+    height: 56px;
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
 
@@ -6081,18 +6083,21 @@ main { padding-bottom: 72px; }
 
   .market-row-price {
     font-weight: 600;
-    font-size: 15px;
+    font-size: 16px;
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
   .market-row-change {
+    font-size: 13px;
+    font-weight: 500;
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
   .market-symbol {
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -6203,8 +6208,10 @@ main { padding-bottom: 72px; }
 /* Step 3: hover depth (desktop only) */
 @media (hover: hover) {
   .market-row:hover {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.06);
     border-radius: 8px;
+    transform: translateX(2px);
+    transition: background 0.15s ease, transform 0.15s ease;
   }
   .featured-card:hover {
     transform: translateY(-2px);
