@@ -5583,7 +5583,7 @@ main { padding-bottom: 72px; }
 
 /* ── Market tab ──────────────────────────────────────────── */
 .market-screen {
-  padding: var(--space-3) var(--space-3) 80px;
+  padding: var(--space-3) 12px 80px;
   width: 100%;
 }
 
@@ -6011,8 +6011,6 @@ main { padding-bottom: 72px; }
 
 @media (min-width: 1024px) {
   .market-screen {
-    max-width: 1600px;
-    margin: 0 auto;
     padding: 0 var(--space-6);
   }
 
