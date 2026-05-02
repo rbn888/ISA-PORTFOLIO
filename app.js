@@ -13,6 +13,9 @@ if (typeof window.supabase === 'undefined') {
 }
 
 let supabaseClient = null;
+let currentUser    = null;
+let _saveTimer     = null;
+let _isSaving      = false;
 if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined' && window.supabase) {
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
@@ -91,6 +94,44 @@ async function saveRemoteSafe(catalogAssets, holdings) {
     } catch (e2) {
       if (IS_DEV) console.warn('[DATA] saveRemoteSafe failed', e2);
     }
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => { autoSaveToBackend(); }, 500);
+}
+
+async function autoSaveToBackend(attempt = 1) {
+  if (_isSaving || !currentUser || !supabaseClient) return;
+
+  const localData = getPortfolioData();
+  if (!localData || (!localData.assets?.length && !localData.holdings?.length)) {
+    if (IS_DEV) console.warn('[DATA] skip autosave (empty data)');
+    return;
+  }
+
+  const assets   = localData.source === 'new' ? localData.assets   : [];
+  const holdings = localData.source === 'new' ? localData.holdings : [];
+
+  try {
+    _isSaving = true;
+    const { error } = await supabaseClient
+      .from('portfolio')
+      .upsert({
+        user_id:    currentUser.id,
+        assets,
+        holdings,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+
+    if (error) throw error;
+    if (IS_DEV) console.log('[DATA] autosave success');
+  } catch (e) {
+    if (IS_DEV) console.error('[DATA] autosave error:', e);
+    if (attempt < 3) setTimeout(() => autoSaveToBackend(attempt + 1), 1000 * attempt);
+  } finally {
+    _isSaving = false;
   }
 }
 
@@ -992,7 +1033,7 @@ function save() {
   try {
     const { assets: catalogAssets, holdings } = convertToNewModel(assets);
     saveData({ assets: catalogAssets, holdings });
-    saveRemoteSafe(catalogAssets, holdings);
+    scheduleSave();
   } catch (e) {
     console.warn('[portfolio] save failed (localStorage full or unavailable):', e);
   }
@@ -8049,7 +8090,7 @@ document.getElementById('appRoot').style.opacity = '0';
       return;
     }
 
-    const currentUser = session.user;
+    currentUser = session.user;
     if (IS_DEV) console.log('[AUTH] session restored:', currentUser?.email);
 
     if (window.location.hash) {
