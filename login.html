@@ -208,10 +208,10 @@
       <!-- OTP step (shown after email is sent) -->
       <div id="otpSection" class="auth-section" style="display:none">
         <h2 class="auth-title">Verificar código</h2>
-        <p class="otp-hint">Introduce el código de 6 dígitos enviado a tu email</p>
+        <p class="otp-hint">Introduce el código de acceso enviado a tu email</p>
         <input id="otp-code" type="text" inputmode="numeric" pattern="[0-9]*"
-               class="auth-input otp-input" placeholder="000000"
-               maxlength="6" autocomplete="one-time-code">
+               class="auth-input otp-input" placeholder="00000000"
+               maxlength="8" autocomplete="one-time-code">
         <button id="otp-submit" class="auth-btn">Verificar código</button>
         <p id="otp-error" class="auth-error"></p>
         <p class="auth-link" id="otp-back">Usar otro email</p>
@@ -466,8 +466,8 @@
 
     // ── OTP input — enforce numeric, enable button at 6 digits ─
     otpCodeEl.addEventListener('input', () => {
-      otpCodeEl.value = otpCodeEl.value.replace(/\D/g, '').slice(0, 6);
-      otpSubmitBtn.disabled = otpCodeEl.value.length !== 6;
+      otpCodeEl.value = otpCodeEl.value.replace(/\D/g, '').slice(0, 8);
+      otpSubmitBtn.disabled = otpCodeEl.value.length < 6;
     });
 
     otpCodeEl.addEventListener('keydown', (e) => {
@@ -475,40 +475,47 @@
     });
 
     // ── OTP submit → verify code ───────────────────────────────
+    let isVerifying = false;
     otpSubmitBtn.addEventListener('click', async () => {
-      if (otpSubmitBtn.disabled) return;
+      if (isVerifying) return;
+      isVerifying = true;
 
-      const email = localStorage.getItem('aurix_otp_email');
-      const code  = otpCodeEl.value.trim();
+      try {
+        const email = localStorage.getItem('aurix_otp_email');
+        const code  = otpCodeEl.value.trim();
 
-      if (!email) { showEmailStep(); return; }
+        if (!email) { showEmailStep(); return; }
 
-      if (!/^\d{6}$/.test(code)) {
-        otpErrorEl.style.color = 'var(--red)';
-        otpErrorEl.innerText = 'Introduce el código de 6 dígitos completo.';
-        return;
+        if (!/^\d{6,8}$/.test(code)) {
+          otpErrorEl.style.color = 'var(--red)';
+          otpErrorEl.innerText   = 'Introduce un código válido (6-8 dígitos).';
+          return;
+        }
+
+        otpErrorEl.innerText   = '';
+        otpSubmitBtn.disabled  = true;
+        otpSubmitBtn.innerText = 'Verificando...';
+
+        const { error } = await client.auth.verifyOtp({
+          email,
+          token: code,
+          type: 'email'
+        });
+
+        if (error) {
+          otpErrorEl.style.color = 'var(--red)';
+          otpErrorEl.innerText   = 'Código inválido o expirado. Inténtalo de nuevo.';
+          otpSubmitBtn.disabled  = false;
+          otpSubmitBtn.innerText = 'Verificar código';
+          return;
+        }
+
+        localStorage.removeItem('aurix_otp_email');
+        window.location.href = '/Aurix/index.html';
+
+      } finally {
+        isVerifying = false;
       }
-
-      otpErrorEl.innerText    = '';
-      otpSubmitBtn.disabled   = true;
-      otpSubmitBtn.innerText  = 'Verificando...';
-
-      const { error } = await client.auth.verifyOtp({
-        email,
-        token: code,
-        type: 'email'
-      });
-
-      if (error) {
-        otpErrorEl.style.color = 'var(--red)';
-        otpErrorEl.innerText   = 'Código inválido o expirado. Inténtalo de nuevo.';
-        otpSubmitBtn.disabled  = false;
-        otpSubmitBtn.innerText = 'Verificar código';
-        return;
-      }
-
-      localStorage.removeItem('aurix_otp_email');
-      window.location.href = '/Aurix/index.html';
     });
 
     otpBackEl.addEventListener('click', showEmailStep);
