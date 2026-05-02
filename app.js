@@ -5054,7 +5054,8 @@ function renderFromCache(type) {
   if (!el) return false;
   if (!items.length) return false;
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
-  el.innerHTML = `<div class="market-section-header">${label}</div>${items.map(renderMarketItem).join('')}`;
+  const tableHeader = `<div class="market-table-header"><span></span><span>Activo</span><span>Precio</span><span>24h %</span><span>Sparkline</span><span>Mkt Cap</span></div>`;
+  el.innerHTML = `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
   return true;
 }
 
