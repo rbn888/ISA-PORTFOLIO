@@ -4956,8 +4956,12 @@ function renderMyAssetsBlock() {
   requestAnimationFrame(renderMarketInsights);
   const container = document.getElementById('marketMyAssets');
   if (!container) return;
-  const allCached = Object.values(MARKET_CACHE).flat();
-  if (allCached.length > 0) MARKET_DATA_FULL = allCached;
+  const _dedupeMap = new Map();
+  for (const item of Object.values(MARKET_CACHE).flat()) {
+    const key = _normalizeWLSymbol(item.symbol || item.provider_id);
+    if (key && !_dedupeMap.has(key)) _dedupeMap.set(key, item);
+  }
+  if (_dedupeMap.size > 0) MARKET_DATA_FULL = Array.from(_dedupeMap.values());
   const source = MARKET_DATA_FULL.length > 0 ? MARKET_DATA_FULL : MARKET_DATA;
   const watchedSet = new Set(getWatchlist().map(_normalizeWLSymbol));
   const filtered = source.filter(item =>
