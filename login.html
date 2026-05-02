@@ -291,6 +291,7 @@
 
     // ── State ──────────────────────────────────────────────────
     let otpStep        = false;
+    let isSubmitting   = false;
     let cooldown       = false;
     let rateLimitHits  = 0;
     let _cooldownTimer = null;
@@ -403,21 +404,13 @@
       startCooldown(until);
     }
 
-    function handleError(err) {
-      const msg = (err?.message || '').toLowerCase();
-      const isRateLimit = msg.includes('rate') || msg.includes('too many') ||
-                          msg.includes('over') || msg.includes('limit');
-      if (isRateLimit) { handleRateLimit(); return; }
-      errorEl.style.color = 'var(--red)';
-      errorEl.innerText = 'Ha ocurrido un error. Inténtalo de nuevo.';
-      updateSubmitState();
+    function isRateLimitError(err) {
+      return (err?.message || '').toLowerCase().includes('rate');
     }
 
     // ── Email submit → send OTP ────────────────────────────────
     submitBtn.addEventListener('click', async () => {
-      if (submitBtn.disabled) return;
-
-      if (cooldown) return;
+      if (submitBtn.disabled || isSubmitting) return;
 
       const email = emailEl.value.trim();
       if (!email || !email.includes('@')) {
@@ -426,25 +419,40 @@
         return;
       }
 
-      errorEl.innerText = '';
-      errorEl.style.color = 'var(--red)';
+      isSubmitting = true;
+      errorEl.innerText   = '';
       submitBtn.disabled  = true;
       submitBtn.innerText = 'Enviando código...';
 
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true }
-      });
+      try {
+        console.log('OTP request start');
 
-      if (error) {
-        handleError(error);
-        return;
+        const { error } = await client.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: true }
+        });
+
+        if (error) {
+          console.log('OTP error:', error);
+          if (isRateLimitError(error)) {
+            handleRateLimit();
+            return;
+          }
+          errorEl.style.color = 'var(--red)';
+          errorEl.innerText   = 'Ha ocurrido un error. Inténtalo de nuevo.';
+          updateSubmitState();
+          return;
+        }
+
+        console.log('OTP success → showing OTP step');
+        localStorage.setItem('aurix_otp_email', email);
+        localStorage.setItem('last_email', email);
+        resetCooldownState();
+        showOtpStep();
+
+      } finally {
+        isSubmitting = false;
       }
-
-      localStorage.setItem('aurix_otp_email', email);
-      localStorage.setItem('last_email', email);
-      resetCooldownState();
-      showOtpStep();
     });
 
     // ── OTP input — enforce numeric, enable button at 6 digits ─
