@@ -6044,24 +6044,46 @@ main { padding-bottom: 72px; }
   .market-row {
     display: grid;
     grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr;
-    gap: var(--space-2);
+    gap: 20px;
     align-items: center;
-    padding: var(--space-2) var(--space-1);
+    padding: 12px 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
 
   .market-table-header {
     display: grid;
     grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr;
-    gap: var(--space-2);
+    gap: 20px;
     font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
-    opacity: 0.6;
+    opacity: 0.5;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    padding: 8px var(--space-1);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 4px;
+  }
+
+  .market-row-price {
+    font-weight: 600;
+    font-size: 15px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .market-row-change {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .market-symbol {
+    font-weight: 500;
+  }
+
+  .market-name-sub {
+    font-size: 12px;
+    opacity: 0.6;
   }
 }
 
@@ -6164,7 +6186,7 @@ main { padding-bottom: 72px; }
 /* Step 3: hover depth (desktop only) */
 @media (hover: hover) {
   .market-row:hover {
-    background: rgba(255,255,255,0.03);
+    background: rgba(255,255,255,0.05);
     border-radius: 8px;
   }
   .featured-card:hover {
