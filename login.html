@@ -350,10 +350,16 @@
 
     lockAuth();
 
-    // ── Submit button state ────────────────────────────────────
+    // ── Submit button state (single UI authority) ─────────────
     function updateSubmitState() {
-      if (cooldown) { submitBtn.disabled = true; return; }
-      submitBtn.disabled = !(emailEl.value && emailEl.value.includes('@'));
+      if (cooldown) {
+        submitBtn.disabled  = true;
+        submitBtn.innerText = 'Enviar código de acceso';
+        return;
+      }
+      const validEmail = emailEl.value && emailEl.value.includes('@');
+      submitBtn.disabled  = !validEmail;
+      submitBtn.innerText = 'Enviar código de acceso';
     }
 
     function clearTimer() {
@@ -411,11 +417,7 @@
     submitBtn.addEventListener('click', async () => {
       if (submitBtn.disabled) return;
 
-      if (cooldown) {
-        const storedUntil = Number(localStorage.getItem('cooldown_until') || 0);
-        if (storedUntil <= Date.now()) { resetCooldownState(); }
-        else { return; }
-      }
+      if (cooldown) return;
 
       const email = emailEl.value.trim();
       if (!email || !email.includes('@')) {
@@ -435,7 +437,6 @@
       });
 
       if (error) {
-        submitBtn.innerText = 'Enviar código de acceso';
         handleError(error);
         return;
       }
@@ -443,7 +444,6 @@
       localStorage.setItem('aurix_otp_email', email);
       localStorage.setItem('last_email', email);
       resetCooldownState();
-      submitBtn.innerText = 'Enviar código de acceso';
       showOtpStep();
     });
 
@@ -496,13 +496,20 @@
 
     otpBackEl.addEventListener('click', showEmailStep);
 
-    // ── Cooldown restore (survives page reload) ────────────────
-    const storedUntil = Number(localStorage.getItem('cooldown_until') || 0);
-    if (storedUntil > Date.now()) {
-      startCooldown(storedUntil);
-    } else {
+    // ── Cooldown restore — hard reset if expired (prevents ghost cooldown) ──
+    const storedUntil = Number(localStorage.getItem('cooldown_until')) || 0;
+    if (storedUntil <= Date.now()) {
+      localStorage.removeItem('cooldown_until');
       resetCooldownState();
+    } else {
+      startCooldown(storedUntil);
     }
+
+    // ── Self-heal on focus (iOS suspends timers) ───────────────
+    window.addEventListener('focus', () => {
+      const until = Number(localStorage.getItem('cooldown_until')) || 0;
+      if (until <= Date.now()) resetCooldownState();
+    });
 
     // ── OTP step restore (iOS PWA may reload mid-flow) ─────────
     const pendingEmail = localStorage.getItem('aurix_otp_email');
