@@ -4955,8 +4955,10 @@ function renderMyAssetsBlock() {
   requestAnimationFrame(renderMarketInsights);
   const container = document.getElementById('marketMyAssets');
   if (!container) return;
-  const watchedSet = new Set(getWatchlist().map(normalizeSymbol));
-  const filtered   = MARKET_DATA.filter(item => watchedSet.has(normalizeSymbol(item.symbol)));
+  const watchedSet = new Set(getWatchlist().map(_normalizeWLSymbol));
+  const filtered   = MARKET_DATA.filter(item =>
+    watchedSet.has(_normalizeWLSymbol(item.symbol || item.provider_id))
+  );
   if (!filtered.length) {
     container.innerHTML = `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
     return;
