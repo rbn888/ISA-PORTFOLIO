@@ -80,6 +80,13 @@
     .auth-input::placeholder { color: var(--text-dim); }
     .auth-input:disabled     { opacity: 0.35; }
 
+    .otp-input {
+      text-align: center;
+      font-size: 22px;
+      letter-spacing: 0.25em;
+      font-weight: 600;
+    }
+
     /* ── Auth section (locked/unlocked) ── */
     .auth-section {
       width: 100%;
@@ -105,12 +112,20 @@
     }
 
     /* ── Auth title ── */
-    #auth-title {
+    .auth-title {
       font-size: 16px;
       font-weight: 700;
       color: var(--text-bright);
       letter-spacing: -0.01em;
       margin-bottom: 2px;
+    }
+
+    /* ── OTP hint ── */
+    .otp-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      letter-spacing: 0.01em;
     }
 
     /* ── Submit button ── */
@@ -180,14 +195,26 @@
         </div>
       </div>
 
-      <!-- Auth form (locked until invite) -->
+      <!-- Email step (locked until invite) -->
       <div id="authSection" class="auth-section locked">
-        <h2 id="auth-title">Acceder</h2>
+        <h2 class="auth-title">Acceder</h2>
         <input id="email" type="email" class="auth-input"
                placeholder="correo electrónico"
                autocomplete="email" disabled>
-        <button id="auth-submit" class="auth-btn" disabled>Enviar acceso</button>
+        <button id="auth-submit" class="auth-btn" disabled>Enviar código de acceso</button>
         <p id="auth-error" class="auth-error"></p>
+      </div>
+
+      <!-- OTP step (shown after email is sent) -->
+      <div id="otpSection" class="auth-section" style="display:none">
+        <h2 class="auth-title">Verificar código</h2>
+        <p class="otp-hint">Introduce el código de 6 dígitos enviado a tu email</p>
+        <input id="otp-code" type="text" inputmode="numeric" pattern="[0-9]*"
+               class="auth-input otp-input" placeholder="000000"
+               maxlength="6" autocomplete="one-time-code">
+        <button id="otp-submit" class="auth-btn">Verificar código</button>
+        <p id="otp-error" class="auth-error"></p>
+        <p class="auth-link" id="otp-back">Usar otro email</p>
       </div>
 
       <p class="beta-version">Private Beta &bull; v0.1</p>
@@ -207,29 +234,31 @@
     }
 
     function safeRedirect(path) {
-      const base = 'https://rbn888.github.io/Aurix/';
-      window.location.href = base + path;
+      window.location.href = '/Aurix/' + path;
     }
 
     if (client) {
-      // Fast redirect if session already exists
       client.auth.getSession().then(({ data: { session } }) => {
         if (session) safeRedirect('index.html');
       });
 
-      // Catch SIGNED_IN in case a magic link exchange completes while on this page
       client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && session) safeRedirect('index.html');
       });
     }
 
     // ── DOM refs ───────────────────────────────────────────────
-    const inviteInput = document.getElementById('inviteCode');
-    const authSection = document.getElementById('authSection');
-    const inviteCheck = document.getElementById('inviteCheck');
-    const emailEl     = document.getElementById('email');
-    const submitBtn   = document.getElementById('auth-submit');
-    const errorEl     = document.getElementById('auth-error');
+    const inviteInput  = document.getElementById('inviteCode');
+    const authSection  = document.getElementById('authSection');
+    const inviteCheck  = document.getElementById('inviteCheck');
+    const emailEl      = document.getElementById('email');
+    const submitBtn    = document.getElementById('auth-submit');
+    const errorEl      = document.getElementById('auth-error');
+    const otpSection   = document.getElementById('otpSection');
+    const otpCodeEl    = document.getElementById('otp-code');
+    const otpSubmitBtn = document.getElementById('otp-submit');
+    const otpErrorEl   = document.getElementById('otp-error');
+    const otpBackEl    = document.getElementById('otp-back');
 
     // ── Invite gate ────────────────────────────────────────────
     async function validateInvite(code) {
@@ -260,11 +289,13 @@
       }
     });
 
-    // ── Shared state ───────────────────────────────────────────
+    // ── State ──────────────────────────────────────────────────
+    let otpStep        = false;
     let cooldown       = false;
     let rateLimitHits  = 0;
     let _cooldownTimer = null;
 
+    // ── Auth lock / unlock ─────────────────────────────────────
     function lockAuth() {
       emailEl.disabled   = true;
       submitBtn.disabled = true;
@@ -282,8 +313,33 @@
       updateSubmitState();
     }
 
-    // ---------- INIT ----------
+    // ── OTP step transitions ───────────────────────────────────
+    function showOtpStep() {
+      otpStep = true;
+      authSection.style.display = 'none';
+      otpSection.style.display  = 'flex';
+      otpCodeEl.value            = '';
+      otpErrorEl.innerText       = '';
+      otpSubmitBtn.disabled      = true;
+      otpSubmitBtn.innerText     = 'Verificar código';
+      otpCodeEl.focus();
+    }
 
+    function showEmailStep() {
+      otpStep = false;
+      otpSection.style.display  = 'none';
+      authSection.style.display = '';
+      authSection.classList.remove('locked');
+      authSection.classList.add('unlocked');
+      emailEl.disabled     = false;
+      localStorage.removeItem('aurix_otp_email');
+      otpErrorEl.innerText = '';
+      otpCodeEl.value      = '';
+      updateSubmitState();
+      emailEl.focus();
+    }
+
+    // ── Init ───────────────────────────────────────────────────
     const savedEmail = localStorage.getItem('last_email');
     if (savedEmail) emailEl.value = savedEmail;
 
@@ -294,10 +350,7 @@
 
     lockAuth();
 
-
-    // ---------- HANDLER ----------
-
-    // Single source of truth for submit button enabled state
+    // ── Submit button state ────────────────────────────────────
     function updateSubmitState() {
       if (cooldown) { submitBtn.disabled = true; return; }
       submitBtn.disabled = !(emailEl.value && emailEl.value.includes('@'));
@@ -320,7 +373,6 @@
       updateSubmitState();
     }
 
-    // until = absolute ms timestamp — iOS/Safari-safe (no drift after suspension)
     function startCooldown(until) {
       clearTimer();
       cooldown = true;
@@ -335,13 +387,6 @@
 
       tick();
       _cooldownTimer = setInterval(tick, 1000);
-    }
-
-    function handleSuccess(message) {
-      resetCooldownState();
-      submitBtn.innerText = 'Enviar acceso';
-      errorEl.style.color = 'var(--green)';
-      errorEl.innerText = message;
     }
 
     function handleRateLimit() {
@@ -362,10 +407,10 @@
       updateSubmitState();
     }
 
+    // ── Email submit → send OTP ────────────────────────────────
     submitBtn.addEventListener('click', async () => {
       if (submitBtn.disabled) return;
 
-      // Self-heal: in-memory flag may be stale after tab sleep / device suspend
       if (cooldown) {
         const storedUntil = Number(localStorage.getItem('cooldown_until') || 0);
         if (storedUntil <= Date.now()) { resetCooldownState(); }
@@ -381,22 +426,77 @@
 
       errorEl.innerText = '';
       errorEl.style.color = 'var(--red)';
-      submitBtn.disabled = true;
-      submitBtn.innerText = 'Enviando acceso...';
+      submitBtn.disabled  = true;
+      submitBtn.innerText = 'Enviando código...';
 
       const { error } = await client.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: 'https://rbn888.github.io/Aurix/index.html' }
+        options: { shouldCreateUser: true }
       });
-      if (error) { handleError(error); return; }
+
+      if (error) {
+        submitBtn.innerText = 'Enviar código de acceso';
+        handleError(error);
+        return;
+      }
+
+      localStorage.setItem('aurix_otp_email', email);
       localStorage.setItem('last_email', email);
-      sessionStorage.setItem('otp_sent', '1');
-      handleSuccess('Te hemos enviado un enlace de acceso.');
+      resetCooldownState();
+      submitBtn.innerText = 'Enviar código de acceso';
+      showOtpStep();
     });
 
+    // ── OTP input — enforce numeric, enable button at 6 digits ─
+    otpCodeEl.addEventListener('input', () => {
+      otpCodeEl.value = otpCodeEl.value.replace(/\D/g, '').slice(0, 6);
+      otpSubmitBtn.disabled = otpCodeEl.value.length !== 6;
+    });
 
-    // ---------- UX RESTORE (post refresh) ----------
+    otpCodeEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') otpSubmitBtn.click();
+    });
 
+    // ── OTP submit → verify code ───────────────────────────────
+    otpSubmitBtn.addEventListener('click', async () => {
+      if (otpSubmitBtn.disabled) return;
+
+      const email = localStorage.getItem('aurix_otp_email');
+      const code  = otpCodeEl.value.trim();
+
+      if (!email) { showEmailStep(); return; }
+
+      if (!/^\d{6}$/.test(code)) {
+        otpErrorEl.style.color = 'var(--red)';
+        otpErrorEl.innerText = 'Introduce el código de 6 dígitos completo.';
+        return;
+      }
+
+      otpErrorEl.innerText    = '';
+      otpSubmitBtn.disabled   = true;
+      otpSubmitBtn.innerText  = 'Verificando...';
+
+      const { error } = await client.auth.verifyOtp({
+        email,
+        token: code,
+        type: 'email'
+      });
+
+      if (error) {
+        otpErrorEl.style.color = 'var(--red)';
+        otpErrorEl.innerText   = 'Código inválido o expirado. Inténtalo de nuevo.';
+        otpSubmitBtn.disabled  = false;
+        otpSubmitBtn.innerText = 'Verificar código';
+        return;
+      }
+
+      localStorage.removeItem('aurix_otp_email');
+      window.location.href = '/Aurix/index.html';
+    });
+
+    otpBackEl.addEventListener('click', showEmailStep);
+
+    // ── Cooldown restore (survives page reload) ────────────────
     const storedUntil = Number(localStorage.getItem('cooldown_until') || 0);
     if (storedUntil > Date.now()) {
       startCooldown(storedUntil);
@@ -404,17 +504,11 @@
       resetCooldownState();
     }
 
-    if (sessionStorage.getItem('otp_sent') && !cooldown) {
-      submitBtn.innerText = 'Revisa tu email ✉️';
-      errorEl.style.color = 'var(--green)';
-      errorEl.innerText = 'Te hemos enviado un enlace de acceso';
-
-      setTimeout(() => {
-        if (!cooldown) {
-          updateSubmitState();
-          submitBtn.innerText = 'Reenviar acceso';
-        }
-      }, 5000);
+    // ── OTP step restore (iOS PWA may reload mid-flow) ─────────
+    const pendingEmail = localStorage.getItem('aurix_otp_email');
+    if (pendingEmail) {
+      emailEl.value = pendingEmail;
+      showOtpStep();
     }
   </script>
 
