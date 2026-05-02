@@ -1518,6 +1518,7 @@ const INSIGHT_TTL           = 120000;
 let _lastInsightText    = '';
 let _lastInsightPriority = 4;
 let _loopInterval  = null;
+let _marketInterval = null;
 let currentTopic   = null;
 let lastTopics     = [];
 let topicHistory   = [];
@@ -4828,6 +4829,8 @@ function renderMarket() {
   }
   ensureMarketData();
   prefetchAllMarkets();
+  if (_marketInterval) clearInterval(_marketInterval);
+  _marketInterval = setInterval(() => refreshMarketInBackground(currentMarketTab), 30000);
 }
 
 function _findMktItem(sym) {
@@ -5099,7 +5102,7 @@ function _buildFallbackItems(tab) {
   return [];
 }
 
-const MARKET_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MARKET_CACHE_TTL = 60 * 1000; // 1 minute
 
 // Background refresh per type — respects TTL, prevents concurrent calls
 async function refreshMarketInBackground(tab) {
@@ -5535,7 +5538,8 @@ function switchView(view) {
 function switchTab(tab) {
   switchView('dashboard'); // always collapse hero when navigating
   currentTab = tab;
-  if (_loopInterval) { clearInterval(_loopInterval); _loopInterval = null; }
+  if (_loopInterval)   { clearInterval(_loopInterval);   _loopInterval   = null; }
+  if (_marketInterval) { clearInterval(_marketInterval); _marketInterval = null; }
   const mainEl      = document.querySelector('main');
   const placeholder = document.getElementById('tabPlaceholder');
   if (tab === 'home') {
