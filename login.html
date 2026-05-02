@@ -412,29 +412,29 @@
 
     // ── Email submit → send OTP ────────────────────────────────
     submitBtn.onclick = async () => {
-      if (submitBtn.disabled || isSubmitting) return;
-
-      const email = emailEl.value.trim();
-      if (!email || !email.includes('@')) {
-        errorEl.style.color = 'var(--red)';
-        errorEl.innerText = 'Introduce un email válido';
-        return;
-      }
-
-      // Reset backoff when user changes email
-      const lastEmail = localStorage.getItem('last_email');
-      if (email !== lastEmail) {
-        retryCount = 0;
-        localStorage.removeItem('cooldown_until');
-      }
-
+      if (isSubmitting) return;
       isSubmitting = true;
-      errorEl.innerText   = '';
-      submitBtn.disabled  = true;
-      submitBtn.innerText = 'Enviando código...';
 
       try {
-        console.log('OTP request start');
+        const email = emailEl.value.trim();
+        if (!email || !email.includes('@')) {
+          errorEl.style.color = 'var(--red)';
+          errorEl.innerText = 'Introduce un email válido';
+          return;
+        }
+
+        // Reset backoff when user changes email
+        const lastEmail = localStorage.getItem('last_email');
+        if (email !== lastEmail) {
+          retryCount = 0;
+          localStorage.removeItem('cooldown_until');
+        }
+
+        errorEl.innerText   = '';
+        submitBtn.disabled  = true;
+        submitBtn.innerText = 'Enviando código...';
+
+        console.log('OTP REQUEST FIRED');
 
         const { error } = await client.auth.signInWithOtp({
           email,
