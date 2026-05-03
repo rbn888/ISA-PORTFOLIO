@@ -4972,19 +4972,22 @@ function renderMyAssetsBlock() {
 function renderAllAssets() {
   const el = document.getElementById('marketList');
   if (!el) return;
-  const _dedupeMap = new Map();
-  for (const item of Object.values(MARKET_CACHE).flat()) {
+  const source = MARKET_DATA_FULL.length > 0
+    ? MARKET_DATA_FULL
+    : Object.values(MARKET_CACHE).flat();
+  const map = new Map();
+  for (const item of source) {
     const key = _normalizeWLSymbol(item.symbol || item.provider_id);
-    if (key && !_dedupeMap.has(key)) _dedupeMap.set(key, item);
+    if (key && !map.has(key)) map.set(key, item);
   }
-  if (_dedupeMap.size > 0) MARKET_DATA_FULL = Array.from(_dedupeMap.values());
-  const source = MARKET_DATA_FULL.length > 0 ? MARKET_DATA_FULL : MARKET_DATA;
-  if (!source.length) {
+  const final = Array.from(map.values());
+  if (map.size > 0) MARKET_DATA_FULL = final;
+  if (!final.length) {
     el.innerHTML = `<div class="market-empty">${t('market_no_results')}</div>`;
     return;
   }
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
-  el.innerHTML = `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${source.map(renderMarketItem).join('')}`;
+  el.innerHTML = `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${final.map(renderMarketItem).join('')}`;
   renderFeaturedBlock();
   renderMarketTickerStrip();
   requestAnimationFrame(renderMarketInsights);
