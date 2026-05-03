@@ -453,6 +453,8 @@ const T = {
     fear_greed:        'Miedo y Codicia',
     btc_dom:           'Dominancia BTC',
     liquidations:      'Liquidaciones',
+    tab_watchlist:     'Mis activos',
+    tab_all:           'Todo',
     tab_crypto:        'Cripto',
     tab_stocks:        'Acciones',
     tab_etfs:          'ETFs',
@@ -624,6 +626,8 @@ const T = {
     fear_greed:        'Fear & Greed',
     btc_dom:           'BTC Dominance',
     liquidations:      'Liquidations',
+    tab_watchlist:     'My Assets',
+    tab_all:           'All',
     tab_crypto:        'Crypto',
     tab_stocks:        'Stocks',
     tab_etfs:          'ETFs',
@@ -4788,6 +4792,8 @@ function renderMarket() {
         />
       </div>
       <div class="market-tabs">
+        <button class="market-tab ${currentMarketTab==='watchlist'?'active':''}" data-market="watchlist">${t('tab_watchlist')}</button>
+        <button class="market-tab ${currentMarketTab==='all'?'active':''}" data-market="all">${t('tab_all')}</button>
         <button class="market-tab ${currentMarketTab==='crypto'?'active':''}" data-market="crypto">${t('tab_crypto')}</button>
         <button class="market-tab ${currentMarketTab==='stocks'?'active':''}" data-market="stocks">${t('tab_stocks')}</button>
         <button class="market-tab ${currentMarketTab==='etfs'?'active':''}" data-market="etfs">${t('tab_etfs')}</button>
@@ -4796,7 +4802,6 @@ function renderMarket() {
       </div>
       <div class="market-body">
         <div class="market-main">
-          <div id="marketMyAssets" class="market-my-assets"></div>
           <div id="marketList" class="market-section"></div>
         </div>
       </div>
@@ -4925,18 +4930,8 @@ function renderMarketTickerStrip() {
 }
 
 function renderMyAssetsBlock() {
-  const container = document.getElementById('marketMyAssets');
-  if (!container) {
-    console.warn('[WL] marketMyAssets container not found');
-    return;
-  }
-  marketLog('renderMyAssetsBlock', currentMarketTab, MARKET_DATA.length);
-  if (!MARKET_DATA.length) marketLog('WARNING: empty MARKET_DATA on render', currentMarketTab);
-  const _listType = _TAB_TO_TYPE[currentMarketTab];
-  if (_listType) renderFromCache(_listType);
-  renderFeaturedBlock();
-  renderMarketTickerStrip();
-  requestAnimationFrame(renderMarketInsights);
+  const el = document.getElementById('marketList');
+  if (!el) return;
   const _dedupeMap = new Map();
   for (const item of Object.values(MARKET_CACHE).flat()) {
     const key = _normalizeWLSymbol(item.symbol || item.provider_id);
@@ -4954,7 +4949,7 @@ function renderMyAssetsBlock() {
     console.log('[MY ASSETS]', filtered.length);
   }
   if (!filtered.length) {
-    container.innerHTML = `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
+    el.innerHTML = `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
     return;
   }
   const sorted = [...filtered].sort((a, b) => {
@@ -4966,12 +4961,45 @@ function renderMyAssetsBlock() {
     if (b.price !== a.price) return (b.price || 0) - (a.price || 0);
     return a.symbol.localeCompare(b.symbol);
   });
-  container.innerHTML = `
-    <div class="market-section">
-      <div class="market-section-title">${t('myAssets')}</div>
-      ${sorted.map(renderMarketItem).join('')}
-    </div>
+  const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
+  el.innerHTML = `
+    <div class="market-section-header">${t('tab_watchlist')}</div>
+    ${tableHeader}
+    ${sorted.map(renderMarketItem).join('')}
   `;
+}
+
+function renderAllAssets() {
+  const el = document.getElementById('marketList');
+  if (!el) return;
+  const _dedupeMap = new Map();
+  for (const item of Object.values(MARKET_CACHE).flat()) {
+    const key = _normalizeWLSymbol(item.symbol || item.provider_id);
+    if (key && !_dedupeMap.has(key)) _dedupeMap.set(key, item);
+  }
+  if (_dedupeMap.size > 0) MARKET_DATA_FULL = Array.from(_dedupeMap.values());
+  const source = MARKET_DATA_FULL.length > 0 ? MARKET_DATA_FULL : MARKET_DATA;
+  if (!source.length) {
+    el.innerHTML = `<div class="market-empty">${t('market_no_results')}</div>`;
+    return;
+  }
+  const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
+  el.innerHTML = `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${source.map(renderMarketItem).join('')}`;
+  renderFeaturedBlock();
+  renderMarketTickerStrip();
+  requestAnimationFrame(renderMarketInsights);
+}
+
+function renderCurrentMarketView() {
+  if (currentMarketTab === 'watchlist') { renderMyAssetsBlock(); return; }
+  if (currentMarketTab === 'all')       { renderAllAssets();     return; }
+  const type = _TAB_TO_TYPE[currentMarketTab];
+  if (type) {
+    renderFromCache(type);
+    renderFeaturedBlock();
+    renderMarketTickerStrip();
+    requestAnimationFrame(renderMarketInsights);
+  }
 }
 
 function initMarketSearch() {
@@ -5042,10 +5070,14 @@ function renderFromCache(type) {
 
 function ensureMarketData() {
   marketLog('ensureMarketData start', currentMarketTab);
+  if (currentMarketTab === 'watchlist' || currentMarketTab === 'all') {
+    renderCurrentMarketView();
+    return;
+  }
   if (MARKET_CACHE[currentMarketTab]) {
     marketLog('cache HIT', currentMarketTab, MARKET_CACHE[currentMarketTab]?.length);
     MARKET_DATA = MARKET_CACHE[currentMarketTab];
-    renderMyAssetsBlock();
+    renderCurrentMarketView();
     return;
   }
   marketLog('cache MISS → hydrate', currentMarketTab);
@@ -5055,6 +5087,8 @@ function ensureMarketData() {
 // Instant render from cache/MARKET_DATA/fallback, then background refresh
 function hydrateMarket(tab) {
   if (!document.getElementById('marketList')) return;
+  if (tab === 'watchlist') { renderMyAssetsBlock(); return; }
+  if (tab === 'all')       { renderAllAssets();     return; }
   const type = _TAB_TO_TYPE[tab];
   if (!type) return;
 
@@ -5065,14 +5099,14 @@ function hydrateMarket(tab) {
   if (cached?.length) {
     MARKET_DATA = cached;
   } else if (inMemory.length) {
-    // already in MARKET_DATA — nothing to set, renderMyAssetsBlock reads it
+    // already in MARKET_DATA — nothing to set
   } else {
     // first ever load — use local fallback so UI is never blank
     const fb = _buildFallbackItems(tab);
     if (fb.length) _applyTypeItems(tab, fb);
   }
 
-  renderMyAssetsBlock();
+  renderCurrentMarketView();
   refreshMarketInBackground(tab);
 }
 
@@ -5150,7 +5184,7 @@ async function _refreshCrypto() {
       .filter(c => c.current_price != null);
     if (!raw.length) return;
     _setCryptoData(raw);
-    if (currentMarketTab === 'crypto') renderMyAssetsBlock();
+    if (currentMarketTab === 'crypto' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
     marketLog('updated from API: crypto');
   } catch (e) {
     marketLog('refresh failed: crypto —', e.message);
@@ -5178,7 +5212,7 @@ async function _refreshStocks() {
       ...marketSearchData.filter(a => a.type !== 'stocks'),
       ...results.map(s => ({ symbol: s.symbol, name: s.name, price: s.price, type: 'stocks' })),
     ];
-    if (currentMarketTab === 'stocks') renderMyAssetsBlock();
+    if (currentMarketTab === 'stocks' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
     marketLog('updated from API: stocks');
   } catch (e) {
     marketLog('refresh failed: stocks —', e.message);
@@ -5201,7 +5235,7 @@ async function _refreshGeneric(tab, symbols, fallbackMap, title) {
       ...marketSearchData.filter(a => a.type !== type),
       ...results.map(s => ({ symbol: s.symbol, name: s.name, price: s.price, type })),
     ];
-    if (currentMarketTab === tab) renderMyAssetsBlock();
+    if (currentMarketTab === tab || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
     marketLog('updated from API:', tab);
   } catch (e) {
     marketLog('refresh failed:', tab, '—', e.message);
@@ -5210,7 +5244,7 @@ async function _refreshGeneric(tab, symbols, fallbackMap, title) {
 
 // Prefetch all non-active tabs in background after initial render
 function prefetchAllMarkets() {
-  const tabs = ['stocks', 'etfs', 'indices', 'commodities'];
+  const tabs = ['crypto', 'stocks', 'etfs', 'indices', 'commodities'];
   setTimeout(() => {
     tabs.filter(t => t !== currentMarketTab).forEach(t => refreshMarketInBackground(t));
   }, 500);
