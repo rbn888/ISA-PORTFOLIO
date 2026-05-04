@@ -4774,7 +4774,14 @@ function renderInsights() {
 }
 
 // ── Market tab ─────────────────────────────────────────────
+function resetMarketUIState() {
+  _marketSearchQuery = '';
+  const input = document.getElementById('marketSearchInput');
+  if (input) input.value = '';
+}
+
 function renderMarket() {
+  resetMarketUIState();
   const container = document.getElementById('tabPlaceholder');
   if (!container) return;
   container.innerHTML = `
@@ -4823,6 +4830,7 @@ function renderMarket() {
       e.stopPropagation();
       const sym     = btn.dataset.symbol;
       const isAdded = toggleWatchlist(sym);
+      marketLog('[WATCHLIST]', getWatchlist());
       document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
         b.textContent = isAdded ? '★' : '☆';
         b.classList.toggle('active', isAdded);
@@ -4979,6 +4987,7 @@ function renderAllAssets() {
 function renderCurrentMarketView() {
   const el = document.getElementById('marketList');
   if (!el) return;
+  marketLog('[RENDER]', { tab: currentMarketTab, search: _marketSearchQuery, items: MARKET_DATA.length });
 
   if (_marketSearchQuery) {
     const results = MARKET_DATA.filter(item =>
@@ -5013,8 +5022,7 @@ function initMarketSearch() {
   if (!input) return;
   input.addEventListener('input', e => {
     _marketSearchQuery = e.target.value.trim().toLowerCase();
-    if (!_marketSearchQuery) ensureMarketData();
-    else renderCurrentMarketView();
+    renderCurrentMarketView();
   });
 }
 
@@ -5352,6 +5360,7 @@ function initMarketTabs() {
       const type = tab.dataset.market;
       if (!type || type === currentMarketTab) return;
       currentMarketTab = type;
+      resetMarketUIState();
       updateMarketTabUI();
       updateMarketHeader();
       hydrateMarket(type);
