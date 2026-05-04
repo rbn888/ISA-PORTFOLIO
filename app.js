@@ -5287,18 +5287,20 @@ async function _refreshCrypto() {
 async function _refreshStocks() {
   try {
     marketLog('background refresh: stocks');
-    const results = await Promise.all(
-      MARKET_STOCKS.map(async symbol => {
-        try {
-          const data = await fetchTwelveData(symbol);
-          if (!data?.price) throw new Error('no price');
-          return normalizeMarketData({ price: data.price }, 'stocks', symbol);
-        } catch {
-          const fb = getFallbackData(symbol);
-          return normalizeMarketData(fb ? { price: fb.price, percent_change_24h: fb.change24h, fallback: true } : null, 'stocks', symbol);
-        }
-      })
-    );
+    const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/stocks');
+    if (!res.ok) throw new Error(`http_${res.status}`);
+    const { data } = await res.json();
+    const results = (data || [])
+      .filter(s => s.price != null)
+      .map(s => ({
+        symbol:    s.symbol,
+        name:      s.name || s.symbol,
+        price:     s.price,
+        change:    s.change24h ?? null,
+        change24h: s.change24h ?? null,
+        type:      'stocks',
+        fallback:  false,
+      }));
     MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== 'stocks'), ...results];
     MARKET_CACHE['stocks'] = [...MARKET_DATA];
     marketSearchData = [
@@ -5306,7 +5308,7 @@ async function _refreshStocks() {
       ...results.map(s => ({ symbol: s.symbol, name: s.name, price: s.price, type: 'stocks' })),
     ];
     if (currentMarketTab === 'stocks' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
-    marketLog('updated from API: stocks');
+    marketLog('stocks loaded', results.length);
   } catch (e) {
     marketLog('refresh failed: stocks —', e.message);
   }
