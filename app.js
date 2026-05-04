@@ -4996,13 +4996,12 @@ function renderAllAssets() {
 function renderCurrentMarketView() {
   if (currentMarketTab === 'watchlist') { renderMyAssetsBlock(); return; }
   if (currentMarketTab === 'all')       { renderAllAssets();     return; }
-  const type = _TAB_TO_TYPE[currentMarketTab];
-  if (type) {
-    renderFromCache(type);
-    renderFeaturedBlock();
-    renderMarketTickerStrip();
-    requestAnimationFrame(renderMarketInsights);
-  }
+  const activeType = _TAB_TO_TYPE[currentMarketTab];
+  if (!activeType) return;
+  renderFromCache(activeType);
+  renderFeaturedBlock();
+  renderMarketTickerStrip();
+  requestAnimationFrame(renderMarketInsights);
 }
 
 function initMarketSearch() {
@@ -5056,6 +5055,8 @@ const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices:
 
 function renderFromCache(type) {
   const normalizedType = String(type).toLowerCase().trim();
+  // Guard: abort immediately if the active tab no longer matches this type
+  if (_TAB_TO_TYPE[currentMarketTab] !== normalizedType) return false;
   let items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
   const el = document.getElementById('marketList');
   if (!el) return false;
@@ -5070,8 +5071,6 @@ function renderFromCache(type) {
       </div>`).join('')}</div>`;
     return false;
   }
-  // Guard: abort if user has switched tabs since this render was triggered
-  if (_TAB_TO_TYPE[currentMarketTab] !== normalizedType) return false;
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
   el.innerHTML = `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
@@ -5298,7 +5297,7 @@ async function _refreshStocks() {
     if (!json || !json.data || !json.data.length) return;
     _setStocksData(json.data);
     MARKET_CACHE['stocks'] = [...MARKET_DATA];
-    if (currentMarketTab === 'stocks' || currentMarketTab === 'all' || currentMarketTab === 'watchlist') {
+    if (currentMarketTab === 'stocks') {
       renderCurrentMarketView();
     }
     marketLog('updated from API: stocks', json.data.length);
