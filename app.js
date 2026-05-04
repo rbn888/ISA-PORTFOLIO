@@ -1456,15 +1456,25 @@ let activeCategory = null; // persistent category filter ('crypto', 'metal', …
 let currentTab       = 'home';
 let currentMarketTab = 'crypto';
 let marketSearchData = [];
+// MARKET_DATA is the single source of truth for ALL rendering.
+// No other structure (MARKET_CACHE, MARKET_DATA_FULL, etc)
+// should be used for UI rendering.
 let MARKET_DATA      = [];
+function _dedupeMarketData() {
+  const map = new Map();
+  for (const item of MARKET_DATA) {
+    const key = normalizeSymbol(item.symbol);
+    if (key && !map.has(key)) map.set(key, item);
+  }
+  MARKET_DATA = Array.from(map.values());
+}
 let MARKET_DATA_FULL = [];
 const MARKET_METRICS_CACHE = {};
 const MARKET_CACHE = {};
 const MARKET_CACHE_TS = {};
 const _LOADING = {};
 let _marketSearchQuery = '';
-const MARKET_DEBUG = true;
-function marketLog(...args) { if (MARKET_DEBUG) console.log('[market]', ...args); }
+function marketLog(...args) { if (false) console.log('[market]', ...args); }
 
 const MARKET_HEADER_CONFIG = {
   crypto: {
@@ -4830,7 +4840,6 @@ function renderMarket() {
       e.stopPropagation();
       const sym     = btn.dataset.symbol;
       const isAdded = toggleWatchlist(sym);
-      marketLog('[WATCHLIST]', getWatchlist());
       document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
         b.textContent = isAdded ? '★' : '☆';
         b.classList.toggle('active', isAdded);
@@ -4939,9 +4948,9 @@ function renderMarketTickerStrip() {
 }
 
 function renderMyAssetsBlock() {
-  const watchedSet = new Set(getWatchlist().map(_normalizeWLSymbol));
+  const watchedSet = new Set(getWatchlist().map(normalizeSymbol));
   const filtered = MARKET_DATA.filter(item =>
-    watchedSet.has(_normalizeWLSymbol(item.symbol || item.provider_id))
+    watchedSet.has(normalizeSymbol(item.symbol || item.provider_id))
   );
   if (!filtered.length) {
     return `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
@@ -4962,7 +4971,7 @@ function renderMyAssetsBlock() {
 function renderAllAssets() {
   const map = new Map();
   for (const item of MARKET_DATA) {
-    const key = _normalizeWLSymbol(item.symbol || item.provider_id);
+    const key = normalizeSymbol(item.symbol || item.provider_id);
     if (key && !map.has(key)) map.set(key, item);
   }
   const final = Array.from(map.values());
@@ -4976,21 +4985,20 @@ function renderAllAssets() {
 function renderCurrentMarketView() {
   const el = document.getElementById('marketList');
   if (!el) return;
-  marketLog('[RENDER]', { tab: currentMarketTab, search: _marketSearchQuery, items: MARKET_DATA.length });
-
-  if (_marketSearchQuery) {
-    const results = MARKET_DATA.filter(item =>
-      (item.symbol || '').toLowerCase().includes(_marketSearchQuery) ||
-      (item.name   || '').toLowerCase().includes(_marketSearchQuery)
-    ).slice(0, 15);
-    el.innerHTML = results.length
-      ? results.map(renderMarketItem).join('')
-      : `<div class="market-empty">${t('market_no_results')}</div>`;
-    return;
-  }
+  if (!Array.isArray(MARKET_DATA)) return;
 
   let html;
-  if (currentMarketTab === 'watchlist') {
+  if (_marketSearchQuery) {
+    const q = _marketSearchQuery.toUpperCase();
+    const results = MARKET_DATA.filter(item => {
+      const sym  = normalizeSymbol(item.symbol);
+      const name = (item.name || '').toLowerCase();
+      return sym.includes(q) || name.includes(_marketSearchQuery);
+    }).slice(0, 15);
+    html = results.length
+      ? results.map(renderMarketItem).join('')
+      : `<div class="market-empty">${t('market_no_results')}</div>`;
+  } else if (currentMarketTab === 'watchlist') {
     html = renderMyAssetsBlock();
   } else if (currentMarketTab === 'all') {
     html = renderAllAssets();
@@ -5000,6 +5008,8 @@ function renderCurrentMarketView() {
     html = renderFromCache(activeType);
   }
 
+  if (el._lastHTML === html) return;
+  el._lastHTML = html;
   el.innerHTML = html;
   renderFeaturedBlock();
   renderMarketTickerStrip();
@@ -5059,18 +5069,15 @@ function renderFromCache(type) {
 }
 
 function ensureMarketData() {
-  marketLog('ensureMarketData start', currentMarketTab);
   if (currentMarketTab === 'watchlist' || currentMarketTab === 'all') {
     renderCurrentMarketView();
     return;
   }
   if (MARKET_CACHE[currentMarketTab]) {
-    marketLog('cache HIT', currentMarketTab, MARKET_CACHE[currentMarketTab]?.length);
     MARKET_DATA = MARKET_CACHE[currentMarketTab];
     renderCurrentMarketView();
     return;
   }
-  marketLog('cache MISS → hydrate', currentMarketTab);
   hydrateMarket(currentMarketTab);
 }
 
@@ -5259,7 +5266,6 @@ async function _refreshCrypto() {
     { id: 'yearn-finance',        symbol: 'YFI',   name: 'yearn.finance'    },
   ];
   try {
-    marketLog('background refresh: crypto');
     const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
     if (!res.ok) throw new Error(`http_${res.status}`);
     const { data } = await res.json();
@@ -5272,9 +5278,8 @@ async function _refreshCrypto() {
     if (!raw.length) return;
     _setCryptoData(raw);
     if (currentMarketTab === 'crypto' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
-    marketLog('updated from API: crypto', raw.length);
   } catch (e) {
-    marketLog('refresh failed: crypto —', e.message);
+    console.error('[market] crypto refresh failed:', e.message);
   }
 }
 
@@ -5285,17 +5290,15 @@ async function _refreshStocks() {
     if (!json || !json.data || !json.data.length) return;
     _setStocksData(json.data);
     MARKET_CACHE['stocks'] = [...MARKET_DATA];
-    renderCurrentMarketView();
-    marketLog('updated from API: stocks', json.data.length);
+    if (currentMarketTab === 'stocks' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
   } catch (e) {
-    marketLog('refresh failed: stocks', e.message);
+    console.error('[market] stocks refresh failed:', e.message);
   }
 }
 
 async function _refreshGeneric(tab, symbols, fallbackMap, title) {
   const type = _TAB_TO_TYPE[tab];
   try {
-    marketLog('background refresh:', tab);
     const results = await Promise.all(
       symbols.map(async symbol => {
         try { return _buildItem(symbol, await fetchTwelveData(symbol), fallbackMap, type); }
@@ -5303,11 +5306,11 @@ async function _refreshGeneric(tab, symbols, fallbackMap, title) {
       })
     );
     MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== type), ...results];
+    _dedupeMarketData();
     MARKET_CACHE[tab] = [...MARKET_DATA];
     if (currentMarketTab === tab || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
-    marketLog('updated from API:', tab);
   } catch (e) {
-    marketLog('refresh failed:', tab, '—', e.message);
+    console.error('[market] refresh failed:', tab, e.message);
   }
 }
 
@@ -5460,8 +5463,8 @@ function _setCryptoData(raw) {
       price: c.current_price, change: chg, change24h: chg, type: 'crypto' };
   });
   MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== 'crypto'), ...cryptoItems];
+  _dedupeMarketData();
   MARKET_CACHE['crypto'] = [...MARKET_DATA];
-  marketLog('AFTER LOAD:', currentMarketTab, MARKET_DATA.length);
 }
 
 function loadCrypto() {
@@ -5469,7 +5472,6 @@ function loadCrypto() {
 }
 
 function _setStocksData(data) {
-  console.log('[STOCKS RECEIVED]', data.map(x => x.symbol));
   const mapped = data.map(item => ({
     symbol:                      normalizeSymbol(item.symbol),
     name:                        item.name,
@@ -5477,11 +5479,8 @@ function _setStocksData(data) {
     price_change_percentage_24h: item.change24h ?? null,
     type:                        'stock',
   }));
-  MARKET_DATA = [
-    ...MARKET_DATA.filter(x => String(x.type).toLowerCase() !== 'stock'),
-    ...mapped,
-  ];
-  console.log('[MARKET_DATA STOCKS]', MARKET_DATA.filter(x => x.type === 'stock').map(x => x.symbol));
+  MARKET_DATA = [...MARKET_DATA.filter(x => x.type !== 'stock'), ...mapped];
+  _dedupeMarketData();
 }
 
 const MARKET_STOCKS = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT'];
@@ -5492,7 +5491,7 @@ function renderMarketItem(item) {
   const price   = item.current_price ?? item.price ?? null;
   const chg     = item.price_change_percentage_24h ?? item.change24h ?? item.change ?? null;
   const name    = item.name || item.symbol;
-  const normSym = _normalizeWLSymbol(item.symbol);
+  const normSym = normalizeSymbol(item.symbol);
   const watched = isInWatchlist(normSym);
   const chart   = renderSparkline(generateSparkline(chg ?? 0), (chg ?? 0) >= 0);
   return `
@@ -8612,25 +8611,23 @@ function normalizeSymbol(symbol) {
     .trim();
 }
 
-function _normalizeWLSymbol(symbol) { return normalizeSymbol(symbol); }
-
 function getWatchlist() {
   return watchlistStore.getWatchlist();
 }
 
 function setWatchlist(list) {
-  const norm    = list.map(_normalizeWLSymbol);
+  const norm    = list.map(normalizeSymbol);
   const current = watchlistStore.getWatchlist();
   current.forEach(k => { if (!norm.includes(k)) watchlistStore.remove(k); });
   norm.forEach(k  => { if (!current.includes(k)) watchlistStore.add(k); });
 }
 
 function isInWatchlist(symbol) {
-  return watchlistStore.includes(_normalizeWLSymbol(symbol));
+  return watchlistStore.includes(normalizeSymbol(symbol));
 }
 
 function toggleWatchlist(symbol) {
-  const norm = _normalizeWLSymbol(symbol);
+  const norm = normalizeSymbol(symbol);
   if (watchlistStore.includes(norm)) {
     watchlistStore.remove(norm);
     return false;
