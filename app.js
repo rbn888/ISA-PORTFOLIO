@@ -5058,13 +5058,12 @@ function renderFromCache(type) {
   const normalizedType = String(type).toLowerCase().trim();
   let items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
   marketLog('renderFromCache', type, items.length);
-  if (!items.length) {
-    marketLog('EMPTY FILTER → using all MARKET_DATA');
-    items = MARKET_DATA;
-  }
   const el = document.getElementById('marketList');
   if (!el) return false;
-  if (!items.length) return false;
+  if (!items.length) {
+    el.innerHTML = `<div class="market-empty">Loading…</div>`;
+    return false;
+  }
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
   el.innerHTML = `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
