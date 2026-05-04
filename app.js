@@ -5049,10 +5049,10 @@ function updateMarketHeader() {
 }
 
 const _TYPE_LABEL = {
-  crypto: () => t('tab_crypto'), stocks: () => t('tab_stocks'),
+  crypto: () => t('tab_crypto'), stocks: () => t('tab_stocks'), stock: () => t('tab_stocks'),
   etfs: () => t('tab_etfs'), indices: () => t('tab_indices'), commodities: () => t('tab_commodities'),
 };
-const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stocks', etfs: 'etfs', indices: 'indices', commodities: 'commodities' };
+const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices: 'indices', commodities: 'commodities' };
 
 function renderFromCache(type) {
   const normalizedType = String(type).toLowerCase().trim();
@@ -5287,30 +5287,21 @@ async function _refreshCrypto() {
 async function _refreshStocks() {
   try {
     marketLog('background refresh: stocks');
-    const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/stocks');
-    if (!res.ok) throw new Error(`http_${res.status}`);
-    const { data } = await res.json();
-    const results = (data || [])
-      .filter(s => s.price != null)
-      .map(s => ({
-        symbol:    s.symbol,
-        name:      s.name || s.symbol,
-        price:     s.price,
-        change:    s.change24h ?? null,
-        change24h: s.change24h ?? null,
-        type:      'stocks',
-        fallback:  false,
-      }));
-    MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== 'stocks'), ...results];
+    const res  = await fetch('https://isa-portfolio-ten.vercel.app/api/market/stocks');
+    const json = await res.json();
+    if (!json || !json.data || !json.data.length) {
+      marketLog('stocks empty response');
+      return;
+    }
+    _setStocksData(json.data);
     MARKET_CACHE['stocks'] = [...MARKET_DATA];
-    marketSearchData = [
-      ...marketSearchData.filter(a => a.type !== 'stocks'),
-      ...results.map(s => ({ symbol: s.symbol, name: s.name, price: s.price, type: 'stocks' })),
-    ];
-    if (currentMarketTab === 'stocks' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
-    marketLog('stocks loaded', results.length);
+    marketLog('stocks in cache', MARKET_DATA.filter(x => x.type === 'stock').length);
+    if (currentMarketTab === 'stocks' || currentMarketTab === 'all' || currentMarketTab === 'watchlist') {
+      renderCurrentMarketView();
+    }
+    marketLog('updated from API: stocks', json.data.length);
   } catch (e) {
-    marketLog('refresh failed: stocks —', e.message);
+    marketLog('refresh failed: stocks', e.message);
   }
 }
 
@@ -5563,6 +5554,24 @@ function _setCryptoData(raw) {
 
 function loadCrypto() {
   hydrateMarket('crypto');
+}
+
+function _setStocksData(data) {
+  const mapped = data.map(item => ({
+    symbol:                      item.symbol,
+    name:                        item.name,
+    current_price:               item.price ?? null,
+    price_change_percentage_24h: item.change24h ?? null,
+    type: 'stock',
+  }));
+  MARKET_DATA = [
+    ...MARKET_DATA.filter(x => x.type !== 'stock'),
+    ...mapped,
+  ];
+  marketSearchData = [
+    ...marketSearchData.filter(a => a.type !== 'stock'),
+    ...mapped.map(s => ({ symbol: s.symbol, name: s.name, price: s.current_price, type: 'stock' })),
+  ];
 }
 
 const MARKET_STOCKS = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT'];
