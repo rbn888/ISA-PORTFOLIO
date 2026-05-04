@@ -44,9 +44,6 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  console.log('[DEBUG] API_KEY exists:', !!process.env.TWELVE_API_KEY);
-  console.log('[DEBUG] STOCK_SYMBOLS length:', STOCK_SYMBOLS.length);
-
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET')    return res.status(405).json({ error: 'method_not_allowed' });
 
@@ -68,6 +65,5 @@ export default async function handler(req, res) {
   );
 
   const data = settled.flat();
-  console.log('STOCKS API RESULT:', data.length);
   return res.status(200).json({ data });
 }
