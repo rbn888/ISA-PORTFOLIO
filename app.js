@@ -5118,10 +5118,17 @@ function _applyTypeItems(tab, items) {
 // Build local fallback items for any tab (synchronous, no network)
 function _buildFallbackItems(tab) {
   if (tab === 'crypto')      return CRYPTO_FALLBACK; // CoinGecko raw format — _setCryptoData handles it
-  if (tab === 'stocks')      return MARKET_STOCKS.map(s => {
-    const fb = getFallbackData(s);
-    return normalizeMarketData(fb ? { price: fb.price, percent_change_24h: fb.change24h, fallback: true } : null, 'stock', s);
-  });
+  if (tab === 'stocks') {
+    const assetStocks = ASSET_DB.filter(a => a.type === 'stock');
+    return assetStocks.map(a => {
+      const sym = a.marketSymbol || a.ticker;
+      const fb  = getFallbackData(sym);
+      return normalizeMarketData(
+        fb ? { name: a.name, price: fb.price, percent_change_24h: fb.change24h, fallback: true } : { name: a.name },
+        'stock', sym
+      );
+    });
+  }
   if (tab === 'etfs')        return MARKET_ETFS.map(s => _buildItem(s, null, FALLBACK_PRICES, 'etfs'));
   if (tab === 'indices')     return MARKET_INDICES.map(s => _buildItem(s, null, INDEX_FALLBACKS, 'indices'));
   if (tab === 'commodities') return MARKET_COMMODITIES.map(s => _buildItem(s, null, COMMODITY_FALLBACKS, 'commodities'));
@@ -5300,10 +5307,6 @@ async function _refreshGeneric(tab, symbols, fallbackMap, title) {
     );
     MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== type), ...results];
     MARKET_CACHE[tab] = [...MARKET_DATA];
-    marketSearchData = [
-      ...marketSearchData.filter(a => a.type !== type),
-      ...results.map(s => ({ symbol: s.symbol, name: s.name, price: s.price, type })),
-    ];
     if (currentMarketTab === tab || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
     marketLog('updated from API:', tab);
   } catch (e) {
@@ -5458,10 +5461,6 @@ function _setCryptoData(raw) {
     return { symbol: c.symbol.toUpperCase(), name: c.name,
       price: c.current_price, change: chg, change24h: chg, type: 'crypto' };
   });
-  marketSearchData = [
-    ...marketSearchData.filter(a => a.type !== 'crypto'),
-    ...cryptoItems.map(c => ({ symbol: c.symbol, name: c.name, price: c.price, type: 'crypto' }))
-  ];
   MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== 'crypto'), ...cryptoItems];
   MARKET_CACHE['crypto'] = [...MARKET_DATA];
   marketLog('AFTER LOAD:', currentMarketTab, MARKET_DATA.length);
@@ -5472,21 +5471,19 @@ function loadCrypto() {
 }
 
 function _setStocksData(data) {
+  console.log('[STOCKS RECEIVED]', data.map(x => x.symbol));
   const mapped = data.map(item => ({
     symbol:                      item.symbol,
     name:                        item.name,
     current_price:               item.price ?? null,
     price_change_percentage_24h: item.change24h ?? null,
-    type: 'stock',
+    type:                        'stock',
   }));
   MARKET_DATA = [
-    ...MARKET_DATA.filter(x => x.type !== 'stock'),
+    ...MARKET_DATA.filter(x => String(x.type).toLowerCase() !== 'stock'),
     ...mapped,
   ];
-  marketSearchData = [
-    ...marketSearchData.filter(a => a.type !== 'stock'),
-    ...mapped.map(s => ({ symbol: s.symbol, name: s.name, price: s.current_price, type: 'stock' })),
-  ];
+  console.log('[MARKET_DATA STOCKS]', MARKET_DATA.filter(x => x.type === 'stock').map(x => x.symbol));
 }
 
 const MARKET_STOCKS = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT'];
