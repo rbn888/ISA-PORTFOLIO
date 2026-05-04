@@ -1464,7 +1464,11 @@ function _dedupeMarketData() {
   const map = new Map();
   for (const item of MARKET_DATA) {
     const key = normalizeSymbol(item.symbol);
-    if (key && !map.has(key)) map.set(key, item);
+    if (!key) continue;
+    const existing = map.get(key);
+    if (!existing || (existing.fallback && !item.fallback)) {
+      map.set(key, item);
+    }
   }
   MARKET_DATA = Array.from(map.values());
 }
@@ -4947,9 +4951,9 @@ function renderMarketTickerStrip() {
   }).join('&ensp;·&ensp;');
 }
 
-function renderMyAssetsBlock() {
+function renderMyAssetsBlock(data) {
   const watchedSet = new Set(getWatchlist().map(normalizeSymbol));
-  const filtered = MARKET_DATA.filter(item =>
+  const filtered = data.filter(item =>
     watchedSet.has(normalizeSymbol(item.symbol || item.provider_id))
   );
   if (!filtered.length) {
@@ -4968,9 +4972,9 @@ function renderMyAssetsBlock() {
   return `<div class="market-section-header">${t('tab_watchlist')}</div>${tableHeader}${sorted.map(renderMarketItem).join('')}`;
 }
 
-function renderAllAssets() {
+function renderAllAssets(data) {
   const map = new Map();
-  for (const item of MARKET_DATA) {
+  for (const item of data) {
     const key = normalizeSymbol(item.symbol || item.provider_id);
     if (key && !map.has(key)) map.set(key, item);
   }
@@ -4985,12 +4989,16 @@ function renderAllAssets() {
 function renderCurrentMarketView() {
   const el = document.getElementById('marketList');
   if (!el) return;
-  if (!Array.isArray(MARKET_DATA)) return;
+
+  const VALID_TABS = ['watchlist','all','crypto','stocks','etfs','indices','commodities'];
+  if (!VALID_TABS.includes(currentMarketTab)) return;
+
+  const data = Array.isArray(MARKET_DATA) ? [...MARKET_DATA] : [];
 
   let html;
   if (_marketSearchQuery) {
-    const q = _marketSearchQuery.toUpperCase();
-    const results = MARKET_DATA.filter(item => {
+    const q = normalizeSymbol(_marketSearchQuery);
+    const results = data.filter(item => {
       const sym  = normalizeSymbol(item.symbol);
       const name = (item.name || '').toLowerCase();
       return sym.includes(q) || name.includes(_marketSearchQuery);
@@ -4999,17 +5007,18 @@ function renderCurrentMarketView() {
       ? results.map(renderMarketItem).join('')
       : `<div class="market-empty">${t('market_no_results')}</div>`;
   } else if (currentMarketTab === 'watchlist') {
-    html = renderMyAssetsBlock();
+    html = renderMyAssetsBlock(data);
   } else if (currentMarketTab === 'all') {
-    html = renderAllAssets();
+    html = renderAllAssets(data);
   } else {
     const activeType = _TAB_TO_TYPE[currentMarketTab];
     if (!activeType) return;
-    html = renderFromCache(activeType);
+    html = renderFromCache(activeType, data);
   }
 
-  if (el._lastHTML === html) return;
-  el._lastHTML = html;
+  const renderKey = `${currentMarketTab}|${_marketSearchQuery}|${html.length}`;
+  if (el._lastKey === renderKey) return;
+  el._lastKey = renderKey;
   el.innerHTML = html;
   renderFeaturedBlock();
   renderMarketTickerStrip();
@@ -5050,9 +5059,9 @@ const _TYPE_LABEL = {
 };
 const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices: 'indices', commodities: 'commodities' };
 
-function renderFromCache(type) {
+function renderFromCache(type, data) {
   const normalizedType = String(type).toLowerCase().trim();
-  const items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
+  const items = data.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
   if (!items.length) {
     return `<div class="market-skeleton">${Array.from({ length: 8 }).map(() => `
       <div class="market-row skeleton">
