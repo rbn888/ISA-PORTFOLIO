@@ -5864,11 +5864,11 @@ main { padding-bottom: 72px; }
 }
 
 .market-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 2.8fr 1fr 1fr 1.4fr 40px;
   align-items: center;
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
 .market-row-left {
@@ -6006,10 +6006,55 @@ main { padding-bottom: 72px; }
   align-items: center;
 }
 
-.col.rank {
+.col-asset { justify-content: flex-start; }
+.col-price { justify-content: flex-end; font-weight: 500; font-variant-numeric: tabular-nums; }
+.col-change { justify-content: flex-end; font-weight: 500; font-size: 13px; font-variant-numeric: tabular-nums; }
+.col-chart  { justify-content: flex-end; line-height: 0; opacity: 0.9; }
+.col-action { justify-content: flex-end; }
+
+.col-change.is-up   { color: #16c784; }
+.col-change.is-down { color: #ea3943; }
+
+.asset-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.asset-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #1f2633;
+  display: flex;
+  align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: #666;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.asset-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.asset-symbol {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-name {
+  font-size: 12px;
+  opacity: 0.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .asset-wrap {
@@ -6071,19 +6116,14 @@ main { padding-bottom: 72px; }
   }
 
   .market-row {
-    display: grid;
-    grid-template-columns: 36px 1.8fr 1fr 0.8fr 1fr 40px;
-    gap: 12px;
-    align-items: center;
-    height: 44px;
-    padding: 0 6px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    grid-template-columns: 2.8fr 1fr 1fr 1.4fr 40px;
+    height: 48px;
+    padding: 0;
   }
 
   .market-table-header {
     display: grid;
-    grid-template-columns: 36px 1.8fr 1fr 0.8fr 1fr 40px;
-    gap: 12px;
+    grid-template-columns: 2.8fr 1fr 1fr 1.4fr 40px;
     font-size: 11px;
     font-weight: 600;
     color: var(--text-muted);
@@ -6140,20 +6180,11 @@ main { padding-bottom: 72px; }
   }
 
   .market-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    justify-content: space-between;
-    height: 48px;
+    grid-template-columns: 2fr 1fr 0.9fr 40px;
+    height: 52px;
   }
 
-  .market-row-rank,
-  .market-row-spark { display: none; }
-
-  .market-row-name { flex: 1; min-width: 0; }
-  .market-row-name .market-sym { font-size: 14px; }
-  .market-row-price { font-size: 13px; }
-  .market-row-change { font-size: 12px; }
+  .col-chart { display: none; }
 }
 
 /* ── Market intelligence layer ── */

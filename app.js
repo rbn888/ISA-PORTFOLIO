@@ -5067,6 +5067,7 @@ function renderFromCache(type) {
         <div class="skeleton-text"></div>
         <div class="skeleton-price"></div>
         <div class="skeleton-change"></div>
+        <div class="skeleton-change"></div>
       </div>`).join('')}</div>`;
     return false;
   }
@@ -5593,31 +5594,28 @@ function renderStocks(data, isFallback = false) {
 }
 
 function renderMarketItem(item) {
-  const price    = safePrice(item.price);
-  const chg      = item.change24h ?? item.change ?? null;
-  const chgStr   = chg !== null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : '—';
-  const chgClass = chg !== null ? (chg >= 0 ? 'up' : 'down') : '';
-  const chart    = renderSparkline(generateSparkline(chg ?? 0), (chg ?? 0) >= 0);
-  const normSym  = _normalizeWLSymbol(item.symbol);
-  const watched  = isInWatchlist(normSym);
-  const nameSub  = item.name && item.name !== item.symbol
-    ? `<div class="market-name-sub">${item.name}</div>` : '';
+  const price   = item.current_price ?? item.price;
+  const chg     = item.price_change_percentage_24h ?? item.change24h ?? item.change ?? null;
+  const normSym = _normalizeWLSymbol(item.symbol);
+  const watched = isInWatchlist(normSym);
+  const chart   = renderSparkline(generateSparkline(chg ?? 0), (chg ?? 0) >= 0);
   return `
     <div class="market-row" data-symbol="${normSym}">
-      <div class="market-row-rank">—</div>
-      <div class="market-row-name">
-        <div class="market-icon">${item.symbol.charAt(0)}</div>
-        <div>
-          <div class="market-symbol">${item.symbol}</div>
-          ${nameSub}
+      <div class="col col-asset">
+        <div class="asset-wrapper">
+          <div class="asset-icon">${item.symbol?.[0] ?? '?'}</div>
+          <div class="asset-text">
+            <div class="asset-symbol">${item.symbol}</div>
+            <div class="asset-name">${item.name ?? ''}</div>
+          </div>
         </div>
       </div>
-      <div class="market-row-price">${price}</div>
-      <div class="market-row-change">
-        <span class="market-chg ${chgClass}">${chgStr}</span>
+      <div class="col col-price">${safePrice(price)}</div>
+      <div class="col col-change ${chg > 0 ? 'is-up' : chg < 0 ? 'is-down' : ''}">
+        ${safeChange(chg)}
       </div>
-      <div class="market-row-spark">${chart}</div>
-      <div class="market-row-action">
+      <div class="col col-chart">${chart}</div>
+      <div class="col col-action">
         <button class="watchlist-btn ${watched ? 'active' : ''}" data-symbol="${normSym}">${watched ? '★' : '☆'}</button>
       </div>
     </div>
