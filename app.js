@@ -5603,19 +5603,22 @@ function renderStocks(data, isFallback = false) {
 }
 
 function renderMarketItem(item) {
-  const price   = item.current_price ?? item.price;
+  if (!item || !item.symbol) return '';
+  const price   = item.current_price ?? item.price ?? null;
   const chg     = item.price_change_percentage_24h ?? item.change24h ?? item.change ?? null;
+  const name    = item.name || item.symbol;
   const normSym = _normalizeWLSymbol(item.symbol);
   const watched = isInWatchlist(normSym);
   const chart   = renderSparkline(generateSparkline(chg ?? 0), (chg ?? 0) >= 0);
+  if (item.type === 'stock') marketLog('rendering stock', item.symbol);
   return `
     <div class="market-row" data-symbol="${normSym}">
       <div class="col col-asset">
         <div class="asset-wrapper">
-          <div class="asset-icon">${item.symbol?.[0] ?? '?'}</div>
+          <div class="asset-icon">${item.symbol[0]}</div>
           <div class="asset-text">
             <div class="asset-symbol">${item.symbol}</div>
-            <div class="asset-name">${item.name ?? ''}</div>
+            <div class="asset-name">${name}</div>
           </div>
         </div>
       </div>
