@@ -5073,6 +5073,9 @@ function renderFromCache(type) {
       </div>`).join('')}</div>`;
     return false;
   }
+  if (type === 'stock') marketLog('FINAL RENDER STOCKS', items.length);
+  // Guard: abort if user has switched tabs since this render was triggered
+  if (_TAB_TO_TYPE[currentMarketTab] !== normalizedType) return false;
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
   el.innerHTML = `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
@@ -5138,7 +5141,7 @@ function _buildFallbackItems(tab) {
   if (tab === 'crypto')      return CRYPTO_FALLBACK; // CoinGecko raw format — _setCryptoData handles it
   if (tab === 'stocks')      return MARKET_STOCKS.map(s => {
     const fb = getFallbackData(s);
-    return normalizeMarketData(fb ? { price: fb.price, percent_change_24h: fb.change24h, fallback: true } : null, 'stocks', s);
+    return normalizeMarketData(fb ? { price: fb.price, percent_change_24h: fb.change24h, fallback: true } : null, 'stock', s);
   });
   if (tab === 'etfs')        return MARKET_ETFS.map(s => _buildItem(s, null, FALLBACK_PRICES, 'etfs'));
   if (tab === 'indices')     return MARKET_INDICES.map(s => _buildItem(s, null, INDEX_FALLBACKS, 'indices'));
