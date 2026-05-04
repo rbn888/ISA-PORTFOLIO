@@ -17,6 +17,28 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function fetchBatch(batch, apiKey, batchIndex) {
+  await sleep(batchIndex * 100);
+  const url = `https://api.twelvedata.com/price?symbol=${batch.join(',')}&apikey=${apiKey}`;
+  const r   = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(`TwelveData HTTP ${r.status}`);
+
+  const data  = await r.json();
+  const items = [];
+
+  if (batch.length === 1) {
+    const price = parseFloat(data.price);
+    if (!isNaN(price)) items.push({ symbol: batch[0], name: batch[0], price, change24h: null, image: null });
+  } else {
+    for (const symbol of batch) {
+      const price = parseFloat(data[symbol]?.price);
+      if (!isNaN(price)) items.push({ symbol, name: symbol, price, change24h: null, image: null });
+    }
+  }
+
+  return items;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin',  ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -28,38 +50,20 @@ export default async function handler(req, res) {
   const API_KEY = process.env.TWELVE_API_KEY;
   if (!API_KEY) return res.status(200).json({ data: [] });
 
-  const results = [];
-
+  const batches = [];
   for (let i = 0; i < STOCK_SYMBOLS.length; i += BATCH_SIZE) {
-    const batch = STOCK_SYMBOLS.slice(i, i + BATCH_SIZE);
-
-    try {
-      const url = `https://api.twelvedata.com/price?symbol=${batch.join(',')}&apikey=${API_KEY}`;
-      const r   = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) throw new Error(`TwelveData HTTP ${r.status}`);
-
-      const data = await r.json();
-
-      if (batch.length === 1) {
-        const price = parseFloat(data.price);
-        if (!isNaN(price)) {
-          results.push({ symbol: batch[0], name: batch[0], price, change24h: null, image: null });
-        }
-      } else {
-        for (const symbol of batch) {
-          const entry = data[symbol];
-          const price = parseFloat(entry?.price);
-          if (!isNaN(price)) {
-            results.push({ symbol, name: symbol, price, change24h: null, image: null });
-          }
-        }
-      }
-    } catch (e) {
-      console.error(`[API][stocks] batch ${i / BATCH_SIZE} failed:`, e.message);
-    }
-
-    await sleep(500);
+    batches.push(STOCK_SYMBOLS.slice(i, i + BATCH_SIZE));
   }
 
-  return res.status(200).json({ data: results });
+  const settled = await Promise.all(
+    batches.map((batch, idx) =>
+      fetchBatch(batch, API_KEY, idx).catch(e => {
+        console.error(`[API][stocks] batch ${idx} failed:`, e.message);
+        return [];
+      })
+    )
+  );
+
+  const data = settled.flat();
+  return res.status(200).json({ data });
 }
