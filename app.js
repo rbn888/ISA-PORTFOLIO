@@ -5056,6 +5056,8 @@ const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices:
 
 function renderFromCache(type) {
   const normalizedType = String(type).toLowerCase().trim();
+  marketLog('renderFromCache type:', type);
+  marketLog('items found:', MARKET_DATA.filter(x => x.type === type).length);
   let items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
   marketLog('renderFromCache', type, items.length);
   const el = document.getElementById('marketList');
@@ -5292,13 +5294,17 @@ async function _refreshCrypto() {
 
 async function _refreshStocks() {
   try {
-    marketLog('background refresh: stocks');
+    marketLog('stocks: fetching...');
     const res  = await fetch('https://isa-portfolio-ten.vercel.app/api/market/stocks');
+    marketLog('stocks: response status', res.status);
     const json = await res.json();
+    marketLog('stocks: raw response', json);
+    marketLog('stocks: data length', json?.data?.length);
     if (!json || !json.data || !json.data.length) {
       marketLog('stocks empty response');
       return;
     }
+    marketLog('stocks: calling _setStocksData');
     _setStocksData(json.data);
     MARKET_CACHE['stocks'] = [...MARKET_DATA];
     marketLog('stocks in cache', MARKET_DATA.filter(x => x.type === 'stock').length);
@@ -5563,6 +5569,7 @@ function loadCrypto() {
 }
 
 function _setStocksData(data) {
+  marketLog('setStocksData received', data.length);
   const mapped = data.map(item => ({
     symbol:                      item.symbol,
     name:                        item.name,
@@ -5570,10 +5577,12 @@ function _setStocksData(data) {
     price_change_percentage_24h: item.change24h ?? null,
     type: 'stock',
   }));
+  marketLog('mapped stocks', mapped.length);
   MARKET_DATA = [
     ...MARKET_DATA.filter(x => x.type !== 'stock'),
     ...mapped,
   ];
+  marketLog('MARKET_DATA stocks count', MARKET_DATA.filter(x => x.type === 'stock').length);
   marketSearchData = [
     ...marketSearchData.filter(a => a.type !== 'stock'),
     ...mapped.map(s => ({ symbol: s.symbol, name: s.name, price: s.current_price, type: 'stock' })),

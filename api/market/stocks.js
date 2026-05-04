@@ -68,5 +68,6 @@ export default async function handler(req, res) {
   );
 
   const data = settled.flat();
+  console.log('STOCKS API RESULT:', data.length);
   return res.status(200).json({ data });
 }
