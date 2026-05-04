@@ -5266,25 +5266,15 @@ async function _refreshCrypto() {
   ];
   try {
     marketLog('background refresh: crypto');
-    const BATCH_SIZE = 20;
-    const allPrices  = {};
-    for (let i = 0; i < CRYPTO_IDS.length; i += BATCH_SIZE) {
-      const batch = CRYPTO_IDS.slice(i, i + BATCH_SIZE);
-      try {
-        const p = await fetchLivePrices(batch.map(c => c.id));
-        Object.assign(allPrices, p);
-      } catch (e) {
-        marketLog('crypto batch failed', i / BATCH_SIZE, e.message);
-      }
-    }
-    const raw = CRYPTO_IDS
-      .map(c => {
-        const p = allPrices[c.id];
-        return { symbol: c.symbol, name: c.name,
-                 current_price: p?.usd ?? null,
-                 price_change_percentage_24h: p?.usd_24h_change ?? 0 };
-      })
-      .filter(c => c.current_price != null);
+    const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
+    if (!res.ok) throw new Error(`http_${res.status}`);
+    const { data } = await res.json();
+    const raw = (data || []).map(c => ({
+      symbol:                      c.symbol,
+      name:                        c.name,
+      current_price:               c.price,
+      price_change_percentage_24h: c.change24h,
+    })).filter(c => c.current_price != null);
     if (!raw.length) return;
     _setCryptoData(raw);
     if (currentMarketTab === 'crypto' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
