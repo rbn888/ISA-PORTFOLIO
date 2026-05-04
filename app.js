@@ -5055,9 +5055,9 @@ const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices:
 
 function renderFromCache(type) {
   const normalizedType = String(type).toLowerCase().trim();
-  // Guard: abort immediately if the active tab no longer matches this type
-  if (_TAB_TO_TYPE[currentMarketTab] !== normalizedType) return false;
   let items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
+  const activeType = _TAB_TO_TYPE[currentMarketTab];
+  if (activeType !== normalizedType && items.length === 0) return false;
   const el = document.getElementById('marketList');
   if (!el) return false;
   if (!items.length) {
@@ -5297,9 +5297,7 @@ async function _refreshStocks() {
     if (!json || !json.data || !json.data.length) return;
     _setStocksData(json.data);
     MARKET_CACHE['stocks'] = [...MARKET_DATA];
-    if (currentMarketTab === 'stocks') {
-      renderCurrentMarketView();
-    }
+    renderCurrentMarketView();
     marketLog('updated from API: stocks', json.data.length);
   } catch (e) {
     marketLog('refresh failed: stocks', e.message);
