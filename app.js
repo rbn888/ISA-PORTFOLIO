@@ -1462,6 +1462,7 @@ const MARKET_METRICS_CACHE = {};
 const MARKET_CACHE = {};
 const MARKET_CACHE_TS = {};
 const _LOADING = {};
+let _marketSearchQuery = '';
 const MARKET_DEBUG = true;
 function marketLog(...args) { if (MARKET_DEBUG) console.log('[market]', ...args); }
 
@@ -4826,7 +4827,7 @@ function renderMarket() {
         b.textContent = isAdded ? '★' : '☆';
         b.classList.toggle('active', isAdded);
       });
-      renderMyAssetsBlock();
+      renderCurrentMarketView();
     });
   }
   ensureMarketData();
@@ -4930,8 +4931,6 @@ function renderMarketTickerStrip() {
 }
 
 function renderMyAssetsBlock() {
-  const el = document.getElementById('marketList');
-  if (!el) return;
   const _dedupeMap = new Map();
   for (const item of Object.values(MARKET_CACHE).flat()) {
     const key = _normalizeWLSymbol(item.symbol || item.provider_id);
@@ -4943,14 +4942,8 @@ function renderMyAssetsBlock() {
   const filtered = source.filter(item =>
     watchedSet.has(_normalizeWLSymbol(item.symbol || item.provider_id))
   );
-  if (IS_DEV) {
-    console.log('[WATCHLIST]', getWatchlist());
-    console.log('[SOURCE SIZE]', source.length);
-    console.log('[MY ASSETS]', filtered.length);
-  }
   if (!filtered.length) {
-    el.innerHTML = `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
-    return;
+    return `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
   }
   const sorted = [...filtered].sort((a, b) => {
     if (a.change24h == null && b.change24h != null) return 1;
@@ -4962,16 +4955,10 @@ function renderMyAssetsBlock() {
     return a.symbol.localeCompare(b.symbol);
   });
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
-  el.innerHTML = `
-    <div class="market-section-header">${t('tab_watchlist')}</div>
-    ${tableHeader}
-    ${sorted.map(renderMarketItem).join('')}
-  `;
+  return `<div class="market-section-header">${t('tab_watchlist')}</div>${tableHeader}${sorted.map(renderMarketItem).join('')}`;
 }
 
 function renderAllAssets() {
-  const el = document.getElementById('marketList');
-  if (!el) return;
   const source = MARKET_DATA_FULL.length > 0
     ? MARKET_DATA_FULL
     : Object.values(MARKET_CACHE).flat();
@@ -4983,22 +4970,39 @@ function renderAllAssets() {
   const final = Array.from(map.values());
   if (map.size > 0) MARKET_DATA_FULL = final;
   if (!final.length) {
-    el.innerHTML = `<div class="market-empty">${t('market_no_results')}</div>`;
-    return;
+    return `<div class="market-empty">${t('market_no_results')}</div>`;
   }
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
-  el.innerHTML = `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${final.map(renderMarketItem).join('')}`;
-  renderFeaturedBlock();
-  renderMarketTickerStrip();
-  requestAnimationFrame(renderMarketInsights);
+  return `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${final.map(renderMarketItem).join('')}`;
 }
 
 function renderCurrentMarketView() {
-  if (currentMarketTab === 'watchlist') { renderMyAssetsBlock(); return; }
-  if (currentMarketTab === 'all')       { renderAllAssets();     return; }
-  const activeType = _TAB_TO_TYPE[currentMarketTab];
-  if (!activeType) return;
-  renderFromCache(activeType);
+  const el = document.getElementById('marketList');
+  if (!el) return;
+
+  if (_marketSearchQuery) {
+    const results = MARKET_DATA.filter(item =>
+      (item.symbol || '').toLowerCase().includes(_marketSearchQuery) ||
+      (item.name   || '').toLowerCase().includes(_marketSearchQuery)
+    ).slice(0, 15);
+    el.innerHTML = results.length
+      ? results.map(renderMarketItem).join('')
+      : `<div class="market-empty">${t('market_no_results')}</div>`;
+    return;
+  }
+
+  let html;
+  if (currentMarketTab === 'watchlist') {
+    html = renderMyAssetsBlock();
+  } else if (currentMarketTab === 'all') {
+    html = renderAllAssets();
+  } else {
+    const activeType = _TAB_TO_TYPE[currentMarketTab];
+    if (!activeType) return;
+    html = renderFromCache(activeType);
+  }
+
+  el.innerHTML = html;
   renderFeaturedBlock();
   renderMarketTickerStrip();
   requestAnimationFrame(renderMarketInsights);
@@ -5008,24 +5012,10 @@ function initMarketSearch() {
   const input = document.getElementById('marketSearchInput');
   if (!input) return;
   input.addEventListener('input', e => {
-    const query = e.target.value.trim().toLowerCase();
-    if (!query) { ensureMarketData(); return; }
-    const results = MARKET_DATA.filter(item =>
-      (item.symbol || '').toLowerCase().includes(query) ||
-      (item.name   || '').toLowerCase().includes(query)
-    ).slice(0, 15);
-    renderSearchResults(results);
+    _marketSearchQuery = e.target.value.trim().toLowerCase();
+    if (!_marketSearchQuery) ensureMarketData();
+    else renderCurrentMarketView();
   });
-}
-
-function renderSearchResults(results) {
-  const container = document.getElementById('marketList');
-  if (!container) return;
-  if (!results.length) {
-    container.innerHTML = `<div class="market-empty">${t('market_no_results')}</div>`;
-    return;
-  }
-  container.innerHTML = results.map(renderMarketItem).join('');
 }
 
 function updateMarketHeader() {
@@ -5055,13 +5045,9 @@ const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices:
 
 function renderFromCache(type) {
   const normalizedType = String(type).toLowerCase().trim();
-  let items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
-  const activeType = _TAB_TO_TYPE[currentMarketTab];
-  if (activeType !== normalizedType && items.length === 0) return false;
-  const el = document.getElementById('marketList');
-  if (!el) return false;
+  const items = MARKET_DATA.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
   if (!items.length) {
-    el.innerHTML = `<div class="market-skeleton">${Array.from({ length: 8 }).map(() => `
+    return `<div class="market-skeleton">${Array.from({ length: 8 }).map(() => `
       <div class="market-row skeleton">
         <div class="skeleton-circle"></div>
         <div class="skeleton-text"></div>
@@ -5069,12 +5055,10 @@ function renderFromCache(type) {
         <div class="skeleton-change"></div>
         <div class="skeleton-change"></div>
       </div>`).join('')}</div>`;
-    return false;
   }
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
   const tableHeader = `<div class="market-table-header"><div></div><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
-  el.innerHTML = `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
-  return true;
+  return `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
 }
 
 function ensureMarketData() {
@@ -5096,8 +5080,8 @@ function ensureMarketData() {
 // Instant render from cache/MARKET_DATA/fallback, then background refresh
 function hydrateMarket(tab) {
   if (!document.getElementById('marketList')) return;
-  if (tab === 'watchlist') { renderMyAssetsBlock(); return; }
-  if (tab === 'all')       { renderAllAssets();     return; }
+  if (tab === 'watchlist') { renderCurrentMarketView(); return; }
+  if (tab === 'all')       { renderCurrentMarketView(); return; }
   const type = _TAB_TO_TYPE[tab];
   if (!type) return;
 
@@ -5379,14 +5363,11 @@ function updateMarketTabUI() {
 }
 
 function renderMarketByType(type) {
-  const container = document.getElementById('marketList');
-  if (!container) return;
-  container.innerHTML = '';
-  if (type === 'crypto')      { loadCrypto();      return; }
-  if (type === 'stocks')      { loadStocks();      return; }
-  if (type === 'etfs')        { loadETFs();        return; }
-  if (type === 'indices')     { loadIndices();     return; }
-  if (type === 'commodities') { loadCommodities(); return; }
+  if (type === 'crypto')      { hydrateMarket('crypto');      return; }
+  if (type === 'stocks')      { hydrateMarket('stocks');      return; }
+  if (type === 'etfs')        { hydrateMarket('etfs');        return; }
+  if (type === 'indices')     { hydrateMarket('indices');     return; }
+  if (type === 'commodities') { hydrateMarket('commodities'); return; }
 }
 
 
@@ -5414,39 +5395,6 @@ function loadStocks()      { hydrateMarket('stocks');      }
 function loadETFs()        { hydrateMarket('etfs');        }
 function loadIndices()     { hydrateMarket('indices');     }
 function loadCommodities() { hydrateMarket('commodities'); }
-
-function renderGenericList(title, data) {
-  const container = document.getElementById('marketList');
-  if (!container) return;
-  const hasFallback = data.some(d => d.fallback);
-  const badge = hasFallback ? `<span class="market-badge">${t('stale')}</span>` : '';
-  container.innerHTML = `
-    <div class="market-section-header">${title} ${badge}</div>
-    ${data.map(item => renderMarketItem(item)).join('')}
-  `;
-}
-
-function renderFallbackList(title, symbols) {
-  const container = document.getElementById('marketList');
-  if (!container) return;
-  container.innerHTML = `
-    <div class="market-section-header">${title} <span class="market-badge">${t('stale')}</span></div>
-    ${symbols.map(s => {
-      const label = INDEX_NAMES[s] ?? COMMODITY_NAMES[s] ?? s;
-      return `<div class="market-row">
-        <div class="market-row-rank">—</div>
-        <div class="market-row-name">
-          <div class="market-icon">${label.charAt(0)}</div>
-          <div class="market-symbol">${label}</div>
-        </div>
-        <div class="market-row-price">—</div>
-        <div class="market-row-change">—</div>
-        <div class="market-row-spark"></div>
-        <div class="market-row-action"></div>
-      </div>`;
-    }).join('')}
-  `;
-}
 
 async function loadMarketData() {
   ensureMarketData();
@@ -5504,38 +5452,6 @@ function normalizeMarketData(raw, type, symbol) {
   };
 }
 
-function renderCryptoList(data, stale = false) {
-  const el = document.getElementById('marketList');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="market-section-title">${t('tab_crypto')}${stale ? ` <span class="market-stale">${t('stale')}</span>` : ''}</div>
-    ${data.map(c => {
-      const chg     = c.price_change_percentage_24h ?? 0;
-      const chart   = renderSparkline(generateSparkline(chg), chg >= 0);
-      const sym     = c.symbol.toUpperCase();
-      const watched = isInWatchlist(sym);
-      return `<div class="market-row" data-symbol="${sym}">
-        <div class="market-row-rank">—</div>
-        <div class="market-row-name">
-          <img class="market-coin-img" src="${c.image}" alt="" loading="lazy">
-          <div>
-            <div class="market-symbol">${sym}</div>
-            <div class="market-name-sub">${c.name}</div>
-          </div>
-        </div>
-        <div class="market-row-price">$${fmtMktPrice(c.current_price)}</div>
-        <div class="market-row-change">
-          <span class="market-chg ${chg >= 0 ? 'up' : 'down'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
-        </div>
-        <div class="market-row-spark">${chart}</div>
-        <div class="market-row-action">
-          <button class="watchlist-btn ${watched ? 'active' : ''}" data-symbol="${sym}">${watched ? '★' : '☆'}</button>
-        </div>
-      </div>`;
-    }).join('')}
-  `;
-}
-
 function _setCryptoData(raw) {
   const cryptoItems = raw.map(c => {
     const chg = c.price_change_percentage_24h ?? 0;
@@ -5575,16 +5491,6 @@ function _setStocksData(data) {
 
 const MARKET_STOCKS = ['AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT'];
 
-
-function renderStocks(data, isFallback = false) {
-  const container = document.getElementById('marketList');
-  if (!container) return;
-  const badge = isFallback ? `<span class="market-badge">${t('stale')}</span>` : '';
-  container.innerHTML = `
-    <div class="market-section-header">${t('tab_stocks').toUpperCase()} ${badge}</div>
-    ${data.map(renderMarketItem).join('')}
-  `;
-}
 
 function renderMarketItem(item) {
   if (!item || !item.symbol) return '';
