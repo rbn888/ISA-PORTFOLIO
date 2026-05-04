@@ -4857,18 +4857,18 @@ function renderMarket() {
   _marketInterval = setInterval(() => refreshMarketInBackground(currentMarketTab), 30000);
 }
 
-function _findMktItem(sym) {
+function _findMktItem(sym, data) {
   const norm = normalizeSymbol(sym);
-  return MARKET_DATA.find(d => normalizeSymbol(d.symbol) === norm) || null;
+  return data.find(d => normalizeSymbol(d.symbol) === norm) || null;
 }
 
-function generateMarketInsights() {
+function generateMarketInsights(data) {
   const insights = [];
   const tab = currentMarketTab;
 
   if (tab === 'crypto' || tab === 'indices' || !tab) {
-    const btc = _findMktItem('BTC');
-    const eth = _findMktItem('ETH');
+    const btc = _findMktItem('BTC', data);
+    const eth = _findMktItem('ETH', data);
     const btcChg = btc?.change24h ?? btc?.change ?? null;
     const ethChg = eth?.change24h ?? eth?.change ?? null;
     if (btcChg !== null && btcChg > 0.8)
@@ -4883,7 +4883,7 @@ function generateMarketInsights() {
   }
 
   if (tab === 'stocks' || tab === 'indices' || !tab) {
-    const spy = _findMktItem('SPY');
+    const spy = _findMktItem('SPY', data);
     const spyChg = spy?.change24h ?? spy?.change ?? null;
     if (spyChg !== null && spyChg > 0.5)
       insights.push({ type: 'bullish', text: 'Equities rallying',
@@ -4894,7 +4894,7 @@ function generateMarketInsights() {
   }
 
   if (tab === 'commodities' || !tab) {
-    const gold = _findMktItem('XAUUSD');
+    const gold = _findMktItem('XAUUSD', data);
     const goldChg = gold?.change24h ?? gold?.change ?? null;
     if (goldChg !== null && goldChg > 0.5)
       insights.push({ type: 'neutral', text: 'Gold rising',
@@ -4905,7 +4905,7 @@ function generateMarketInsights() {
   }
 
   if (tab === 'etfs') {
-    const qqq = _findMktItem('QQQ');
+    const qqq = _findMktItem('QQQ', data);
     const qqqChg = qqq?.change24h ?? qqq?.change ?? null;
     if (qqqChg !== null && qqqChg > 0.8)
       insights.push({ type: 'bullish', text: 'Tech ETFs outperforming',
@@ -4918,13 +4918,13 @@ function generateMarketInsights() {
   return insights.slice(0, 3);
 }
 
-function renderMarketInsights() {
+function renderMarketInsights(data) {
   const el = document.getElementById('marketInsights');
   if (!el) return;
-  const data = generateMarketInsights();
-  if (!data.length) { el.innerHTML = ''; return; }
+  const insights = generateMarketInsights(data);
+  if (!insights.length) { el.innerHTML = ''; return; }
   el.innerHTML = `<div class="insight-row">${
-    data.map(i => `
+    insights.map(i => `
       <div class="insight ${i.type}">
         <span class="insight-text">${i.text}</span>
         ${i.signal ? `<span class="insight-signal">${i.signal}</span>` : ''}
@@ -4935,11 +4935,11 @@ function renderMarketInsights() {
   });
 }
 
-function renderMarketTickerStrip() {
+function renderMarketTickerStrip(data) {
   const el = document.getElementById('marketTickerStrip');
-  if (!el || !MARKET_DATA.length) return;
+  if (!el || !data.length) return;
   const picks = ['BTC', 'ETH', 'SPY', 'XAUUSD']
-    .map(sym => MARKET_DATA.find(d => normalizeSymbol(d.symbol) === normalizeSymbol(sym)))
+    .map(sym => data.find(d => normalizeSymbol(d.symbol) === normalizeSymbol(sym)))
     .filter(Boolean);
   if (!picks.length) return;
   el.innerHTML = picks.map(item => {
@@ -4990,10 +4990,12 @@ function renderCurrentMarketView() {
   const el = document.getElementById('marketList');
   if (!el) return;
 
+  if (!Array.isArray(MARKET_DATA)) return;
+
   const VALID_TABS = ['watchlist','all','crypto','stocks','etfs','indices','commodities'];
   if (!VALID_TABS.includes(currentMarketTab)) return;
 
-  const data = Array.isArray(MARKET_DATA) ? [...MARKET_DATA] : [];
+  const data = Object.freeze([...MARKET_DATA]);
 
   let html;
   if (_marketSearchQuery) {
@@ -5020,9 +5022,9 @@ function renderCurrentMarketView() {
   if (el._lastKey === renderKey) return;
   el._lastKey = renderKey;
   el.innerHTML = html;
-  renderFeaturedBlock();
-  renderMarketTickerStrip();
-  requestAnimationFrame(renderMarketInsights);
+  renderFeaturedBlock(data);
+  renderMarketTickerStrip(data);
+  requestAnimationFrame(() => renderMarketInsights(data));
 }
 
 function initMarketSearch() {
@@ -5338,11 +5340,11 @@ const _SNAPSHOT = [
   { symbol: 'XAUUSD', label: 'Gold' },
 ];
 
-function renderFeaturedBlock() {
+function renderFeaturedBlock(data) {
   const container = document.getElementById('marketFeatured');
   if (!container) return;
   const cards = _SNAPSHOT.map(({ symbol, label }) => {
-    const item = MARKET_DATA.find(d => normalizeSymbol(d.symbol) === normalizeSymbol(symbol));
+    const item = data.find(d => normalizeSymbol(d.symbol) === normalizeSymbol(symbol));
     if (!item) return '';
     const chg = item.change24h ?? item.change ?? null;
     const cls = chg == null ? '' : chg >= 0 ? 'green' : 'red';
