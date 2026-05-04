@@ -4939,15 +4939,8 @@ function renderMarketTickerStrip() {
 }
 
 function renderMyAssetsBlock() {
-  const _dedupeMap = new Map();
-  for (const item of Object.values(MARKET_CACHE).flat()) {
-    const key = _normalizeWLSymbol(item.symbol || item.provider_id);
-    if (key && !_dedupeMap.has(key)) _dedupeMap.set(key, item);
-  }
-  if (_dedupeMap.size > 0) MARKET_DATA_FULL = Array.from(_dedupeMap.values());
-  const source = MARKET_DATA_FULL.length > 0 ? MARKET_DATA_FULL : MARKET_DATA;
   const watchedSet = new Set(getWatchlist().map(_normalizeWLSymbol));
-  const filtered = source.filter(item =>
+  const filtered = MARKET_DATA.filter(item =>
     watchedSet.has(_normalizeWLSymbol(item.symbol || item.provider_id))
   );
   if (!filtered.length) {
@@ -4967,16 +4960,12 @@ function renderMyAssetsBlock() {
 }
 
 function renderAllAssets() {
-  const source = MARKET_DATA_FULL.length > 0
-    ? MARKET_DATA_FULL
-    : Object.values(MARKET_CACHE).flat();
   const map = new Map();
-  for (const item of source) {
+  for (const item of MARKET_DATA) {
     const key = _normalizeWLSymbol(item.symbol || item.provider_id);
     if (key && !map.has(key)) map.set(key, item);
   }
   const final = Array.from(map.values());
-  if (map.size > 0) MARKET_DATA_FULL = final;
   if (!final.length) {
     return `<div class="market-empty">${t('market_no_results')}</div>`;
   }
@@ -5129,7 +5118,7 @@ function _buildFallbackItems(tab) {
   if (tab === 'stocks') {
     const assetStocks = ASSET_DB.filter(a => a.type === 'stock');
     return assetStocks.map(a => {
-      const sym = a.marketSymbol || a.ticker;
+      const sym = normalizeSymbol(a.marketSymbol || a.ticker);
       const fb  = getFallbackData(sym);
       return normalizeMarketData(
         fb ? { name: a.name, price: fb.price, percent_change_24h: fb.change24h, fallback: true } : { name: a.name },
@@ -5482,7 +5471,7 @@ function loadCrypto() {
 function _setStocksData(data) {
   console.log('[STOCKS RECEIVED]', data.map(x => x.symbol));
   const mapped = data.map(item => ({
-    symbol:                      item.symbol,
+    symbol:                      normalizeSymbol(item.symbol),
     name:                        item.name,
     current_price:               item.price ?? null,
     price_change_percentage_24h: item.change24h ?? null,
