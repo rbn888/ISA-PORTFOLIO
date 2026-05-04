@@ -5776,6 +5776,36 @@ main { padding-bottom: 72px; }
   font-size: var(--font-size-sm);
 }
 
+.market-row.skeleton {
+  pointer-events: none;
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #2a2f3a;
+  flex-shrink: 0;
+}
+
+.skeleton-text,
+.skeleton-price,
+.skeleton-change {
+  height: 12px;
+  background: #2a2f3a;
+  border-radius: 4px;
+}
+
+.skeleton-text  { width: 100px; }
+.skeleton-price { width: 64px;  }
+.skeleton-change { width: 48px; }
+
+@keyframes skeletonPulse {
+  0%,100% { opacity: 0.4; }
+  50%      { opacity: 0.7; }
+}
+
 .market-loading {
   padding: 30px;
   text-align: center;

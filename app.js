@@ -5061,7 +5061,13 @@ function renderFromCache(type) {
   const el = document.getElementById('marketList');
   if (!el) return false;
   if (!items.length) {
-    el.innerHTML = `<div class="market-empty">Loading…</div>`;
+    el.innerHTML = `<div class="market-skeleton">${Array.from({ length: 8 }).map(() => `
+      <div class="market-row skeleton">
+        <div class="skeleton-circle"></div>
+        <div class="skeleton-text"></div>
+        <div class="skeleton-price"></div>
+        <div class="skeleton-change"></div>
+      </div>`).join('')}</div>`;
     return false;
   }
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
