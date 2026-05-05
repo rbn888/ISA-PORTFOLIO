@@ -1476,6 +1476,14 @@ let MARKET_DATA_FULL = [];
 const MARKET_METRICS_CACHE = {};
 const MARKET_CACHE = {};
 const MARKET_CACHE_TS = {};
+const PRICE_CACHE = {};
+const PRICE_PROVIDERS = {
+  crypto:    ['coingecko', 'binance'],
+  stock:     ['twelve', 'fallback'],
+  etf:       ['twelve'],
+  index:     ['twelve'],
+  commodity: ['twelve'],
+};
 const _LOADING = {};
 let _marketSearchQuery = '';
 function marketLog(...args) { if (false) console.log('[market]', ...args); }
@@ -5173,6 +5181,44 @@ async function refreshMarketInBackground(tab) {
   }
 }
 
+// Binance public USDT pairs for crypto consensus
+const BINANCE_PAIRS = {
+  BTC:  'BTCUSDT',  ETH:  'ETHUSDT',  BNB:  'BNBUSDT',
+  SOL:  'SOLUSDT',  XRP:  'XRPUSDT',  ADA:  'ADAUSDT',
+  AVAX: 'AVAXUSDT', DOGE: 'DOGEUSDT', TRX:  'TRXUSDT',
+  DOT:  'DOTUSDT',  LINK: 'LINKUSDT', MATIC:'MATICUSDT',
+  SHIB: 'SHIBUSDT', LTC:  'LTCUSDT',  BCH:  'BCHUSDT',
+  UNI:  'UNIUSDT',  XLM:  'XLMUSDT',  ATOM: 'ATOMUSDT',
+  ETC:  'ETCUSDT',  FIL:  'FILUSDT',  HBAR: 'HBARUSDT',
+  APT:  'APTUSDT',  OP:   'OPUSDT',   INJ:  'INJUSDT',
+  ARB:  'ARBUSDT',  WLD:  'WLDUSDT',  LDO:  'LDOUSDT',
+  CVX:  'CVXUSDT',
+};
+
+async function _fetchBinancePrices(symbolNameMap) {
+  const pairs = Object.keys(BINANCE_PAIRS).filter(s => symbolNameMap[s]);
+  if (!pairs.length) return [];
+  const syms = pairs.map(s => BINANCE_PAIRS[s]);
+  const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(syms))}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`binance_${res.status}`);
+  const data = await res.json();
+  const pairToSym = Object.fromEntries(Object.entries(BINANCE_PAIRS).map(([k, v]) => [v, k]));
+  return data
+    .map(item => {
+      const sym = pairToSym[item.symbol];
+      if (!sym) return null;
+      return {
+        symbol:                      sym,
+        name:                        symbolNameMap[sym] ?? sym,
+        current_price:               parseFloat(item.lastPrice),
+        price_change_percentage_24h: parseFloat(item.priceChangePercent),
+        source:                      'binance',
+      };
+    })
+    .filter(item => item && item.current_price > 0);
+}
+
 async function _refreshCrypto() {
   const CRYPTO_IDS = [
     { id: 'bitcoin',              symbol: 'BTC',   name: 'Bitcoin'          },
@@ -5276,18 +5322,37 @@ async function _refreshCrypto() {
     { id: 'convex-finance',       symbol: 'CVX',   name: 'Convex Finance'   },
     { id: 'yearn-finance',        symbol: 'YFI',   name: 'yearn.finance'    },
   ];
+  const symbolNameMap = Object.fromEntries(CRYPTO_IDS.map(c => [c.symbol, c.name]));
   try {
-    const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
-    if (!res.ok) throw new Error(`http_${res.status}`);
-    const { data } = await res.json();
-    const raw = (data || []).map(c => ({
-      symbol:                      c.symbol,
-      name:                        c.name,
-      current_price:               c.price,
-      price_change_percentage_24h: c.change24h,
-    })).filter(c => c.current_price != null);
-    if (!raw.length) return;
-    _setCryptoData(raw);
+    const [cgResult, bnResult] = await Promise.allSettled([
+      // Primary: CoinGecko via backend proxy
+      (async () => {
+        const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
+        if (!res.ok) throw new Error(`http_${res.status}`);
+        const { data } = await res.json();
+        return (data || []).map(c => ({
+          symbol:                      c.symbol,
+          name:                        c.name,
+          current_price:               c.price,
+          price_change_percentage_24h: c.change24h,
+          source:                      'coingecko',
+        })).filter(c => c.current_price != null);
+      })(),
+      // Secondary: Binance public API — consensus second source
+      _fetchBinancePrices(symbolNameMap),
+    ]);
+
+    const cgItems = cgResult.status === 'fulfilled' ? cgResult.value : [];
+    const bnItems = bnResult.status === 'fulfilled' ? bnResult.value : [];
+
+    if (cgResult.status === 'rejected') console.warn('[market] coingecko failed:', cgResult.reason?.message);
+    if (bnResult.status === 'rejected') console.warn('[market] binance failed:',   bnResult.reason?.message);
+
+    const combined = [...cgItems, ...bnItems];
+    if (!combined.length) return;
+
+    // Engine decides the final price via multi-source consensus
+    _setCryptoData(combined);
     if (currentMarketTab === 'crypto' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
   } catch (e) {
     console.error('[market] crypto refresh failed:', e.message);
@@ -5316,7 +5381,8 @@ async function _refreshGeneric(tab, symbols, fallbackMap, title) {
         catch { return _buildItem(symbol, null, fallbackMap, type); }
       })
     );
-    MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== type), ...results];
+    const safeResults = results.filter(item => item && item.symbol);
+    MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== type), ...safeResults];
     _dedupeMarketData();
     MARKET_CACHE[tab] = [...MARKET_DATA];
     if (currentMarketTab === tab || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
@@ -5397,7 +5463,13 @@ const COMMODITY_NAMES    = { 'XAU/USD': 'Gold', 'XAG/USD': 'Silver', 'WTI': 'Oil
 function _buildItem(symbol, data, fallbackMap, type) {
   const name = INDEX_NAMES[symbol] ?? COMMODITY_NAMES[symbol] ?? symbol;
   if (data?.price) {
+    const norm = normalizeSymbol(symbol);
+    _updatePriceCache({ symbol: norm, price: data.price, timestamp: Date.now(), source: 'twelve-data' });
     return normalizeMarketData({ name, price: data.price }, type, symbol);
+  }
+  const cached = getCachedPrice(symbol);
+  if (cached) {
+    return normalizeMarketData({ name, price: cached.price, fallback: true }, type, symbol);
   }
   const fb = getFallbackData(symbol) ?? { price: fallbackMap?.[symbol] ?? null, change24h: 0 };
   return normalizeMarketData(
@@ -5467,12 +5539,206 @@ function normalizeMarketData(raw, type, symbol) {
   };
 }
 
-function _setCryptoData(raw) {
-  const cryptoItems = raw.map(c => {
-    const chg = c.price_change_percentage_24h ?? 0;
-    return { symbol: c.symbol.toUpperCase(), name: c.name,
-      price: c.current_price, change: chg, change24h: chg, type: 'crypto' };
+// ── Price Engine v2.2 — Consistency & Symbol Integrity ───────────────────────
+
+const PROVIDER_WEIGHT = {
+  binance:      1.0,
+  coingecko:    0.7,
+  twelve:       0.8,
+  'stocks-api': 0.8,
+  fallback:     0.3,
+};
+
+function normalizeTimestamp(ts) {
+  return typeof ts === 'number' ? ts : Date.now();
+}
+
+function canonicalSymbol(symbol, type) {
+  const s = normalizeSymbol(symbol);
+  if (type === 'crypto') {
+    const stripped = s.replace(/USDT$/, '').replace(/USD$/, '');
+    return stripped || s; // guard: never return empty string
+  }
+  return s;
+}
+
+function normalizePriceItem(raw, source, type) {
+  const symbol = canonicalSymbol(raw.symbol || raw.ticker, type);
+  return {
+    symbol,
+    name:      raw.name || symbol,
+    price:     Number(raw.price ?? raw.current_price ?? null),
+    change24h: raw.change24h ?? raw.price_change_percentage_24h ?? null,
+    timestamp: normalizeTimestamp(raw.timestamp),
+    source,
+    type,
+    fallback:  !!raw.fallback,
+  };
+}
+
+function isValidPrice(item, type) {
+  if (!item) return false;
+  if (typeof item.price !== 'number') return false;
+  if (isNaN(item.price)) return false;
+  if (item.price <= 0) return false;
+  if (!isFinite(item.price)) return false;
+  if (item.price > 1e9) return false;
+  const maxAge = type === 'crypto' ? 15000 : 60000;
+  if (Date.now() - item.timestamp > maxAge) return false;
+  return true;
+}
+
+function filterStale(candidates, type) {
+  const maxAge = type === 'crypto' ? 20000 : 60000;
+  const now = Date.now();
+  return candidates.filter(c => now - c.timestamp < maxAge);
+}
+
+function enforceTimeConsistency(candidates) {
+  if (candidates.length < 2) return candidates;
+  const timestamps = candidates.map(c => c.timestamp);
+  const max = Math.max(...timestamps);
+  const min = Math.min(...timestamps);
+  if (max - min > 10000) {
+    const recent = candidates.filter(c => c.timestamp > max - 5000);
+    return recent.length ? recent : candidates;
+  }
+  return candidates;
+}
+
+function hasEnoughProviders(candidates) {
+  const uniqueSources = new Set(candidates.map(c => c.source));
+  return uniqueSources.size >= 2;
+}
+
+function getMaxDeviation(type) {
+  return type === 'crypto' ? 0.25 : 0.05;
+}
+
+function removeOutliers(candidates, type) {
+  if (candidates.length < 3) return candidates;
+  const prices = candidates.map(c => c.price);
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const maxDev = getMaxDeviation(type ?? candidates[0]?.type);
+  return candidates.filter(c => Math.abs(c.price - avg) / avg < maxDev);
+}
+
+function computeConfidence(candidates) {
+  if (candidates.length >= 3) return 0.9;
+  if (candidates.length === 2) return 0.7;
+  return 0.5;
+}
+
+function weightedMedian(candidates) {
+  const expanded = [];
+  for (const c of candidates) {
+    const weight  = PROVIDER_WEIGHT[c.source] ?? 0.5;
+    const repeats = Math.max(1, Math.round(weight * 10));
+    for (let i = 0; i < repeats; i++) expanded.push(c.price);
+  }
+  expanded.sort((a, b) => a - b);
+  return expanded[Math.floor(expanded.length / 2)];
+}
+
+function resolvePrice(candidates) {
+  if (!candidates.length) return null;
+  const sorted = [...candidates].sort((a, b) => {
+    if (a.fallback && !b.fallback) return 1;
+    if (!a.fallback && b.fallback) return -1;
+    return b.timestamp - a.timestamp;
   });
+  return sorted[0];
+}
+
+function resolveConsensusPrice(candidates) {
+  if (!candidates.length) return null;
+  const valid = candidates.filter(c => isValidPrice(c, c.type));
+  if (!valid.length) return null;
+  // Single-source: skip consensus, return best candidate directly
+  if (!hasEnoughProviders(valid)) {
+    return getBestCandidate(valid, valid[0]?.type ?? 'stock') ?? null;
+  }
+  const price = weightedMedian(valid);
+  if (price <= 0 || !isFinite(price)) return null;
+  return { ...valid[0], price, source: 'consensus', fallback: false, timestamp: Date.now() };
+}
+
+function getBestCandidate(candidates, type) {
+  return [...candidates]
+    .filter(c => isValidPrice(c, type))
+    .sort((a, b) => (PROVIDER_WEIGHT[b.source] ?? 0.5) - (PROVIDER_WEIGHT[a.source] ?? 0.5))[0] ?? null;
+}
+
+function getCachedPrice(symbol) {
+  const entry = PRICE_CACHE[normalizeSymbol(symbol)];
+  if (!entry) return null;
+  const age = Date.now() - entry.timestamp;
+  return {
+    symbol:     normalizeSymbol(symbol),
+    price:      entry.price,
+    timestamp:  entry.timestamp,
+    source:     entry.source,
+    confidence: age > 60000 ? 0.3 : (entry.confidence ?? 0.5),
+    fallback:   true,
+  };
+}
+
+function _updatePriceCache(item) {
+  if (!(item.symbol && typeof item.price === 'number' && !isNaN(item.price) && item.price > 0 && isFinite(item.price))) return;
+  const existing = PRICE_CACHE[item.symbol];
+  if (existing && Math.abs(item.price - existing.price) / existing.price > 0.5) return; // >50% jump — suspicious
+  PRICE_CACHE[item.symbol] = {
+    price:      item.price,
+    timestamp:  item.timestamp ?? Date.now(),
+    source:     item.source ?? 'unknown',
+    confidence: item.confidence ?? 0.5,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _setCryptoData(raw) {
+  // Normalize all candidates — raw may be mixed-source (coingecko + binance)
+  const candidates = raw.map(c => normalizePriceItem(c, c.source ?? 'coingecko', 'crypto'));
+
+  // Group by symbol — first item wins for name/change24h (primary source first)
+  const bySymbol = new Map();
+  for (const c of candidates) {
+    if (!c.symbol) continue;
+    if (!bySymbol.has(c.symbol)) bySymbol.set(c.symbol, { name: c.name, change24h: c.change24h, list: [] });
+    bySymbol.get(c.symbol).list.push(c);
+  }
+
+  const cryptoItems = [];
+  for (const [symbol, { name, change24h, list }] of bySymbol) {
+    const valid    = list.filter(c => isValidPrice(c, 'crypto'));
+    const pool     = valid.length ? valid : list;
+    const fresh    = filterStale(pool, 'crypto');
+    const safe     = fresh.length ? fresh : pool;
+    const timely   = enforceTimeConsistency(safe);
+    const usable   = timely.length ? timely : safe;
+    const clean    = removeOutliers(usable, 'crypto');
+    const resolved = resolveConsensusPrice(clean);
+
+    let price;
+    if (resolved) {
+      price = resolved.price;
+      _updatePriceCache({ symbol, price, timestamp: resolved.timestamp, source: resolved.source, confidence: computeConfidence(valid) });
+    } else {
+      const best = getBestCandidate(list, 'crypto');
+      if (best) {
+        price = best.price;
+        _updatePriceCache({ symbol, price, timestamp: best.timestamp, source: best.source, confidence: 0.5 });
+      } else {
+        price = getCachedPrice(symbol)?.price ?? null;
+      }
+    }
+
+    if (!isFinite(price) || price > 1e9) continue;
+    const chg = change24h ?? 0;
+    cryptoItems.push({ symbol, name, price, change: chg, change24h: chg, type: 'crypto' });
+  }
+
   MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== 'crypto'), ...cryptoItems];
   _dedupeMarketData();
   MARKET_CACHE['crypto'] = [...MARKET_DATA];
@@ -5483,13 +5749,51 @@ function loadCrypto() {
 }
 
 function _setStocksData(data) {
-  const mapped = data.map(item => ({
-    symbol:                      normalizeSymbol(item.symbol),
-    name:                        item.name,
-    current_price:               item.price ?? null,
-    price_change_percentage_24h: item.change24h ?? null,
-    type:                        'stock',
-  }));
+  const candidates = data.map(item => normalizePriceItem(item, 'stocks-api', 'stock'));
+
+  // Group by symbol — deduplicates and prepares for consensus
+  const bySymbol = new Map();
+  for (const c of candidates) {
+    if (!c.symbol) continue;
+    if (!bySymbol.has(c.symbol)) bySymbol.set(c.symbol, { name: c.name, change24h: c.change24h, list: [] });
+    bySymbol.get(c.symbol).list.push(c);
+  }
+
+  const mapped = [];
+  for (const [symbol, { name, change24h, list }] of bySymbol) {
+    const valid    = list.filter(c => isValidPrice(c, 'stock'));
+    const pool     = valid.length ? valid : list;
+    const fresh    = filterStale(pool, 'stock');
+    const safe     = fresh.length ? fresh : pool;
+    const timely   = enforceTimeConsistency(safe);
+    const usable   = timely.length ? timely : safe;
+    const clean    = removeOutliers(usable, 'stock');
+    const resolved = resolveConsensusPrice(clean);
+
+    let price;
+    if (resolved) {
+      price = resolved.price;
+      _updatePriceCache({ symbol, price, timestamp: resolved.timestamp, source: resolved.source, confidence: computeConfidence(valid) });
+    } else {
+      const best = getBestCandidate(list, 'stock');
+      if (best) {
+        price = best.price;
+        _updatePriceCache({ symbol, price, timestamp: best.timestamp, source: best.source, confidence: 0.5 });
+      } else {
+        price = getCachedPrice(symbol)?.price ?? null;
+      }
+    }
+
+    if (!isFinite(price) || price > 1e9) continue;
+    mapped.push({
+      symbol,
+      name,
+      current_price:               price,
+      price_change_percentage_24h: change24h ?? null,
+      type:                        'stock',
+    });
+  }
+
   MARKET_DATA = [...MARKET_DATA.filter(x => x.type !== 'stock'), ...mapped];
   _dedupeMarketData();
 }
