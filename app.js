@@ -1456,10 +1456,39 @@ let activeCategory = null; // persistent category filter ('crypto', 'metal', …
 let currentTab       = 'home';
 let currentMarketTab = 'crypto';
 let marketSearchData = [];
-// MARKET_DATA is the single source of truth for ALL rendering.
-// No other structure (MARKET_CACHE, MARKET_DATA_FULL, etc)
-// should be used for UI rendering.
-let MARKET_DATA      = [];
+// ── FC-4: MARKET_DATA is the ABSOLUTE SINGLE SOURCE OF TRUTH ─────────────────
+// All live pricing state lives here. No module may own a parallel price store.
+// All reads go through the access layer (getMarketAsset / getMarketPrice / etc).
+// All writes use safe array replacement — no push/splice on shared references.
+// MARKET_DATA_VERSION increments on every write for stale detection.
+let MARKET_DATA         = [];
+let MARKET_DATA_VERSION = 0;
+
+// ── FC-4: Read access layer ────────────────────────────────────────────────────
+function getMarketAsset(symbol) {
+  const norm = normalizeSymbol(symbol);
+  return MARKET_DATA.find(d => normalizeSymbol(d.symbol) === norm) ?? null;
+}
+function getMarketPrice(symbol) {
+  const item  = getMarketAsset(symbol);
+  if (!item) return null;
+  const price = item.current_price ?? item.price;
+  return (typeof price === 'number' && isFinite(price) && price > 0) ? price : null;
+}
+function getMarketAssetsByType(type) {
+  return MARKET_DATA.filter(d => d.type === String(type).toLowerCase());
+}
+function getMarketSnapshot() {
+  return Object.freeze([...MARKET_DATA]);
+}
+
+// ── FC-4: Structural validation — reject corrupt items before entering MARKET_DATA
+function _isValidMarketItem(item) {
+  if (!item?.symbol || typeof item.symbol !== 'string') return false;
+  const price = item.current_price ?? item.price;
+  return typeof price === 'number' && isFinite(price) && price > 0 && price < 1e9;
+}
+
 function _dedupeMarketData() {
   const map = new Map();
   for (const item of MARKET_DATA) {
@@ -1471,6 +1500,7 @@ function _dedupeMarketData() {
     }
   }
   MARKET_DATA = Array.from(map.values());
+  MARKET_DATA_VERSION++;
 }
 let MARKET_DATA_FULL = [];
 const MARKET_METRICS_CACHE = {};
@@ -2511,6 +2541,37 @@ async function getUnifiedMarketPrice(symbol) {
   return null;
 }
 
+// FC-4: crypto portfolio pricing via MARKET_DATA — same pattern as getUnifiedMarketPrice
+async function getUnifiedCryptoPrices(cryptos) {
+  const result  = {};
+  const missing = [];
+
+  for (const a of cryptos) {
+    // Portfolio crypto assets have a.ticker ('BTC') that maps to MARKET_DATA symbol
+    const ticker = normalizeSymbol(a.ticker || '');
+    const item   = ticker
+      ? MARKET_DATA.find(d => d.type === 'crypto' && normalizeSymbol(d.symbol) === ticker)
+      : null;
+    const price  = item ? (item.current_price ?? item.price ?? null) : null;
+    if (price > 0) {
+      result[a.coinId] = {
+        usd:            price,
+        usd_24h_change: item.price_change_percentage_24h ?? item.change24h ?? null,
+      };
+    } else {
+      missing.push(a.coinId);
+    }
+  }
+
+  // Fallback to proxy for any asset not yet in MARKET_DATA (e.g. on cold start)
+  if (missing.length) {
+    const fetched = await fetchLivePrices(missing);
+    Object.assign(result, fetched);
+  }
+
+  return result;
+}
+
 async function collectMarketPriceData(marketAssets) {
   const results = await Promise.allSettled(
     marketAssets.map(async a => {
@@ -2576,7 +2637,7 @@ async function refreshPrices() {
   // ── 2. Fetch prices independently — one source failing won't abort the other
   const [cryptoResult, marketResult] = await Promise.allSettled([
     cryptos.length
-      ? fetchLivePrices([...new Set(cryptos.map(a => a.coinId))])
+      ? getUnifiedCryptoPrices(cryptos)   // FC-4: reads MARKET_DATA first, falls back to proxy
       : Promise.resolve({}),
     marketAssets.length
       ? collectMarketPriceData(marketAssets)
@@ -5174,6 +5235,7 @@ function _applyTypeItems(tab, items) {
     return;
   }
   MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== type), ...items];
+  MARKET_DATA_VERSION++;
 }
 
 // Build local fallback items for any tab (synchronous, no network)
@@ -5718,8 +5780,22 @@ function _setCryptoData(raw) {
     }
 
     if (!isFinite(price) || price > 1e9) continue;
-    const chg = change24h ?? 0;
-    cryptoItems.push({ symbol, name, price, change: chg, change24h: chg, type: 'crypto' });
+    const chg    = change24h ?? 0;
+    const mdItem = {
+      symbol,
+      canonicalSymbol:             canonicalSymbol(symbol, 'crypto'),
+      name,
+      price,
+      current_price:               price,
+      change:                      chg,
+      change24h:                   chg,
+      price_change_percentage_24h: chg,
+      type:                        'crypto',
+      provider:                    'coingecko',
+      confidence:                  computeConfidence(valid),
+      timestamp:                   Date.now(),
+    };
+    if (_isValidMarketItem(mdItem)) cryptoItems.push(mdItem);
   }
 
   MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== 'crypto'), ...cryptoItems];
@@ -5768,13 +5844,20 @@ function _setStocksData(data) {
     }
 
     if (!isFinite(price) || price > 1e9) continue;
-    mapped.push({
+    const mdItem = {
       symbol,
+      canonicalSymbol:             canonicalSymbol(symbol, 'stock'),
       name,
+      price,
       current_price:               price,
+      change24h:                   change24h ?? null,
       price_change_percentage_24h: change24h ?? null,
       type:                        'stock',
-    });
+      provider:                    resolved?.source ?? 'stocks-api',
+      confidence:                  computeConfidence(valid),
+      timestamp:                   Date.now(),
+    };
+    if (_isValidMarketItem(mdItem)) mapped.push(mdItem);
   }
 
   MARKET_DATA = [...MARKET_DATA.filter(x => x.type !== 'stock'), ...mapped];
