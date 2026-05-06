@@ -1478,7 +1478,7 @@ const MARKET_CACHE = {};
 const MARKET_CACHE_TS = {};
 const PRICE_CACHE = {};
 const PRICE_PROVIDERS = {
-  crypto:    ['coingecko', 'binance'],
+  crypto:    ['coingecko'],
   stock:     ['twelve', 'fallback'],
   etf:       ['twelve'],
   index:     ['twelve'],
@@ -5219,44 +5219,6 @@ async function refreshMarketInBackground(tab) {
   }
 }
 
-// Binance public USDT pairs for crypto consensus
-const BINANCE_PAIRS = {
-  BTC:  'BTCUSDT',  ETH:  'ETHUSDT',  BNB:  'BNBUSDT',
-  SOL:  'SOLUSDT',  XRP:  'XRPUSDT',  ADA:  'ADAUSDT',
-  AVAX: 'AVAXUSDT', DOGE: 'DOGEUSDT', TRX:  'TRXUSDT',
-  DOT:  'DOTUSDT',  LINK: 'LINKUSDT', MATIC:'MATICUSDT',
-  SHIB: 'SHIBUSDT', LTC:  'LTCUSDT',  BCH:  'BCHUSDT',
-  UNI:  'UNIUSDT',  XLM:  'XLMUSDT',  ATOM: 'ATOMUSDT',
-  ETC:  'ETCUSDT',  FIL:  'FILUSDT',  HBAR: 'HBARUSDT',
-  APT:  'APTUSDT',  OP:   'OPUSDT',   INJ:  'INJUSDT',
-  ARB:  'ARBUSDT',  WLD:  'WLDUSDT',  LDO:  'LDOUSDT',
-  CVX:  'CVXUSDT',
-};
-
-async function _fetchBinancePrices(symbolNameMap) {
-  const pairs = Object.keys(BINANCE_PAIRS).filter(s => symbolNameMap[s]);
-  if (!pairs.length) return [];
-  const syms = pairs.map(s => BINANCE_PAIRS[s]);
-  const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(syms))}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-  if (!res.ok) throw new Error(`binance_${res.status}`);
-  const data = await res.json();
-  const pairToSym = Object.fromEntries(Object.entries(BINANCE_PAIRS).map(([k, v]) => [v, k]));
-  return data
-    .map(item => {
-      const sym = pairToSym[item.symbol];
-      if (!sym) return null;
-      return {
-        symbol:                      sym,
-        name:                        symbolNameMap[sym] ?? sym,
-        current_price:               parseFloat(item.lastPrice),
-        price_change_percentage_24h: parseFloat(item.priceChangePercent),
-        source:                      'binance',
-      };
-    })
-    .filter(item => item && item.current_price > 0);
-}
-
 async function _refreshCrypto() {
   const CRYPTO_IDS = [
     { id: 'bitcoin',              symbol: 'BTC',   name: 'Bitcoin'          },
@@ -5360,37 +5322,20 @@ async function _refreshCrypto() {
     { id: 'convex-finance',       symbol: 'CVX',   name: 'Convex Finance'   },
     { id: 'yearn-finance',        symbol: 'YFI',   name: 'yearn.finance'    },
   ];
-  const symbolNameMap = Object.fromEntries(CRYPTO_IDS.map(c => [c.symbol, c.name]));
   try {
-    const [cgResult, bnResult] = await Promise.allSettled([
-      // Primary: CoinGecko via backend proxy
-      (async () => {
-        const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
-        if (!res.ok) throw new Error(`http_${res.status}`);
-        const { data } = await res.json();
-        return (data || []).map(c => ({
-          symbol:                      c.symbol,
-          name:                        c.name,
-          current_price:               c.price,
-          price_change_percentage_24h: c.change24h,
-          source:                      'coingecko',
-        })).filter(c => c.current_price != null);
-      })(),
-      // Secondary: Binance public API — consensus second source
-      _fetchBinancePrices(symbolNameMap),
-    ]);
+    const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
+    if (!res.ok) throw new Error(`http_${res.status}`);
+    const { data } = await res.json();
+    const items = (data || []).map(c => ({
+      symbol:                      c.symbol,
+      name:                        c.name,
+      current_price:               c.price,
+      price_change_percentage_24h: c.change24h,
+      source:                      'coingecko',
+    })).filter(c => c.current_price != null);
 
-    const cgItems = cgResult.status === 'fulfilled' ? cgResult.value : [];
-    const bnItems = bnResult.status === 'fulfilled' ? bnResult.value : [];
-
-    if (cgResult.status === 'rejected') console.warn('[market] coingecko failed:', cgResult.reason?.message);
-    if (bnResult.status === 'rejected') console.warn('[market] binance failed:',   bnResult.reason?.message);
-
-    const combined = [...cgItems, ...bnItems];
-    if (!combined.length) return;
-
-    // Engine decides the final price via multi-source consensus
-    _setCryptoData(combined);
+    if (!items.length) return;
+    _setCryptoData(items);
     if (currentMarketTab === 'crypto' || currentMarketTab === 'watchlist' || currentMarketTab === 'all') renderCurrentMarketView();
   } catch (e) {
     console.error('[market] crypto refresh failed:', e.message);
@@ -5736,7 +5681,7 @@ function _updatePriceCache(item) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function _setCryptoData(raw) {
-  // Normalize all candidates — raw may be mixed-source (coingecko + binance)
+  // Normalize all candidates from CoinGecko proxy
   const candidates = raw.map(c => normalizePriceItem(c, c.source ?? 'coingecko', 'crypto'));
 
   // Group by symbol — first item wins for name/change24h (primary source first)
