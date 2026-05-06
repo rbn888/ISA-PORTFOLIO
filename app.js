@@ -1478,6 +1478,34 @@ const MARKET_RUNTIME = {
 };
 const _refreshLocks = new Set(); // per-label guards — prevents concurrent same-type cycles
 
+// ── FC-6: Market event bus ─────────────────────────────────────────────────────
+const MARKET_EVENTS = {
+  listeners: new Map(),
+
+  subscribe(event, handler) {
+    if (typeof handler !== 'function') return () => {};
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event).add(handler);
+    return () => { this.listeners.get(event)?.delete(handler); };
+  },
+
+  emit(event, payload) {
+    const handlers = this.listeners.get(event);
+    if (!handlers?.size) return;
+    for (const handler of handlers) {
+      try {
+        handler(payload);
+      } catch (e) {
+        console.error('[market-events] handler failed:', event, e?.message);
+      }
+    }
+  },
+
+  listenerCount(event) {
+    return this.listeners.get(event)?.size ?? 0;
+  },
+};
+
 // ── FC-5: Refresh lock ────────────────────────────────────────────────────────
 async function withMarketRefreshLock(label, fn) {
   if (_refreshLocks.has(label)) {
@@ -1511,6 +1539,10 @@ function commitMarketData(type, items) {
   if (!valid.length) return false; // Phase 8: never overwrite with empty — last snapshot survives
   MARKET_DATA = [...MARKET_DATA.filter(d => d.type !== type), ...valid];
   MARKET_DATA_VERSION++;
+  const changedSymbols = valid.map(x => x.symbol).filter(Boolean);
+  const snapshot = buildMarketEventSnapshot(type, changedSymbols);
+  MARKET_EVENTS.emit('market:update', snapshot);
+  console.log(`[market-events] emitted ${type} update (${changedSymbols.length} symbols)`);
   return true;
 }
 
@@ -1531,6 +1563,14 @@ function getMarketRuntimeHealth() {
   };
 }
 
+function getMarketEventHealth() {
+  return {
+    listeners:    { marketUpdate: MARKET_EVENTS.listenerCount('market:update') },
+    version:      MARKET_DATA_VERSION,
+    runtimeCycle: MARKET_RUNTIME.cycleId,
+  };
+}
+
 // ── FC-4: Read access layer ────────────────────────────────────────────────────
 function getMarketAsset(symbol) {
   const norm = normalizeSymbol(symbol);
@@ -1547,6 +1587,23 @@ function getMarketAssetsByType(type) {
 }
 function getMarketSnapshot() {
   return Object.freeze([...MARKET_DATA]);
+}
+
+function buildMarketEventSnapshot(type, changedSymbols = []) {
+  return Object.freeze({
+    type,
+    changedSymbols: Object.freeze(
+      [...new Set(changedSymbols.filter(Boolean).map(normalizeSymbol))]
+    ),
+    version:   MARKET_DATA_VERSION,
+    timestamp: Date.now(),
+    market:    getMarketSnapshot(),
+    runtime:   Object.freeze({
+      cycleId:    MARKET_RUNTIME.cycleId,
+      health:     MARKET_RUNTIME.health,
+      refreshing: MARKET_RUNTIME.refreshing,
+    }),
+  });
 }
 
 // ── FC-4: Structural validation — reject corrupt items before entering MARKET_DATA
@@ -8659,6 +8716,18 @@ fetchExchangeRate().then(() => {
 
 refreshPrices().then(() => marketStore.start());
 setInterval(() => refreshPrices().then(() => marketStore.syncFromRefresh()), 30_000);  // 30 s
+
+// FC-6: debug subscriber — validates reactive runtime, non-invasive
+const unsubscribeMarketDebug = MARKET_EVENTS.subscribe('market:update', snapshot => {
+  console.log(
+    '[market-events] update received:',
+    snapshot.type,
+    snapshot.changedSymbols.length,
+    'symbols',
+    `v${snapshot.version}`
+  );
+});
+
 setInterval(fetchExchangeRate, 3_600_000);  // 1 h — EUR/USD rate
 setInterval(updateGoldTimestamps, 30_000);  // 30 s — lightweight text-only update
 
