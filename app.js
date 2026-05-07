@@ -2116,12 +2116,35 @@ function createInitialWorkspaceSheet() {
   });
 }
 
+function _onWorkspaceContainerClick(e) {
+  // Cell selection (desktop). Mobile rows are not clickable in AW-3.
+  const cellEl = e.target.closest('[data-cell-id]');
+  if (cellEl) {
+    const id = cellEl.dataset.cellId;
+    if (id && selectWorkspaceCell(id)) {
+      renderWorkspace();
+    }
+    return;
+  }
+  // Reserved: copilot button (mobile FAB) — no expand modal yet (AW-4+).
+  // const copilotEl = e.target.closest('[data-aurix-copilot]');
+  // if (copilotEl) { /* future */ }
+}
+
 function initializeWorkspaceRuntime() {
   if (WORKSPACE_RUNTIME.initialized) return;
   WORKSPACE_RUNTIME.sheets.set('main', _seedMainWorkspaceSheet());
   WORKSPACE_RUNTIME.activeSheetId = 'main';
   WORKSPACE_RUNTIME.activeSheet   = 'main';
   WORKSPACE_RUNTIME.initialized   = true;
+
+  // AW-3: attach delegated click handler once on the persistent container.
+  const container = document.getElementById('aurixWorkspace');
+  if (container && !container._aw3HandlersAttached) {
+    container.addEventListener('click', _onWorkspaceContainerClick);
+    container._aw3HandlersAttached = true;
+  }
+
   console.log('[workspace] initialized');
 }
 
@@ -2263,19 +2286,196 @@ function _escapeWorkspaceText(s) {
   ));
 }
 
-function _formatWorkspaceCellDisplay(cell) {
-  if (cell.type === 'formula') {
-    const v = cell.computed;
-    if (v == null) return '';
-    if (typeof v === 'number') {
-      return Number.isFinite(v) ? v.toFixed(2) : String(v);
-    }
-    if (typeof v === 'object') {
-      return _escapeWorkspaceText(JSON.stringify(v));
-    }
-    return _escapeWorkspaceText(String(v));
+// AW-3: viewport gate for dual layout. Recomputed on every render (no resize
+// listener yet — that lands in AW-4 if needed).
+function isWorkspaceDesktop() {
+  return typeof window !== 'undefined' && window.innerWidth >= 1024;
+}
+
+function _formatComputedValue(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') {
+    return Number.isFinite(v) ? v.toFixed(2) : String(v);
   }
+  if (typeof v === 'object') {
+    // AW-3: render allocation objects as "SYMBOL (xx.x%)" instead of raw JSON.
+    if (v.symbol) {
+      const pct = (typeof v.allocation === 'number')
+        ? ` (${(v.allocation * 100).toFixed(1)}%)`
+        : '';
+      return _escapeWorkspaceText(v.symbol + pct);
+    }
+    return _escapeWorkspaceText(JSON.stringify(v));
+  }
+  return _escapeWorkspaceText(String(v));
+}
+
+function _formatWorkspaceCellDisplay(cell) {
+  if (cell.type === 'formula') return _formatComputedValue(cell.computed);
   return _escapeWorkspaceText(cell.value ?? '');
+}
+
+function _sortedWorkspaceCells(sheet) {
+  return Object.values(sheet.cells).sort((a, b) => {
+    const [aCol, aRow] = _parseCellId(a.id);
+    const [bCol, bRow] = _parseCellId(b.id);
+    if (aRow !== bRow) return aRow - bRow;
+    return aCol.localeCompare(bCol);
+  });
+}
+
+function _pairWorkspaceCellsByRow(sheet) {
+  const rows = {};
+  for (const cell of Object.values(sheet.cells)) {
+    const [col, rowNum] = _parseCellId(cell.id);
+    if (!rows[rowNum]) rows[rowNum] = {};
+    rows[rowNum][col] = cell;
+  }
+  return Object.keys(rows)
+    .map(n => parseInt(n, 10))
+    .sort((a, b) => a - b)
+    .map(n => ({ row: n, A: rows[n].A || null, B: rows[n].B || null }));
+}
+
+function _buildWorkspaceCopilotMessages() {
+  const messages = [];
+  const derived = getDerivedFinancialSnapshot();
+  const totalValue  = Number(derived?.portfolio?.totalValue || 0);
+  const exposure    = derived?.portfolio?.exposure || {};
+  const allocations = derived?.portfolio?.allocations || [];
+
+  if (totalValue > 0) {
+    const crypto = Number(exposure.crypto || 0);
+    if (crypto / totalValue > 0.4) messages.push('Crypto exposure elevated.');
+  }
+
+  const top = allocations[0];
+  if (top && Number(top.allocation || 0) > 0.5) {
+    messages.push('Portfolio concentration risk detected.');
+  }
+
+  if (WORKSPACE_RUNTIME.stale) messages.push('Workspace syncing market updates.');
+
+  if (!messages.length) messages.push('Financial Core connected.');
+  return messages;
+}
+
+function _renderWorkspaceCellRow(cell) {
+  const display = _formatWorkspaceCellDisplay(cell);
+  const cls = [
+    'aurix-cell-row',
+    cell.type === 'formula'                     ? 'is-formula'  : '',
+    cell.readonly                               ? 'is-readonly' : '',
+    WORKSPACE_RUNTIME.selectedCell === cell.id  ? 'is-selected' : '',
+  ].filter(Boolean).join(' ');
+  return `
+    <div class="${cls}" data-cell-id="${_escapeWorkspaceText(cell.id)}">
+      <div class="aurix-cell-id">${_escapeWorkspaceText(cell.id)}</div>
+      <div class="aurix-cell-value">${display}</div>
+    </div>
+  `;
+}
+
+function _renderWorkspaceDesktop(sheet) {
+  const cells = _sortedWorkspaceCells(sheet);
+  const rows  = cells.map(_renderWorkspaceCellRow).join('');
+
+  const selectedId = WORKSPACE_RUNTIME.selectedCell || '';
+  const selectedCell = selectedId ? sheet.cells[selectedId] : null;
+  const formulaText = (() => {
+    if (!selectedCell) return '';
+    if (selectedCell.type === 'formula' && selectedCell.formula) {
+      return '=' + selectedCell.formula;
+    }
+    return selectedCell.value != null ? String(selectedCell.value) : '';
+  })();
+
+  const messages = _buildWorkspaceCopilotMessages()
+    .map(m => `<div class="aurix-copilot-message">${_escapeWorkspaceText(m)}</div>`)
+    .join('');
+
+  return `
+    <div class="aurix-workspace-shell is-desktop">
+      <header class="aurix-toolbar">
+        <div class="aurix-formula-prefix">fx</div>
+        <div class="aurix-formula-cell">${_escapeWorkspaceText(selectedId || '—')}</div>
+        <input
+          class="aurix-formula-input"
+          type="text"
+          readonly
+          value="${_escapeWorkspaceText(formulaText)}"
+          aria-label="Formula bar"
+        />
+        <div class="aurix-toolbar-spacer"></div>
+        <div class="aurix-sheet-name">${_escapeWorkspaceText(sheet.name)}</div>
+      </header>
+      <div class="aurix-workspace-body">
+        <section class="aurix-grid-panel">
+          <div class="aurix-sheet">${rows}</div>
+        </section>
+        <aside class="aurix-copilot-panel">
+          <div class="aurix-copilot-avatar" aria-hidden="true">◉</div>
+          <div class="aurix-copilot-context">${messages}</div>
+        </aside>
+      </div>
+    </div>
+  `;
+}
+
+function _renderWorkspaceMobile(sheet) {
+  const derived = getDerivedFinancialSnapshot();
+  const totalValue = Number(derived?.portfolio?.totalValue || 0);
+  const assetCount = derived?.portfolio?.assetCount || 0;
+  const topAlloc   = derived?.portfolio?.allocations?.[0];
+  const exposure   = derived?.portfolio?.exposure || {};
+  const cryptoVal  = Number(exposure.crypto || 0);
+  const cryptoPct  = totalValue > 0 ? (cryptoVal / totalValue * 100) : 0;
+
+  const topLabel = topAlloc?.symbol
+    ? `${topAlloc.symbol} (${((topAlloc.allocation || 0) * 100).toFixed(1)}%)`
+    : '—';
+
+  const summary = [
+    { label: 'Portfolio Value', value: totalValue.toFixed(2) },
+    { label: 'Assets',          value: String(assetCount) },
+    { label: 'Top Allocation',  value: topLabel },
+    { label: 'Crypto Exposure', value: cryptoPct.toFixed(1) + '%' },
+  ].map(c => `
+    <div class="aurix-summary-card">
+      <div class="aurix-summary-label">${_escapeWorkspaceText(c.label)}</div>
+      <div class="aurix-summary-value">${_escapeWorkspaceText(c.value)}</div>
+    </div>
+  `).join('');
+
+  const formulas = _pairWorkspaceCellsByRow(sheet)
+    .filter(p => p.A || p.B)
+    .map(p => {
+      const label = p.A ? _formatWorkspaceCellDisplay(p.A) : '';
+      const value = p.B ? _formatWorkspaceCellDisplay(p.B) : '';
+      return `
+        <div class="aurix-formula-row">
+          <div class="aurix-formula-label">${label}</div>
+          <div class="aurix-formula-value">${value}</div>
+        </div>
+      `;
+    }).join('');
+
+  return `
+    <div class="aurix-workspace-shell is-mobile">
+      <header class="aurix-mobile-header">
+        <div class="aurix-mobile-title">Aurix</div>
+        <div class="aurix-mobile-subtitle">${_escapeWorkspaceText(sheet.name)}</div>
+      </header>
+      <section class="aurix-mobile-summary">${summary}</section>
+      <section class="aurix-mobile-formulas">${formulas}</section>
+      <button
+        class="aurix-mobile-copilot"
+        type="button"
+        data-aurix-copilot
+        aria-label="Open assistant"
+      >◉</button>
+    </div>
+  `;
 }
 
 function renderWorkspace() {
@@ -2288,37 +2488,10 @@ function renderWorkspace() {
   const sheet = getWorkspaceSheetSnapshot(WORKSPACE_RUNTIME.activeSheetId);
   if (!sheet) return;
 
-  const cells = Object.values(sheet.cells).sort((a, b) => {
-    const [aCol, aRow] = _parseCellId(a.id);
-    const [bCol, bRow] = _parseCellId(b.id);
-    if (aRow !== bRow) return aRow - bRow;
-    return aCol.localeCompare(bCol);
-  });
-
-  const rows = cells.map(cell => {
-    const display = _formatWorkspaceCellDisplay(cell);
-    const cls = [
-      'aurix-cell-row',
-      cell.type === 'formula'             ? 'is-formula' : '',
-      cell.readonly                       ? 'is-readonly' : '',
-      WORKSPACE_RUNTIME.selectedCell === cell.id ? 'is-selected' : '',
-    ].filter(Boolean).join(' ');
-    return `
-      <div class="${cls}" data-cell-id="${_escapeWorkspaceText(cell.id)}">
-        <div class="aurix-cell-id">${_escapeWorkspaceText(cell.id)}</div>
-        <div class="aurix-cell-value">${display}</div>
-      </div>
-    `;
-  }).join('');
-
-  container.innerHTML = `
-    <div class="aurix-shell">
-      <div class="aurix-topbar">
-        <div class="aurix-title">${_escapeWorkspaceText(sheet.name)}</div>
-      </div>
-      <div class="aurix-sheet">${rows}</div>
-    </div>
-  `;
+  const isDesktop = isWorkspaceDesktop();
+  container.innerHTML = isDesktop
+    ? _renderWorkspaceDesktop(sheet)
+    : _renderWorkspaceMobile(sheet);
 
   WORKSPACE_RUNTIME.renderVersion++;
   WORKSPACE_RUNTIME.lastRenderAt   = Date.now();
@@ -2326,7 +2499,7 @@ function renderWorkspace() {
   WORKSPACE_RUNTIME.lastComputedAt = WORKSPACE_RUNTIME.lastRenderAt;
   WORKSPACE_RUNTIME.stale          = false;
 
-  console.log('[workspace] rendered v' + WORKSPACE_RUNTIME.renderVersion);
+  console.log('[workspace] rendered v' + WORKSPACE_RUNTIME.renderVersion + ' (' + (isDesktop ? 'desktop' : 'mobile') + ')');
 }
 
 // ── FC-10: Financial formula engine ───────────────────────────────────────────
@@ -7073,7 +7246,7 @@ function fmtMktPrice(p) {
 
 // ── Bottom nav ─────────────────────────────────────────────
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
-const NAV_ORDER = ['home', 'market', 'add', 'insights', 'profile', 'workspace'];
+const NAV_ORDER = ['home', 'market', 'add', 'insights', 'workspace', 'profile'];
 
 function enforceNavOrder() {
   const container = document.getElementById('bottomNav');
