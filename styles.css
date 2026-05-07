@@ -6654,3 +6654,105 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
     transform: none !important;
   }
 }
+
+/* ── AW-1: Aurix Workspace — minimal foundation styles ─────────────────────── */
+.aurix-workspace {
+  width: 100%;
+  min-height: 100vh;
+  padding: var(--space-3);
+  padding-bottom: 96px; /* clear bottom-nav */
+  box-sizing: border-box;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.aurix-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.aurix-topbar {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) 0;
+}
+
+.aurix-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+}
+
+.aurix-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-2);
+}
+
+.aurix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.aurix-card {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.aurix-card-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.aurix-card-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.aurix-formulas pre {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-muted);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aurix-copilot {
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.aurix-copilot-avatar {
+  font-size: var(--font-size-lg);
+  opacity: 0.85;
+}
+
+.aurix-copilot-message {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .aurix-layout {
+    grid-template-columns: 1fr;
+  }
+  .aurix-copilot {
+    position: static;
+  }
+}

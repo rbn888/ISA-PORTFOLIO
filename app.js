@@ -1478,6 +1478,66 @@ const MARKET_RUNTIME = {
 };
 const _refreshLocks = new Set(); // per-label guards — prevents concurrent same-type cycles
 
+// ── FC-9: Derived financial state cache ───────────────────────────────────────
+// Centralized computation layer. Consumer-only: never fetches, never writes
+// MARKET_DATA, never emits events, never triggers render. Recomputed on demand
+// from MARKET_DATA + portfolio holdings.
+const DERIVED_FINANCIAL_STATE = {
+  version:    0,
+  computedAt: 0,
+  stale:      true,
+  processing: false,
+
+  portfolio: {
+    totalValue:      0,
+    totalPnL:        0,
+    totalPnLPercent: 0,
+    assetCount:      0,
+    gainers:         [],
+    losers:          [],
+    allocations:     [],
+    exposure:        {},
+  },
+
+  market: {
+    topMovers:       [],
+    gainers:         [],
+    losers:          [],
+    cryptoMarketCap: null,
+  },
+
+  runtime: {
+    lastDurationMs: 0,
+    recomputations: 0,
+    skipped:        0,
+    lastSource:     null,
+  },
+};
+
+// ── FC-10: Financial formula runtime ──────────────────────────────────────────
+// Deterministic, sync-only, pure formula engine. Consumes immutable financial
+// snapshots; produces a frozen result cache. No fetch, no render, no emits.
+const FORMULA_RUNTIME = {
+  version:             0,
+  recomputations:      0,
+  invalidations:       0,
+  processing:          false,
+  formulas:            new Map(),
+  cache:               new Map(),
+  dependencies:        new Map(),
+  lastComputedAt:      0,
+  lastDurationMs:      0,
+  // FC-11: dependency graph
+  graphVersion:        0,
+  dependencyGraph:     new Map(),
+  reverseDependencies: new Map(),
+  formulaVersions:     new Map(),
+  dirtyFormulas:       new Set(),
+  recomputeQueue:      [],
+  cycleDetections:     0,
+  lastGraphBuildAt:    0,
+};
+
 // ── FC-7: Portfolio reactive runtime state ────────────────────────────────────
 const PORTFOLIO_RUNTIME = {
   stale:                       false,
@@ -1811,10 +1871,486 @@ async function runReactivePortfolioRefresh() {
     }
 
     console.log('[portfolio-reactive] render committed');
+
+    // FC-9: invalidate + recompute derived state after a committed render.
+    // Consumer-only — does not write MARKET_DATA, render, or emit events.
+    invalidateDerivedFinancialState('portfolio-reactive-refresh');
+    recomputeDerivedFinancialState('portfolio-reactive-refresh');
   } catch (e) {
     PORTFOLIO_RUNTIME.processing = false;
     console.error('[portfolio-reactive] refresh failed:', e?.message);
   }
+}
+
+// ── FC-9: Derived financial state engine ──────────────────────────────────────
+// Centralized recomputation of portfolio + market derived metrics.
+// Consumer-only: reads MARKET_DATA + holdings, writes only DERIVED_FINANCIAL_STATE.
+
+function invalidateDerivedFinancialState(source = 'unknown') {
+  DERIVED_FINANCIAL_STATE.stale              = true;
+  DERIVED_FINANCIAL_STATE.runtime.lastSource = source;
+  console.log('[derived-state] invalidated:', source);
+}
+
+function buildPortfolioAllocations(assets, totalValue) {
+  if (!Array.isArray(assets) || !totalValue) return [];
+
+  return assets
+    .map(asset => {
+      const quantity = Number(asset.amount || asset.quantity || 0);
+      const price    = Number(asset.price || 0);
+      const value    = quantity * price;
+
+      return {
+        symbol:     normalizeSymbol(asset.ticker || asset.symbol || ''),
+        value,
+        allocation: totalValue > 0 ? value / totalValue : 0,
+      };
+    })
+    .filter(x => x.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+function buildPortfolioExposure(assets = []) {
+  const exposure = {};
+
+  for (const asset of assets) {
+    const type     = String(asset.type || 'unknown').toLowerCase();
+    const quantity = Number(asset.amount || asset.quantity || 0);
+    const price    = Number(asset.price || 0);
+    const value    = quantity * price;
+
+    exposure[type] = (exposure[type] || 0) + value;
+  }
+
+  return exposure;
+}
+
+function recomputeDerivedFinancialState(source = 'unknown') {
+  if (DERIVED_FINANCIAL_STATE.processing) {
+    DERIVED_FINANCIAL_STATE.runtime.skipped++;
+    console.log('[derived-state] skipped recomputation');
+    return;
+  }
+
+  DERIVED_FINANCIAL_STATE.processing = true;
+
+  const t0 = Date.now();
+
+  try {
+    // Same portfolio resolution as FC-8 reactive runtime.
+    const portfolioAssets = Array.isArray(window.PORTFOLIO) ? window.PORTFOLIO
+                          : Array.isArray(assets)            ? assets
+                          : [];
+
+    let totalValue = 0;
+    for (const asset of portfolioAssets) {
+      const quantity = Number(asset.amount || asset.quantity || 0);
+      const price    = Number(asset.price || 0);
+      totalValue += quantity * price;
+    }
+
+    const allocations = buildPortfolioAllocations(portfolioAssets, totalValue);
+    const exposure    = buildPortfolioExposure(portfolioAssets);
+
+    const gainers = [...portfolioAssets]
+      .filter(a => Number(a.change24h || 0) > 0)
+      .sort((a, b) => Number(b.change24h || 0) - Number(a.change24h || 0))
+      .slice(0, 5);
+
+    const losers = [...portfolioAssets]
+      .filter(a => Number(a.change24h || 0) < 0)
+      .sort((a, b) => Number(a.change24h || 0) - Number(b.change24h || 0))
+      .slice(0, 5);
+
+    DERIVED_FINANCIAL_STATE.portfolio = Object.freeze({
+      totalValue,
+      totalPnL:        0,
+      totalPnLPercent: 0,
+      assetCount:      portfolioAssets.length,
+      gainers:         Object.freeze(gainers),
+      losers:          Object.freeze(losers),
+      allocations:     Object.freeze(allocations),
+      exposure:        Object.freeze(exposure),
+    });
+
+    DERIVED_FINANCIAL_STATE.version++;
+    DERIVED_FINANCIAL_STATE.computedAt              = Date.now();
+    DERIVED_FINANCIAL_STATE.stale                   = false;
+    DERIVED_FINANCIAL_STATE.runtime.lastDurationMs  = Date.now() - t0;
+    DERIVED_FINANCIAL_STATE.runtime.recomputations++;
+    DERIVED_FINANCIAL_STATE.runtime.lastSource      = source;
+
+    console.log('[derived-state] recomputed:', {
+      assets:   portfolioAssets.length,
+      totalValue,
+      duration: DERIVED_FINANCIAL_STATE.runtime.lastDurationMs,
+    });
+
+    // FC-10/FC-11: cascade into formula runtime with selective invalidation.
+    invalidateFinancialFormulas(
+      [
+        'derived.portfolio.totalvalue',
+        'derived.portfolio.assetcount',
+        'derived.portfolio.allocations',
+      ],
+      'derived-state-recomputed',
+    );
+    recomputeFinancialFormulas('derived-state-recomputed');
+  } catch (e) {
+    console.error('[derived-state] recomputation failed:', e?.message);
+  } finally {
+    DERIVED_FINANCIAL_STATE.processing = false;
+  }
+}
+
+function getDerivedFinancialSnapshot() {
+  return Object.freeze({
+    version:    DERIVED_FINANCIAL_STATE.version,
+    computedAt: DERIVED_FINANCIAL_STATE.computedAt,
+    stale:      DERIVED_FINANCIAL_STATE.stale,
+    portfolio:  DERIVED_FINANCIAL_STATE.portfolio,
+    market:     DERIVED_FINANCIAL_STATE.market,
+    runtime:    DERIVED_FINANCIAL_STATE.runtime,
+  });
+}
+
+function getDerivedStateHealth() {
+  return {
+    version:        DERIVED_FINANCIAL_STATE.version,
+    stale:          DERIVED_FINANCIAL_STATE.stale,
+    processing:     DERIVED_FINANCIAL_STATE.processing,
+    recomputations: DERIVED_FINANCIAL_STATE.runtime.recomputations,
+    skipped:        DERIVED_FINANCIAL_STATE.runtime.skipped,
+    lastDurationMs: DERIVED_FINANCIAL_STATE.runtime.lastDurationMs,
+    lastSource:     DERIVED_FINANCIAL_STATE.runtime.lastSource,
+  };
+}
+
+// ── AW-1: Aurix Workspace runtime ─────────────────────────────────────────────
+// Reactive financial workspace shell. Consumer-only: reads immutable snapshots
+// from the Financial Core, never writes MARKET_DATA, never emits events.
+const WORKSPACE_RUNTIME = {
+  initialized:     false,
+  activeSheet:     'main',
+  sheets:          new Map(),
+  widgets:         new Map(),
+  layoutVersion:   0,
+  reactiveUpdates: 0,
+  lastComputedAt:  0,
+  processing:      false,
+};
+
+function createInitialWorkspaceSheet() {
+  return Object.freeze({
+    id:        'main',
+    name:      'Portfolio Workspace',
+    cells:     {},
+    widgets:   ['portfolio-summary', 'top-allocations', 'top-movers'],
+    createdAt: Date.now(),
+  });
+}
+
+function initializeWorkspaceRuntime() {
+  if (WORKSPACE_RUNTIME.initialized) return;
+  WORKSPACE_RUNTIME.sheets.set('main', createInitialWorkspaceSheet());
+  WORKSPACE_RUNTIME.initialized = true;
+  console.log('[workspace] initialized');
+}
+
+function getWorkspaceSnapshot() {
+  return Object.freeze({
+    initialized:     WORKSPACE_RUNTIME.initialized,
+    activeSheet:     WORKSPACE_RUNTIME.activeSheet,
+    sheets:          Object.freeze(Object.fromEntries(WORKSPACE_RUNTIME.sheets)),
+    layoutVersion:   WORKSPACE_RUNTIME.layoutVersion,
+    reactiveUpdates: WORKSPACE_RUNTIME.reactiveUpdates,
+  });
+}
+
+function _escapeWorkspaceText(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function renderWorkspace() {
+  const container = document.getElementById('aurixWorkspace');
+  if (!container) return;
+
+  initializeWorkspaceRuntime();
+
+  const financial = getDerivedFinancialSnapshot();
+  const formulas  = getFinancialFormulaSnapshot();
+
+  const totalValue = Number(financial?.portfolio?.totalValue || 0).toFixed(2);
+  const assetCount = financial?.portfolio?.assetCount || 0;
+  const runtimeJson = _escapeWorkspaceText(
+    JSON.stringify(formulas?.runtime || {}, null, 2)
+  );
+
+  container.innerHTML = `
+    <div class="aurix-shell">
+      <div class="aurix-topbar">
+        <div class="aurix-title">Aurix Workspace</div>
+      </div>
+
+      <div class="aurix-layout">
+        <div class="aurix-grid">
+          <div class="aurix-card">
+            <div class="aurix-card-label">Portfolio Value</div>
+            <div class="aurix-card-value">${totalValue}</div>
+          </div>
+
+          <div class="aurix-card">
+            <div class="aurix-card-label">Assets</div>
+            <div class="aurix-card-value">${assetCount}</div>
+          </div>
+
+          <div class="aurix-card aurix-formulas">
+            <div class="aurix-card-label">Formula Runtime</div>
+            <pre>${runtimeJson}</pre>
+          </div>
+        </div>
+
+        <div class="aurix-copilot">
+          <div class="aurix-copilot-avatar">◉</div>
+          <div class="aurix-copilot-message">Financial Core connected.</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  WORKSPACE_RUNTIME.reactiveUpdates++;
+  WORKSPACE_RUNTIME.lastComputedAt = Date.now();
+
+  console.log('[workspace] rendered');
+}
+
+// ── FC-10: Financial formula engine ───────────────────────────────────────────
+// Pure functions only. compute(context) must be deterministic, sync, and free
+// of side effects (no fetch, no render, no emit, no MARKET_DATA writes).
+
+function buildFinancialFormulaContext() {
+  return Object.freeze({
+    market:  getMarketSnapshot(),
+    derived: getDerivedFinancialSnapshot(),
+    runtime: Object.freeze({
+      marketVersion:  MARKET_DATA_VERSION,
+      derivedVersion: DERIVED_FINANCIAL_STATE.version,
+      formulaVersion: FORMULA_RUNTIME.version,
+    }),
+  });
+}
+
+// FC-11: dependency graph helpers
+function normalizeFormulaDependency(dep) {
+  return String(dep || '').trim().toLowerCase();
+}
+
+function rebuildFormulaDependencyGraph() {
+  FORMULA_RUNTIME.dependencyGraph.clear();
+  FORMULA_RUNTIME.reverseDependencies.clear();
+
+  for (const [id, formula] of FORMULA_RUNTIME.formulas) {
+    const normalizedDeps = (formula.dependencies || [])
+      .map(normalizeFormulaDependency)
+      .filter(Boolean);
+
+    FORMULA_RUNTIME.dependencyGraph.set(id, normalizedDeps);
+
+    for (const dep of normalizedDeps) {
+      if (!FORMULA_RUNTIME.reverseDependencies.has(dep)) {
+        FORMULA_RUNTIME.reverseDependencies.set(dep, new Set());
+      }
+      FORMULA_RUNTIME.reverseDependencies.get(dep).add(id);
+    }
+  }
+
+  FORMULA_RUNTIME.graphVersion++;
+  FORMULA_RUNTIME.lastGraphBuildAt = Date.now();
+
+  console.log('[formula-graph] rebuilt:', {
+    formulas:     FORMULA_RUNTIME.formulas.size,
+    graphVersion: FORMULA_RUNTIME.graphVersion,
+  });
+}
+
+function getAffectedFormulas(changedDeps = []) {
+  const affected = new Set();
+  const queue    = [...changedDeps].map(normalizeFormulaDependency);
+
+  while (queue.length) {
+    const dep        = queue.shift();
+    const dependents = FORMULA_RUNTIME.reverseDependencies.get(dep);
+    if (!dependents) continue;
+
+    for (const formulaId of dependents) {
+      if (affected.has(formulaId)) continue;
+      affected.add(formulaId);
+      queue.push(formulaId);
+    }
+  }
+
+  return [...affected];
+}
+
+function detectFormulaCycles() {
+  const visited = new Set();
+  const stack   = new Set();
+
+  function visit(node) {
+    if (stack.has(node))   return true;
+    if (visited.has(node)) return false;
+
+    visited.add(node);
+    stack.add(node);
+
+    const deps = FORMULA_RUNTIME.dependencyGraph.get(node) || [];
+    for (const dep of deps) {
+      if (FORMULA_RUNTIME.formulas.has(dep)) {
+        if (visit(dep)) return true;
+      }
+    }
+
+    stack.delete(node);
+    return false;
+  }
+
+  for (const [id] of FORMULA_RUNTIME.formulas) {
+    if (visit(id)) {
+      FORMULA_RUNTIME.cycleDetections++;
+      console.error('[formula-graph] cycle detected:', id);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function registerFinancialFormula(id, dependencies, compute) {
+  if (!id || typeof compute !== 'function') return false;
+
+  FORMULA_RUNTIME.formulas.set(id, {
+    id,
+    dependencies: Array.isArray(dependencies) ? [...new Set(dependencies)] : [],
+    compute,
+  });
+
+  console.log('[formula-runtime] registered:', id);
+
+  // FC-11: keep dependency graph in sync with formula registry.
+  rebuildFormulaDependencyGraph();
+  return true;
+}
+
+function invalidateFinancialFormulas(changedDependencies = [], reason = 'unknown') {
+  FORMULA_RUNTIME.invalidations++;
+
+  const affected = getAffectedFormulas(changedDependencies);
+  for (const formulaId of affected) {
+    FORMULA_RUNTIME.dirtyFormulas.add(formulaId);
+  }
+
+  console.log('[formula-runtime] invalidated:', {
+    reason,
+    affected: affected.length,
+  });
+}
+
+function computeFinancialFormula(id) {
+  const formula = FORMULA_RUNTIME.formulas.get(id);
+  if (!formula) return null;
+
+  try {
+    const context = buildFinancialFormulaContext();
+    const result  = formula.compute(context);
+
+    FORMULA_RUNTIME.cache.set(id, Object.freeze({
+      value:          result,
+      computedAt:     Date.now(),
+      marketVersion:  MARKET_DATA_VERSION,
+      derivedVersion: DERIVED_FINANCIAL_STATE.version,
+    }));
+
+    return result;
+  } catch (e) {
+    console.error('[formula-runtime] compute failed:', id, e?.message);
+    return null;
+  }
+}
+
+function recomputeFinancialFormulas(source = 'unknown') {
+  if (FORMULA_RUNTIME.processing) {
+    console.log('[formula-runtime] skipped recomputation');
+    return;
+  }
+
+  FORMULA_RUNTIME.processing = true;
+
+  const t0 = Date.now();
+
+  try {
+    if (detectFormulaCycles()) return;
+
+    const dirty = [...FORMULA_RUNTIME.dirtyFormulas];
+
+    for (const formulaId of dirty) {
+      computeFinancialFormula(formulaId);
+      FORMULA_RUNTIME.formulaVersions.set(formulaId, FORMULA_RUNTIME.version + 1);
+    }
+
+    FORMULA_RUNTIME.dirtyFormulas.clear();
+
+    FORMULA_RUNTIME.version++;
+    FORMULA_RUNTIME.recomputations++;
+    FORMULA_RUNTIME.lastComputedAt = Date.now();
+    FORMULA_RUNTIME.lastDurationMs = Date.now() - t0;
+
+    console.log('[formula-runtime] recomputed selective:', {
+      dirty:    dirty.length,
+      duration: FORMULA_RUNTIME.lastDurationMs,
+      source,
+    });
+  } catch (e) {
+    console.error('[formula-runtime] recomputation failed:', e?.message);
+  } finally {
+    FORMULA_RUNTIME.processing = false;
+  }
+}
+
+function getFinancialFormulaSnapshot() {
+  return Object.freeze({
+    version:         FORMULA_RUNTIME.version,
+    formulas:        Object.freeze(Object.fromEntries(FORMULA_RUNTIME.cache)),
+    // FC-11: graph state
+    graphVersion:    FORMULA_RUNTIME.graphVersion,
+    dirty:           Object.freeze([...FORMULA_RUNTIME.dirtyFormulas]),
+    formulaVersions: Object.freeze(Object.fromEntries(FORMULA_RUNTIME.formulaVersions)),
+    runtime:         Object.freeze({
+      recomputations: FORMULA_RUNTIME.recomputations,
+      invalidations:  FORMULA_RUNTIME.invalidations,
+      lastComputedAt: FORMULA_RUNTIME.lastComputedAt,
+      lastDurationMs: FORMULA_RUNTIME.lastDurationMs,
+    }),
+  });
+}
+
+function getFinancialFormulaHealth() {
+  return {
+    version:        FORMULA_RUNTIME.version,
+    formulas:       FORMULA_RUNTIME.formulas.size,
+    cacheEntries:   FORMULA_RUNTIME.cache.size,
+    recomputations: FORMULA_RUNTIME.recomputations,
+    invalidations:  FORMULA_RUNTIME.invalidations,
+    processing:     FORMULA_RUNTIME.processing,
+    lastDurationMs: FORMULA_RUNTIME.lastDurationMs,
+    // FC-11: graph state
+    graphVersion:   FORMULA_RUNTIME.graphVersion,
+    dirty:          FORMULA_RUNTIME.dirtyFormulas.size,
+    cycles:         FORMULA_RUNTIME.cycleDetections,
+    graphBuiltAt:   FORMULA_RUNTIME.lastGraphBuildAt,
+  };
 }
 
 // ── FC-4: Read access layer ────────────────────────────────────────────────────
@@ -6322,7 +6858,7 @@ function fmtMktPrice(p) {
 
 // ── Bottom nav ─────────────────────────────────────────────
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
-const NAV_ORDER = ['home', 'market', 'add', 'insights', 'profile'];
+const NAV_ORDER = ['home', 'market', 'add', 'insights', 'profile', 'workspace'];
 
 function enforceNavOrder() {
   const container = document.getElementById('bottomNav');
@@ -6361,14 +6897,23 @@ function switchTab(tab) {
   if (_marketInterval) { clearInterval(_marketInterval); _marketInterval = null; }
   const mainEl      = document.querySelector('main');
   const placeholder = document.getElementById('tabPlaceholder');
+  const workspaceEl = document.getElementById('aurixWorkspace');
   if (tab === 'home') {
     mainEl.style.display      = '';
     placeholder.style.display = 'none';
+    if (workspaceEl) workspaceEl.style.display = 'none';
     render();
+    updateBottomNavActive();
+  } else if (tab === 'workspace') {
+    mainEl.style.display      = 'none';
+    placeholder.style.display = 'none';
+    if (workspaceEl) workspaceEl.style.display = '';
+    renderWorkspace();
     updateBottomNavActive();
   } else {
     mainEl.style.display       = 'none';
     placeholder.style.display  = '';
+    if (workspaceEl) workspaceEl.style.display = 'none';
     if (tab === 'insights') {
       placeholder.innerHTML = renderInsights();
       startInsightRotation();
@@ -8971,6 +9516,47 @@ setInterval(() => refreshPrices().then(() => marketStore.syncFromRefresh()), 30_
 
 // FC-7: portfolio reactive subscriber
 const unsubscribePortfolioReactive = MARKET_EVENTS.subscribe('market:update', handleReactivePortfolioUpdate);
+
+// FC-9: derived state invalidation subscriber — lazy mark, no recompute here.
+// Recomputation is owned by the reactive refresh path (post-render).
+const unsubscribeDerivedInvalidate = MARKET_EVENTS.subscribe('market:update', () => {
+  invalidateDerivedFinancialState('market-update');
+});
+
+// AW-1: workspace reactive subscriber — re-render only when the user is on
+// the workspace tab. Consumer-only: no derived/formula recomputes here.
+const unsubscribeWorkspaceReactive = MARKET_EVENTS.subscribe('market:update', () => {
+  if (currentTab !== 'workspace') return;
+  renderWorkspace();
+});
+
+// FC-10: register base financial formulas (pure consumers of derived snapshot).
+registerFinancialFormula(
+  'portfolio.totalValue',
+  ['derived.portfolio.totalValue'],
+  context => context.derived.portfolio.totalValue,
+);
+registerFinancialFormula(
+  'portfolio.assetCount',
+  ['derived.portfolio.assetCount'],
+  context => context.derived.portfolio.assetCount,
+);
+registerFinancialFormula(
+  'portfolio.topAllocation',
+  ['derived.portfolio.allocations'],
+  context => context.derived.portfolio.allocations?.[0] || null,
+);
+
+// FC-11: prime dirty set so the first derived recomputation has work to do.
+invalidateFinancialFormulas(
+  [
+    'derived.portfolio.totalvalue',
+    'derived.portfolio.assetcount',
+    'derived.portfolio.allocations',
+  ],
+  'initial-bootstrap',
+);
+recomputeFinancialFormulas('initial-bootstrap');
 
 // FC-6: debug subscriber — validates reactive runtime, non-invasive
 const unsubscribeMarketDebug = MARKET_EVENTS.subscribe('market:update', snapshot => {
