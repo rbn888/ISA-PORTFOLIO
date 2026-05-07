@@ -6726,6 +6726,58 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   word-break: break-word;
 }
 
+/* AW-2: minimal spreadsheet grid */
+.aurix-sheet {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.aurix-cell-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.aurix-cell-row:last-child {
+  border-bottom: 0;
+}
+
+.aurix-cell-id {
+  padding: var(--space-2) var(--space-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.03);
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+.aurix-cell-value {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-md);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aurix-cell-row.is-formula .aurix-cell-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.aurix-cell-row.is-readonly .aurix-cell-value {
+  color: var(--text);
+}
+
+.aurix-cell-row.is-selected {
+  outline: 2px solid var(--accent, #8aa6ff);
+  outline-offset: -2px;
+}
+
 .aurix-copilot {
   position: sticky;
   top: 12px;

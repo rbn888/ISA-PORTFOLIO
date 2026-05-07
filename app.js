@@ -2031,16 +2031,81 @@ function getDerivedStateHealth() {
 // Reactive financial workspace shell. Consumer-only: reads immutable snapshots
 // from the Financial Core, never writes MARKET_DATA, never emits events.
 const WORKSPACE_RUNTIME = {
-  initialized:     false,
-  activeSheet:     'main',
-  sheets:          new Map(),
-  widgets:         new Map(),
-  layoutVersion:   0,
-  reactiveUpdates: 0,
-  lastComputedAt:  0,
-  processing:      false,
+  // AW-1
+  initialized:      false,
+  activeSheet:      'main',  // legacy alias; activeSheetId is the canonical key
+  sheets:           new Map(),
+  widgets:          new Map(),
+  layoutVersion:    0,
+  reactiveUpdates:  0,
+  lastComputedAt:   0,
+  processing:       false,
+  // AW-2: spreadsheet runtime
+  activeSheetId:    'main',
+  selectedCell:     null,
+  editingCell:      null,
+  renderVersion:    0,
+  recalculations:   0,
+  lastCalculatedAt: 0,
+  lastRenderAt:     0,
+  stale:            false,
 };
 
+// AW-2: Sheet & Cell models — mutable internals, immutable snapshots.
+function createWorkspaceSheet(config = {}) {
+  const now = Date.now();
+  return {
+    id:        config.id   || 'main',
+    name:      config.name || 'Untitled Sheet',
+    createdAt: now,
+    updatedAt: now,
+    cells:     new Map(),
+    metadata: {
+      readonly: !!config.readonly,
+      system:   !!config.system,
+      version:  Number(config.version || 1),
+    },
+  };
+}
+
+function createWorkspaceCell(config = {}) {
+  return {
+    id:        config.id,
+    type:      config.type     || 'value',  // 'value' | 'formula' | 'computed'
+    value:     config.value    ?? null,
+    formula:   config.formula  ?? null,
+    computed:  config.computed ?? null,
+    format:    config.format   || null,
+    readonly:  !!config.readonly,
+    updatedAt: Date.now(),
+  };
+}
+
+function _seedMainWorkspaceSheet() {
+  const sheet = createWorkspaceSheet({
+    id:      'main',
+    name:    'Portfolio Workspace',
+    system:  true,
+    version: 1,
+  });
+
+  const seed = [
+    { id: 'A1', type: 'value',   value: 'Portfolio Value' },
+    { id: 'B1', type: 'formula', formula: 'portfolio.totalValue',    readonly: true },
+    { id: 'A2', type: 'value',   value: 'Assets' },
+    { id: 'B2', type: 'formula', formula: 'portfolio.assetCount',    readonly: true },
+    { id: 'A3', type: 'value',   value: 'Top Allocation' },
+    { id: 'B3', type: 'formula', formula: 'portfolio.topAllocation', readonly: true },
+  ];
+
+  for (const c of seed) {
+    sheet.cells.set(c.id, createWorkspaceCell(c));
+  }
+
+  return sheet;
+}
+
+// Kept for AW-1 backwards compat — returns a frozen seed-shape, no longer used.
 function createInitialWorkspaceSheet() {
   return Object.freeze({
     id:        'main',
@@ -2053,8 +2118,10 @@ function createInitialWorkspaceSheet() {
 
 function initializeWorkspaceRuntime() {
   if (WORKSPACE_RUNTIME.initialized) return;
-  WORKSPACE_RUNTIME.sheets.set('main', createInitialWorkspaceSheet());
-  WORKSPACE_RUNTIME.initialized = true;
+  WORKSPACE_RUNTIME.sheets.set('main', _seedMainWorkspaceSheet());
+  WORKSPACE_RUNTIME.activeSheetId = 'main';
+  WORKSPACE_RUNTIME.activeSheet   = 'main';
+  WORKSPACE_RUNTIME.initialized   = true;
   console.log('[workspace] initialized');
 }
 
@@ -2068,10 +2135,147 @@ function getWorkspaceSnapshot() {
   });
 }
 
+// ── AW-2: Spreadsheet runtime (consumer-only, sync) ───────────────────────────
+const _AW2_SUPPORTED_FORMULAS = new Set([
+  'portfolio.totalvalue',
+  'portfolio.assetcount',
+  'portfolio.topallocation',
+]);
+
+function resolveWorkspaceFormula(formulaId) {
+  if (!formulaId) return null;
+  const norm = String(formulaId).trim().toLowerCase();
+  if (!_AW2_SUPPORTED_FORMULAS.has(norm)) return null;
+
+  // Read-only consumer of the formula snapshot — never recomputes.
+  const snapshot = getFinancialFormulaSnapshot();
+  const formulas = snapshot?.formulas || {};
+
+  // Match case-insensitively against registered formula IDs.
+  for (const id of Object.keys(formulas)) {
+    if (id.toLowerCase() === norm) {
+      return formulas[id]?.value ?? null;
+    }
+  }
+  return null;
+}
+
+function recalculateWorkspaceSheet(sheetId) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get(sheetId);
+  if (!sheet) return false;
+
+  const now = Date.now();
+  for (const cell of sheet.cells.values()) {
+    if (cell.type === 'formula' && cell.formula) {
+      const next = resolveWorkspaceFormula(cell.formula);
+      if (next !== cell.computed) {
+        cell.computed  = next;
+        cell.updatedAt = now;
+      }
+    }
+  }
+
+  sheet.updatedAt = now;
+  WORKSPACE_RUNTIME.recalculations++;
+  WORKSPACE_RUNTIME.lastCalculatedAt = now;
+  return true;
+}
+
+function _parseCellId(id) {
+  const m = String(id || '').match(/^([A-Z]+)(\d+)$/);
+  if (!m) return ['', 0];
+  return [m[1], parseInt(m[2], 10)];
+}
+
+function getWorkspaceSheetSnapshot(sheetId) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get(sheetId);
+  if (!sheet) return null;
+
+  const cells = {};
+  for (const [id, cell] of sheet.cells) {
+    cells[id] = Object.freeze({
+      id:        cell.id,
+      type:      cell.type,
+      value:     cell.value,
+      formula:   cell.formula,
+      computed:  cell.computed,
+      format:    cell.format,
+      readonly:  cell.readonly,
+      updatedAt: cell.updatedAt,
+    });
+  }
+
+  return Object.freeze({
+    id:        sheet.id,
+    name:      sheet.name,
+    createdAt: sheet.createdAt,
+    updatedAt: sheet.updatedAt,
+    cells:     Object.freeze(cells),
+    metadata:  Object.freeze({ ...sheet.metadata }),
+  });
+}
+
+function selectWorkspaceCell(cellId) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
+  if (!sheet || !sheet.cells.has(cellId)) return false;
+  WORKSPACE_RUNTIME.selectedCell = cellId;
+  return true;
+}
+
+function beginWorkspaceCellEdit(cellId) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
+  if (!sheet) return false;
+  const cell = sheet.cells.get(cellId);
+  if (!cell || cell.readonly || cell.type === 'formula') return false;
+  WORKSPACE_RUNTIME.editingCell = cellId;
+  return true;
+}
+
+function commitWorkspaceCellEdit(cellId, value) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
+  if (!sheet) return false;
+  const cell = sheet.cells.get(cellId);
+  if (!cell || cell.readonly || cell.type === 'formula') return false;
+
+  cell.value     = value;
+  cell.updatedAt = Date.now();
+  sheet.updatedAt = cell.updatedAt;
+  if (WORKSPACE_RUNTIME.editingCell === cellId) {
+    WORKSPACE_RUNTIME.editingCell = null;
+  }
+  return true;
+}
+
+function getWorkspaceRuntimeHealth() {
+  return {
+    sheets:           WORKSPACE_RUNTIME.sheets.size,
+    recalculations:   WORKSPACE_RUNTIME.recalculations,
+    renderVersion:    WORKSPACE_RUNTIME.renderVersion,
+    selectedCell:     WORKSPACE_RUNTIME.selectedCell,
+    initialized:      WORKSPACE_RUNTIME.initialized,
+    lastCalculatedAt: WORKSPACE_RUNTIME.lastCalculatedAt,
+  };
+}
+
 function _escapeWorkspaceText(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
+}
+
+function _formatWorkspaceCellDisplay(cell) {
+  if (cell.type === 'formula') {
+    const v = cell.computed;
+    if (v == null) return '';
+    if (typeof v === 'number') {
+      return Number.isFinite(v) ? v.toFixed(2) : String(v);
+    }
+    if (typeof v === 'object') {
+      return _escapeWorkspaceText(JSON.stringify(v));
+    }
+    return _escapeWorkspaceText(String(v));
+  }
+  return _escapeWorkspaceText(cell.value ?? '');
 }
 
 function renderWorkspace() {
@@ -2079,52 +2283,50 @@ function renderWorkspace() {
   if (!container) return;
 
   initializeWorkspaceRuntime();
+  recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
 
-  const financial = getDerivedFinancialSnapshot();
-  const formulas  = getFinancialFormulaSnapshot();
+  const sheet = getWorkspaceSheetSnapshot(WORKSPACE_RUNTIME.activeSheetId);
+  if (!sheet) return;
 
-  const totalValue = Number(financial?.portfolio?.totalValue || 0).toFixed(2);
-  const assetCount = financial?.portfolio?.assetCount || 0;
-  const runtimeJson = _escapeWorkspaceText(
-    JSON.stringify(formulas?.runtime || {}, null, 2)
-  );
+  const cells = Object.values(sheet.cells).sort((a, b) => {
+    const [aCol, aRow] = _parseCellId(a.id);
+    const [bCol, bRow] = _parseCellId(b.id);
+    if (aRow !== bRow) return aRow - bRow;
+    return aCol.localeCompare(bCol);
+  });
+
+  const rows = cells.map(cell => {
+    const display = _formatWorkspaceCellDisplay(cell);
+    const cls = [
+      'aurix-cell-row',
+      cell.type === 'formula'             ? 'is-formula' : '',
+      cell.readonly                       ? 'is-readonly' : '',
+      WORKSPACE_RUNTIME.selectedCell === cell.id ? 'is-selected' : '',
+    ].filter(Boolean).join(' ');
+    return `
+      <div class="${cls}" data-cell-id="${_escapeWorkspaceText(cell.id)}">
+        <div class="aurix-cell-id">${_escapeWorkspaceText(cell.id)}</div>
+        <div class="aurix-cell-value">${display}</div>
+      </div>
+    `;
+  }).join('');
 
   container.innerHTML = `
     <div class="aurix-shell">
       <div class="aurix-topbar">
-        <div class="aurix-title">Aurix Workspace</div>
+        <div class="aurix-title">${_escapeWorkspaceText(sheet.name)}</div>
       </div>
-
-      <div class="aurix-layout">
-        <div class="aurix-grid">
-          <div class="aurix-card">
-            <div class="aurix-card-label">Portfolio Value</div>
-            <div class="aurix-card-value">${totalValue}</div>
-          </div>
-
-          <div class="aurix-card">
-            <div class="aurix-card-label">Assets</div>
-            <div class="aurix-card-value">${assetCount}</div>
-          </div>
-
-          <div class="aurix-card aurix-formulas">
-            <div class="aurix-card-label">Formula Runtime</div>
-            <pre>${runtimeJson}</pre>
-          </div>
-        </div>
-
-        <div class="aurix-copilot">
-          <div class="aurix-copilot-avatar">◉</div>
-          <div class="aurix-copilot-message">Financial Core connected.</div>
-        </div>
-      </div>
+      <div class="aurix-sheet">${rows}</div>
     </div>
   `;
 
+  WORKSPACE_RUNTIME.renderVersion++;
+  WORKSPACE_RUNTIME.lastRenderAt   = Date.now();
   WORKSPACE_RUNTIME.reactiveUpdates++;
-  WORKSPACE_RUNTIME.lastComputedAt = Date.now();
+  WORKSPACE_RUNTIME.lastComputedAt = WORKSPACE_RUNTIME.lastRenderAt;
+  WORKSPACE_RUNTIME.stale          = false;
 
-  console.log('[workspace] rendered');
+  console.log('[workspace] rendered v' + WORKSPACE_RUNTIME.renderVersion);
 }
 
 // ── FC-10: Financial formula engine ───────────────────────────────────────────
@@ -2312,6 +2514,19 @@ function recomputeFinancialFormulas(source = 'unknown') {
       duration: FORMULA_RUNTIME.lastDurationMs,
       source,
     });
+
+    // AW-2: cascade into workspace runtime — sync, consumer-only.
+    if (WORKSPACE_RUNTIME.initialized) {
+      try {
+        recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
+        WORKSPACE_RUNTIME.stale = false;
+        if (typeof currentTab !== 'undefined' && currentTab === 'workspace') {
+          renderWorkspace();
+        }
+      } catch (cascadeErr) {
+        console.error('[workspace] cascade failed:', cascadeErr?.message);
+      }
+    }
   } catch (e) {
     console.error('[formula-runtime] recomputation failed:', e?.message);
   } finally {
@@ -9523,11 +9738,11 @@ const unsubscribeDerivedInvalidate = MARKET_EVENTS.subscribe('market:update', ()
   invalidateDerivedFinancialState('market-update');
 });
 
-// AW-1: workspace reactive subscriber — re-render only when the user is on
-// the workspace tab. Consumer-only: no derived/formula recomputes here.
+// AW-2: workspace reactive subscriber — mark stale only. The FC-10 formula
+// recompute cascade owns recalculation + render; the subscriber must not
+// trigger heavy work directly to keep the deterministic flow intact.
 const unsubscribeWorkspaceReactive = MARKET_EVENTS.subscribe('market:update', () => {
-  if (currentTab !== 'workspace') return;
-  renderWorkspace();
+  WORKSPACE_RUNTIME.stale = true;
 });
 
 // FC-10: register base financial formulas (pure consumers of derived snapshot).
