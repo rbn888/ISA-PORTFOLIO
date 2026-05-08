@@ -6726,64 +6726,7 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   word-break: break-word;
 }
 
-/* AW-2: minimal spreadsheet grid */
-.aurix-sheet {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.06);
-}
-
-.aurix-cell-row {
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  align-items: stretch;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-}
-
-.aurix-cell-row:last-child {
-  border-bottom: 0;
-}
-
-.aurix-cell-id {
-  padding: var(--space-2) var(--space-2);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  background: rgba(255,255,255,0.03);
-  border-right: 1px solid rgba(255,255,255,0.06);
-}
-
-.aurix-cell-value {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-md);
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.aurix-cell-row.is-formula .aurix-cell-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.aurix-cell-row.is-readonly .aurix-cell-value {
-  color: var(--text);
-}
-
-.aurix-cell-row.is-selected {
-  outline: 2px solid var(--accent, #8aa6ff);
-  outline-offset: -2px;
-  background: rgba(138, 166, 255, 0.04);
-}
-
-.aurix-cell-row:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-/* ── AW-3: Dual-layout shell (desktop workstation + mobile companion) ──────── */
+/* ── AW-3 / AW-4: Dual-layout shell (desktop workstation + mobile companion) ─ */
 
 .aurix-workspace-shell {
   display: flex;
@@ -6799,10 +6742,10 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 
 .aurix-toolbar {
   display: grid;
-  grid-template-columns: auto 64px 1fr auto auto;
+  grid-template-columns: auto 56px 1fr auto auto;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: 6px var(--space-3);
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius-md);
@@ -6814,18 +6757,21 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   font-style: italic;
   color: var(--text-muted);
   padding: 0 var(--space-1);
+  letter-spacing: 0.02em;
 }
 
 .aurix-formula-cell {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--text);
   text-align: center;
-  padding: 4px 8px;
+  padding: 3px 6px;
   background: rgba(255,255,255,0.04);
   border-radius: var(--radius-xs);
   min-width: 48px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .aurix-formula-input {
@@ -6837,11 +6783,13 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--font-size-sm);
   padding: var(--space-1) var(--space-2);
+  cursor: default;
 }
 
-.aurix-formula-input:focus {
-  background: rgba(255,255,255,0.03);
-  border-radius: var(--radius-xs);
+.aurix-formula-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+  font-style: italic;
 }
 
 .aurix-toolbar-spacer {
@@ -6849,14 +6797,16 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 .aurix-sheet-name {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
+/* AW-4 §7: Grid dominates (~80%); copilot is subordinate (~20%, fixed 320px) */
 .aurix-workspace-body {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: var(--space-2);
   flex: 1;
   min-height: 0;
@@ -6865,8 +6815,128 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 .aurix-grid-panel {
   overflow: auto;
   min-height: 0;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  outline: none;
 }
 
+.aurix-grid-panel:focus-visible {
+  border-color: rgba(138, 166, 255, 0.35);
+}
+
+/* AW-4 §3: Professional spreadsheet matrix with sticky col/row headers. */
+.aurix-grid-matrix {
+  --aw-grid-cols: 4;
+  display: grid;
+  grid-template-columns: 44px repeat(var(--aw-grid-cols), minmax(140px, 1fr));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.aurix-grid-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  background: var(--bg-card);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  height: 28px;
+}
+
+.aurix-grid-col-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 7px 8px;
+  border-right: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  height: 28px;
+  box-sizing: border-box;
+}
+
+.aurix-grid-col-header:last-child {
+  border-right: 0;
+}
+
+.aurix-grid-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  padding: 8px 6px;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+.aurix-grid-cell {
+  position: relative;
+  padding: 7px var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text);
+  background: transparent;
+  border-right: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: cell;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  transition: background 90ms ease-out;
+}
+
+.aurix-grid-cell:last-child {
+  border-right: 0;
+}
+
+.aurix-grid-cell:hover {
+  background: rgba(255,255,255,0.025);
+}
+
+.aurix-grid-cell.is-formula {
+  background: rgba(138, 166, 255, 0.04);
+  color: var(--text);
+}
+
+.aurix-grid-cell.is-readonly {
+  color: var(--text);
+}
+
+.aurix-grid-cell.is-empty {
+  color: var(--text-muted);
+}
+
+.aurix-grid-cell.is-active {
+  background: rgba(138, 166, 255, 0.10);
+  outline: 1.5px solid rgba(138, 166, 255, 0.85);
+  outline-offset: -1px;
+  z-index: 1;
+}
+
+.aurix-grid-cell.is-active.is-formula {
+  background: rgba(138, 166, 255, 0.16);
+}
+
+/* AW-4 §8: Copilot as embedded operational monitor (not chatbot) */
 .aurix-copilot-panel {
   display: flex;
   flex-direction: column;
@@ -6875,26 +6945,52 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius-md);
-  align-self: start;
-  position: sticky;
-  top: var(--space-2);
+  align-self: stretch;
+  min-height: 0;
 }
 
-.aurix-copilot-panel .aurix-copilot-avatar {
-  font-size: var(--font-size-xl);
-  opacity: 0.7;
+.aurix-copilot-header {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
-.aurix-copilot-context {
+.aurix-copilot-eyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.aurix-copilot-signals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
 }
 
-.aurix-copilot-context .aurix-copilot-message {
+.aurix-copilot-signal {
+  position: relative;
+  padding-left: 14px;
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  line-height: 1.4;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.aurix-copilot-signal::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.6;
 }
 
 /* ── Mobile layout (<1024px): financial companion ────────────────────────── */
@@ -6953,62 +7049,44 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   text-overflow: ellipsis;
 }
 
-.aurix-mobile-formulas {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.aurix-formula-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  gap: var(--space-2);
-}
-
-.aurix-formula-row:last-child {
-  border-bottom: 0;
-}
-
-.aurix-formula-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.aurix-formula-value {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 60%;
-}
-
+/* AW-4 §10: Mobile copilot FAB — softer glow, more identity, less generic */
 .aurix-mobile-copilot {
   position: fixed;
   right: var(--space-3);
   bottom: 88px; /* clear bottom-nav */
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: var(--bg-card-2);
+  border: 1px solid rgba(138, 166, 255, 0.20);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(138, 166, 255, 0.18), transparent 60%),
+    var(--bg-card);
   color: var(--text);
-  font-size: var(--font-size-lg);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  box-shadow:
+    0 12px 28px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(255,255,255,0.02) inset,
+    0 0 18px rgba(138, 166, 255, 0.10);
   z-index: 30;
+  padding: 0;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.aurix-mobile-copilot-glyph {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text);
+  opacity: 0.9;
+  text-shadow: 0 0 12px rgba(138, 166, 255, 0.35);
 }
 
 .aurix-mobile-copilot:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
+  box-shadow:
+    0 6px 16px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(255,255,255,0.02) inset,
+    0 0 12px rgba(138, 166, 255, 0.08);
 }

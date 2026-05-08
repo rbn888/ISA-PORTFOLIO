@@ -2049,6 +2049,13 @@ const WORKSPACE_RUNTIME = {
   lastCalculatedAt: 0,
   lastRenderAt:     0,
   stale:            false,
+  // AW-4: operational interaction surface (consumer-only)
+  activeCellId:             null,
+  keyboardNavigationEnabled: true,
+  lastNavigationAt:         0,
+  lastFormulaBarValue:      '',
+  gridColumns:              ['A', 'B', 'C', 'D'],
+  gridRows:                 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 };
 
 // AW-2: Sheet & Cell models — mutable internals, immutable snapshots.
@@ -2121,7 +2128,7 @@ function _onWorkspaceContainerClick(e) {
   const cellEl = e.target.closest('[data-cell-id]');
   if (cellEl) {
     const id = cellEl.dataset.cellId;
-    if (id && selectWorkspaceCell(id)) {
+    if (id && setActiveCell(id)) {
       renderWorkspace();
     }
     return;
@@ -2129,6 +2136,71 @@ function _onWorkspaceContainerClick(e) {
   // Reserved: copilot button (mobile FAB) — no expand modal yet (AW-4+).
   // const copilotEl = e.target.closest('[data-aurix-copilot]');
   // if (copilotEl) { /* future */ }
+}
+
+// AW-4 §6: Keyboard navigation. Desktop only. Pure interaction layer:
+// never recomputes formulas, never writes MARKET_DATA, never emits events.
+const _AW4_NAV_KEYS = {
+  ArrowUp:    'up',
+  ArrowDown:  'down',
+  ArrowLeft:  'left',
+  ArrowRight: 'right',
+  Tab:        'right',
+  Enter:      'down',
+};
+
+function _onWorkspaceKeyDown(e) {
+  if (currentTab !== 'workspace') return;
+  if (!WORKSPACE_RUNTIME.keyboardNavigationEnabled) return;
+  if (!isWorkspaceDesktop()) return;
+
+  const tgt = e.target;
+  if (tgt) {
+    const tag = tgt.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (tgt.isContentEditable) return;
+  }
+
+  if (e.key === 'Escape') {
+    if (WORKSPACE_RUNTIME.activeCellId == null) return;
+    e.preventDefault();
+    setActiveCell(null);
+    WORKSPACE_RUNTIME.lastNavigationAt = Date.now();
+    renderWorkspace();
+    return;
+  }
+
+  const dir = _AW4_NAV_KEYS[e.key];
+  if (!dir) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Tab' && e.shiftKey) {
+    e.preventDefault();
+    const cur = WORKSPACE_RUNTIME.activeCellId;
+    if (!cur) {
+      const cols = WORKSPACE_RUNTIME.gridColumns;
+      const rows = WORKSPACE_RUNTIME.gridRows;
+      setActiveCell(buildCellId(rows[0], cols[0]));
+    } else {
+      const next = getAdjacentCell(cur, 'left');
+      setActiveCell(next);
+    }
+    WORKSPACE_RUNTIME.lastNavigationAt = Date.now();
+    renderWorkspace();
+    return;
+  }
+
+  e.preventDefault();
+  const cur = WORKSPACE_RUNTIME.activeCellId;
+  if (!cur) {
+    const cols = WORKSPACE_RUNTIME.gridColumns;
+    const rows = WORKSPACE_RUNTIME.gridRows;
+    setActiveCell(buildCellId(rows[0], cols[0]));
+  } else {
+    const next = getAdjacentCell(cur, dir);
+    if (next && next !== cur) setActiveCell(next);
+  }
+  WORKSPACE_RUNTIME.lastNavigationAt = Date.now();
+  renderWorkspace();
 }
 
 function initializeWorkspaceRuntime() {
@@ -2143,6 +2215,13 @@ function initializeWorkspaceRuntime() {
   if (container && !container._aw3HandlersAttached) {
     container.addEventListener('click', _onWorkspaceContainerClick);
     container._aw3HandlersAttached = true;
+  }
+
+  // AW-4: workspace-scoped keyboard navigation (desktop only). The handler
+  // self-gates on currentTab + viewport so it stays inert outside the workspace.
+  if (typeof window !== 'undefined' && !window._aw4KeyboardAttached) {
+    document.addEventListener('keydown', _onWorkspaceKeyDown);
+    window._aw4KeyboardAttached = true;
   }
 
   console.log('[workspace] initialized');
@@ -2239,8 +2318,71 @@ function getWorkspaceSheetSnapshot(sheetId) {
 }
 
 function selectWorkspaceCell(cellId) {
-  const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
-  if (!sheet || !sheet.cells.has(cellId)) return false;
+  // AW-4: legacy entry point — defers to the canonical setActiveCell so the
+  // active/selected pair stays mirrored. Intentionally allows empty cells
+  // within grid bounds (cells without an entry in sheet.cells are valid
+  // navigation targets in AW-4).
+  return setActiveCell(cellId);
+}
+
+// ── AW-4 §2: Grid coordinate system ───────────────────────────────────────────
+// Pure helpers. Foundation for AW-5 editing, AW-6 references, dependency
+// tracing and contextual operations. Deterministic, no side effects.
+function getCellRow(cellId) {
+  const m = String(cellId || '').match(/^([A-Z]+)(\d+)$/);
+  return m ? parseInt(m[2], 10) : 0;
+}
+
+function getCellColumn(cellId) {
+  const m = String(cellId || '').match(/^([A-Z]+)(\d+)$/);
+  return m ? m[1] : '';
+}
+
+function buildCellId(row, column) {
+  return String(column || '') + String(row || '');
+}
+
+function _isCellInGridBounds(cellId) {
+  const col = getCellColumn(cellId);
+  const row = getCellRow(cellId);
+  if (!col || !row) return false;
+  return WORKSPACE_RUNTIME.gridColumns.includes(col)
+      && WORKSPACE_RUNTIME.gridRows.includes(row);
+}
+
+function getAdjacentCell(cellId, direction) {
+  const cols = WORKSPACE_RUNTIME.gridColumns;
+  const rows = WORKSPACE_RUNTIME.gridRows;
+  const col  = getCellColumn(cellId);
+  const row  = getCellRow(cellId);
+
+  const colIdx = cols.indexOf(col);
+  const rowIdx = rows.indexOf(row);
+  if (colIdx < 0 || rowIdx < 0) return cellId;
+
+  let nextCol = colIdx;
+  let nextRow = rowIdx;
+  switch (direction) {
+    case 'up':    nextRow = Math.max(0, rowIdx - 1); break;
+    case 'down':  nextRow = Math.min(rows.length - 1, rowIdx + 1); break;
+    case 'left':  nextCol = Math.max(0, colIdx - 1); break;
+    case 'right': nextCol = Math.min(cols.length - 1, colIdx + 1); break;
+    default:      return cellId;
+  }
+  return buildCellId(rows[nextRow], cols[nextCol]);
+}
+
+// AW-4 §4: Active cell engine. Single canonical mutator for selection state.
+// Allows empty cells inside grid bounds; mirrors selectedCell for backward
+// compatibility with AW-2/AW-3 consumers.
+function setActiveCell(cellId) {
+  if (cellId == null) {
+    WORKSPACE_RUNTIME.activeCellId = null;
+    WORKSPACE_RUNTIME.selectedCell = null;
+    return true;
+  }
+  if (!_isCellInGridBounds(cellId)) return false;
+  WORKSPACE_RUNTIME.activeCellId = cellId;
   WORKSPACE_RUNTIME.selectedCell = cellId;
   return true;
 }
@@ -2315,107 +2457,125 @@ function _formatWorkspaceCellDisplay(cell) {
   return _escapeWorkspaceText(cell.value ?? '');
 }
 
-function _sortedWorkspaceCells(sheet) {
-  return Object.values(sheet.cells).sort((a, b) => {
-    const [aCol, aRow] = _parseCellId(a.id);
-    const [bCol, bRow] = _parseCellId(b.id);
-    if (aRow !== bRow) return aRow - bRow;
-    return aCol.localeCompare(bCol);
-  });
-}
-
-function _pairWorkspaceCellsByRow(sheet) {
-  const rows = {};
-  for (const cell of Object.values(sheet.cells)) {
-    const [col, rowNum] = _parseCellId(cell.id);
-    if (!rows[rowNum]) rows[rowNum] = {};
-    rows[rowNum][col] = cell;
-  }
-  return Object.keys(rows)
-    .map(n => parseInt(n, 10))
-    .sort((a, b) => a - b)
-    .map(n => ({ row: n, A: rows[n].A || null, B: rows[n].B || null }));
-}
-
 function _buildWorkspaceCopilotMessages() {
-  const messages = [];
+  // AW-4 §8: contextual operational monitor — concise, non-conversational
+  // signals derived from the same snapshot the grid reads. No personality.
+  const signals = [];
   const derived = getDerivedFinancialSnapshot();
   const totalValue  = Number(derived?.portfolio?.totalValue || 0);
   const exposure    = derived?.portfolio?.exposure || {};
   const allocations = derived?.portfolio?.allocations || [];
 
-  if (totalValue > 0) {
-    const crypto = Number(exposure.crypto || 0);
-    if (crypto / totalValue > 0.4) messages.push('Crypto exposure elevated.');
-  }
-
   const top = allocations[0];
   if (top && Number(top.allocation || 0) > 0.5) {
-    messages.push('Portfolio concentration risk detected.');
+    const sym = top.symbol || 'Top asset';
+    const pct = (Number(top.allocation || 0) * 100).toFixed(0);
+    signals.push(`${sym} concentration above ${pct}%`);
   }
 
-  if (WORKSPACE_RUNTIME.stale) messages.push('Workspace syncing market updates.');
+  if (totalValue > 0) {
+    const crypto = Number(exposure.crypto || 0);
+    const cryptoPct = crypto / totalValue;
+    if (cryptoPct > 0.4) {
+      signals.push(`Crypto exposure elevated (${(cryptoPct * 100).toFixed(0)}%)`);
+      signals.push('Portfolio volatility sensitivity increased');
+    }
+  }
 
-  if (!messages.length) messages.push('Financial Core connected.');
-  return messages;
+  if (WORKSPACE_RUNTIME.stale) signals.push('Syncing market updates');
+
+  if (!signals.length) signals.push('No active risk signals');
+  return signals;
 }
 
-function _renderWorkspaceCellRow(cell) {
-  const display = _formatWorkspaceCellDisplay(cell);
+function _renderWorkspaceMatrixCell(cellId, cell) {
+  const isActive = WORKSPACE_RUNTIME.activeCellId === cellId;
+  const display  = cell ? _formatWorkspaceCellDisplay(cell) : '';
   const cls = [
-    'aurix-cell-row',
-    cell.type === 'formula'                     ? 'is-formula'  : '',
-    cell.readonly                               ? 'is-readonly' : '',
-    WORKSPACE_RUNTIME.selectedCell === cell.id  ? 'is-selected' : '',
+    'aurix-grid-cell',
+    cell?.type === 'formula' ? 'is-formula'  : '',
+    cell?.readonly           ? 'is-readonly' : '',
+    !cell                    ? 'is-empty'    : '',
+    isActive                 ? 'is-active'   : '',
   ].filter(Boolean).join(' ');
-  return `
-    <div class="${cls}" data-cell-id="${_escapeWorkspaceText(cell.id)}">
-      <div class="aurix-cell-id">${_escapeWorkspaceText(cell.id)}</div>
-      <div class="aurix-cell-value">${display}</div>
-    </div>
-  `;
+  return `<div class="${cls}" data-cell-id="${_escapeWorkspaceText(cellId)}" role="gridcell">${display}</div>`;
+}
+
+function _renderWorkspaceFormulaBarValue(sheet) {
+  const id = WORKSPACE_RUNTIME.activeCellId;
+  if (!id) return { coord: '—', value: '', empty: true };
+  const cell = sheet.cells[id] || null;
+  if (!cell) return { coord: id, value: '', empty: true };
+  if (cell.type === 'formula' && cell.formula) {
+    return { coord: id, value: '=' + cell.formula, empty: false };
+  }
+  if (cell.value != null && cell.value !== '') {
+    return { coord: id, value: String(cell.value), empty: false };
+  }
+  return { coord: id, value: '', empty: true };
 }
 
 function _renderWorkspaceDesktop(sheet) {
-  const cells = _sortedWorkspaceCells(sheet);
-  const rows  = cells.map(_renderWorkspaceCellRow).join('');
+  const cols = WORKSPACE_RUNTIME.gridColumns;
+  const rows = WORKSPACE_RUNTIME.gridRows;
 
-  const selectedId = WORKSPACE_RUNTIME.selectedCell || '';
-  const selectedCell = selectedId ? sheet.cells[selectedId] : null;
-  const formulaText = (() => {
-    if (!selectedCell) return '';
-    if (selectedCell.type === 'formula' && selectedCell.formula) {
-      return '=' + selectedCell.formula;
-    }
-    return selectedCell.value != null ? String(selectedCell.value) : '';
-  })();
+  // Sticky column headers row (corner + A/B/C/D)
+  const colHeaders = `
+    <div class="aurix-grid-corner" aria-hidden="true"></div>
+    ${cols.map(c => `<div class="aurix-grid-col-header" role="columnheader">${_escapeWorkspaceText(c)}</div>`).join('')}
+  `;
 
-  const messages = _buildWorkspaceCopilotMessages()
-    .map(m => `<div class="aurix-copilot-message">${_escapeWorkspaceText(m)}</div>`)
+  // Body: row header + N cells per row
+  const bodyRows = rows.map(r => {
+    const rowHeader = `<div class="aurix-grid-row-header" role="rowheader">${r}</div>`;
+    const cellHtml  = cols.map(c => {
+      const id   = buildCellId(r, c);
+      const cell = sheet.cells[id] || null;
+      return _renderWorkspaceMatrixCell(id, cell);
+    }).join('');
+    return rowHeader + cellHtml;
+  }).join('');
+
+  const fb = _renderWorkspaceFormulaBarValue(sheet);
+  const formulaInputValue = fb.value;
+  const formulaPlaceholder = fb.empty && !formulaInputValue ? 'fx' : '';
+
+  const signals = _buildWorkspaceCopilotMessages()
+    .map(m => `<li class="aurix-copilot-signal">${_escapeWorkspaceText(m)}</li>`)
     .join('');
+
+  // Column count drives the CSS grid template (row-header + N data cells)
+  const gridStyle = `--aw-grid-cols:${cols.length}`;
 
   return `
     <div class="aurix-workspace-shell is-desktop">
       <header class="aurix-toolbar">
         <div class="aurix-formula-prefix">fx</div>
-        <div class="aurix-formula-cell">${_escapeWorkspaceText(selectedId || '—')}</div>
+        <div class="aurix-formula-cell">${_escapeWorkspaceText(fb.coord)}</div>
         <input
           class="aurix-formula-input"
           type="text"
           readonly
-          value="${_escapeWorkspaceText(formulaText)}"
+          tabindex="-1"
+          value="${_escapeWorkspaceText(formulaInputValue)}"
+          placeholder="${_escapeWorkspaceText(formulaPlaceholder)}"
           aria-label="Formula bar"
         />
         <div class="aurix-toolbar-spacer"></div>
         <div class="aurix-sheet-name">${_escapeWorkspaceText(sheet.name)}</div>
       </header>
       <div class="aurix-workspace-body">
-        <section class="aurix-grid-panel">
-          <div class="aurix-sheet">${rows}</div>
+        <section class="aurix-grid-panel" role="grid" aria-label="Spreadsheet" tabindex="0">
+          <div class="aurix-grid-matrix" style="${gridStyle}">
+            ${colHeaders}
+            ${bodyRows}
+          </div>
         </section>
-        <aside class="aurix-copilot-panel">
-          <div class="aurix-copilot-avatar" aria-hidden="true">◉</div>
-          <div class="aurix-copilot-context">${messages}</div>
+        <aside class="aurix-copilot-panel" aria-label="Risk monitor">
+          <div class="aurix-copilot-header">
+            <span class="aurix-copilot-eyebrow">Risk Monitor</span>
+          </div>
+          <ul class="aurix-copilot-signals">${signals}</ul>
         </aside>
       </div>
     </div>
@@ -2423,6 +2583,9 @@ function _renderWorkspaceDesktop(sheet) {
 }
 
 function _renderWorkspaceMobile(sheet) {
+  // AW-4 §9: mobile = financial quick-access layer. No grid, no formula bar,
+  // no duplicated formula list — only the summary cards + FAB. `sheet` is read
+  // for the header subtitle; cell-level data is intentionally suppressed.
   const derived = getDerivedFinancialSnapshot();
   const totalValue = Number(derived?.portfolio?.totalValue || 0);
   const assetCount = derived?.portfolio?.assetCount || 0;
@@ -2447,19 +2610,6 @@ function _renderWorkspaceMobile(sheet) {
     </div>
   `).join('');
 
-  const formulas = _pairWorkspaceCellsByRow(sheet)
-    .filter(p => p.A || p.B)
-    .map(p => {
-      const label = p.A ? _formatWorkspaceCellDisplay(p.A) : '';
-      const value = p.B ? _formatWorkspaceCellDisplay(p.B) : '';
-      return `
-        <div class="aurix-formula-row">
-          <div class="aurix-formula-label">${label}</div>
-          <div class="aurix-formula-value">${value}</div>
-        </div>
-      `;
-    }).join('');
-
   return `
     <div class="aurix-workspace-shell is-mobile">
       <header class="aurix-mobile-header">
@@ -2467,13 +2617,14 @@ function _renderWorkspaceMobile(sheet) {
         <div class="aurix-mobile-subtitle">${_escapeWorkspaceText(sheet.name)}</div>
       </header>
       <section class="aurix-mobile-summary">${summary}</section>
-      <section class="aurix-mobile-formulas">${formulas}</section>
       <button
         class="aurix-mobile-copilot"
         type="button"
         data-aurix-copilot
         aria-label="Open assistant"
-      >◉</button>
+      >
+        <span class="aurix-mobile-copilot-glyph" aria-hidden="true">◉</span>
+      </button>
     </div>
   `;
 }
