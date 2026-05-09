@@ -6656,9 +6656,9 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 /* ── AW-1: Aurix Workspace — minimal foundation styles ─────────────────────── */
-/* AW-5 §1: workspace width expansion — flagship workstation feel.
-   Mobile keeps tight padding; desktop expands to ~1620px max with reduced
-   side padding so the grid genuinely dominates the viewport. */
+/* AW-6 §1: full-width workstation. Eliminamos el max-width conservador:
+   en desktop usamos 92-96% del viewport con gutters mínimos para que el
+   grid no se sienta encajonado. Mobile mantiene padding cómodo. */
 .aurix-workspace {
   width: 100%;
   min-height: 100vh;
@@ -6671,10 +6671,9 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 
 @media (min-width: 1024px) {
   .aurix-workspace {
-    max-width: 1620px;
-    margin: 0 auto;
-    padding: var(--space-2) var(--space-3);
-    padding-bottom: var(--space-3);
+    max-width: none;
+    margin: 0;
+    padding: 14px clamp(20px, 2.5vw, 36px) 18px;
   }
 }
 
@@ -6738,7 +6737,7 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   word-break: break-word;
 }
 
-/* ── AW-3 / AW-4 / AW-5: Dual-layout shell (desktop workstation + mobile cockpit) ─ */
+/* ── AW-3 / AW-4 / AW-5 / AW-6: Dual-layout shell (desktop workstation + mobile cockpit) ─ */
 
 .aurix-workspace-shell {
   display: flex;
@@ -6747,36 +6746,38 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   width: 100%;
 }
 
-/* ── Desktop layout (≥1024px): financial workstation ─────────────────────── */
+/* ── Desktop layout (≥1024px): premium financial workstation ─────────────── */
 .aurix-workspace-shell.is-desktop {
-  height: calc(100vh - 88px);
-  gap: 10px;
+  height: calc(100vh - 80px);
+  gap: 14px;
 }
 
-/* AW-5 §5: premium formula bar — fx | coord badge | value field, with
-   thin separators and tighter density. Readonly until AW-6. */
+/* AW-6 §6: formula bar = command surface. Layout fx | coord | divider |
+   value | sheet-name. Más respiración, más contraste, tipografía mayor. */
 .aurix-toolbar {
   display: grid;
-  grid-template-columns: auto auto auto auto 1fr auto auto;
+  grid-template-columns: auto auto auto 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 14px;
+  padding: 10px 18px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.030), rgba(255,255,255,0) 60%),
     var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: var(--radius-md);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
-  min-height: 38px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.025) inset,
+    0 6px 18px rgba(0,0,0,0.22);
+  min-height: 52px;
   box-sizing: border-box;
 }
 
 .aurix-formula-fx {
   font-family: 'Times New Roman', Georgia, serif;
   font-style: italic;
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 500;
-  color: rgba(138, 166, 255, 0.88);
+  color: rgba(138, 166, 255, 0.92);
   padding: 0 2px;
   letter-spacing: 0.01em;
   user-select: none;
@@ -6784,21 +6785,21 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 
 .aurix-formula-divider {
   width: 1px;
-  height: 18px;
-  background: rgba(255,255,255,0.08);
+  height: 22px;
+  background: rgba(255,255,255,0.10);
 }
 
 .aurix-formula-coord {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: var(--font-weight-semibold);
   color: var(--text);
   text-align: center;
-  padding: 4px 9px;
-  background: rgba(138, 166, 255, 0.08);
-  border: 1px solid rgba(138, 166, 255, 0.18);
-  border-radius: 5px;
-  min-width: 40px;
+  padding: 6px 12px;
+  background: rgba(138, 166, 255, 0.10);
+  border: 1px solid rgba(138, 166, 255, 0.22);
+  border-radius: 7px;
+  min-width: 52px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
@@ -6807,14 +6808,14 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 .aurix-formula-coord.is-empty {
   color: var(--text-muted);
   background: rgba(255,255,255,0.03);
-  border-color: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.07);
 }
 
 .aurix-formula-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  font-size: 14.5px;
   color: var(--text);
-  padding: 4px 8px;
+  padding: 4px 10px;
   letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -6823,7 +6824,7 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 .aurix-formula-value.is-formula {
-  color: rgba(138, 166, 255, 0.95);
+  color: rgba(138, 166, 255, 0.96);
 }
 
 .aurix-formula-value.is-literal {
@@ -6836,25 +6837,21 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   opacity: 0.7;
 }
 
-.aurix-toolbar-spacer {
-  /* AW-5: explicit grid filler — kept so the grid template stays valid even
-     though `1fr` already absorbs free space. */
-}
-
 .aurix-sheet-name {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-muted);
-  letter-spacing: 0.10em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: var(--font-weight-semibold);
-  opacity: 0.7;
+  opacity: 0.78;
+  white-space: nowrap;
 }
 
-/* AW-5 §2: Grid dominates (~85%); risk monitor narrows to 240px. */
+/* AW-6 §2: grid dominates (~86-88%); risk monitor narrows to 220px. */
 .aurix-workspace-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px;
   flex: 1;
   min-height: 0;
 }
@@ -6863,23 +6860,24 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   overflow: auto;
   min-height: 0;
   background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
   outline: none;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.02) inset,
-    0 8px 24px rgba(0,0,0,0.18);
+    0 1px 0 rgba(255,255,255,0.025) inset,
+    0 10px 28px rgba(0,0,0,0.20);
 }
 
 .aurix-grid-panel:focus-visible {
-  border-color: rgba(138, 166, 255, 0.35);
+  border-color: rgba(138, 166, 255, 0.40);
 }
 
-/* AW-5 §3: Professional spreadsheet matrix — 12 cols × 30 rows, denser. */
+/* AW-6 §3-4: 12 cols × 30 rows lógicos. Visualmente menos rows visibles,
+   celdas más altas y legibles para sensación premium. */
 .aurix-grid-matrix {
   --aw-grid-cols: 12;
   display: grid;
-  grid-template-columns: 40px repeat(var(--aw-grid-cols), minmax(108px, 1fr));
+  grid-template-columns: 52px repeat(var(--aw-grid-cols), minmax(128px, 1fr));
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1, 'cv11' 1;
@@ -6893,24 +6891,27 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   background: var(--bg-card);
   border-right: 1px solid rgba(255,255,255,0.08);
   border-bottom: 1px solid rgba(255,255,255,0.10);
-  height: 26px;
+  height: 38px;
 }
 
 .aurix-grid-col-header {
   position: sticky;
   top: 0;
   z-index: 3;
-  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)) , var(--bg-card);
-  color: var(--text-muted);
-  font-size: 10.5px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0)),
+    var(--bg-card);
+  color: var(--text);
+  opacity: 0.78;
+  font-size: 12.5px;
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   text-align: center;
-  padding: 6px 8px;
-  border-right: 1px solid rgba(255,255,255,0.04);
+  padding: 9px 10px;
+  border-right: 1px solid rgba(255,255,255,0.05);
   border-bottom: 1px solid rgba(255,255,255,0.10);
-  height: 26px;
+  height: 38px;
   box-sizing: border-box;
   user-select: none;
 }
@@ -6925,33 +6926,33 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   z-index: 2;
   background: var(--bg-card);
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: var(--font-weight-medium);
   text-align: center;
-  padding: 0 6px;
+  padding: 0 8px;
   border-right: 1px solid rgba(255,255,255,0.08);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.045);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
+  min-height: 44px;
   box-sizing: border-box;
   user-select: none;
 }
 
 .aurix-grid-cell {
   position: relative;
-  padding: 5px 10px;
-  font-size: 12.5px;
+  padding: 9px 14px;
+  font-size: 14px;
   color: var(--text);
   background: transparent;
-  border-right: 1px solid rgba(255,255,255,0.03);
-  border-bottom: 1px solid rgba(255,255,255,0.035);
+  border-right: 1px solid rgba(255,255,255,0.035);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: cell;
-  min-height: 28px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -6962,24 +6963,24 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   border-right: 0;
 }
 
-/* AW-5 §7: numeric values right-aligned with tabular figures. */
+/* Numeric values right-aligned with tabular figures. */
 .aurix-grid-cell.is-numeric {
   justify-content: flex-end;
   font-variant-numeric: tabular-nums;
 }
 
 .aurix-grid-cell:hover {
-  background: rgba(255,255,255,0.022);
+  background: rgba(255,255,255,0.025);
 }
 
 .aurix-grid-cell.is-formula {
-  background: rgba(138, 166, 255, 0.035);
+  background: rgba(138, 166, 255, 0.04);
   color: var(--text);
 }
 
 .aurix-grid-cell.is-readonly {
   color: var(--text);
-  opacity: 0.92;
+  opacity: 0.94;
 }
 
 .aurix-grid-cell.is-empty {
@@ -6987,12 +6988,11 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 .aurix-grid-cell.is-empty:hover {
-  background: rgba(255,255,255,0.02);
+  background: rgba(255,255,255,0.022);
 }
 
-/* AW-5 §6: premium selected state — crisp blue outline + subtle glow. */
 .aurix-grid-cell.is-active {
-  background: rgba(138, 166, 255, 0.12);
+  background: rgba(138, 166, 255, 0.13);
   outline: 1.5px solid rgba(138, 166, 255, 0.95);
   outline-offset: -1px;
   z-index: 1;
@@ -7002,70 +7002,70 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 .aurix-grid-cell.is-active.is-formula {
-  background: rgba(138, 166, 255, 0.18);
+  background: rgba(138, 166, 255, 0.20);
 }
 
-/* AW-5 §8: Risk Monitor — terminal-grade compact panel. */
+/* AW-6 §7: Risk Monitor refinement — más breathing, jerarquía clara. */
 .aurix-copilot-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 14px 16px;
+  gap: 22px;
+  padding: 20px 18px 22px;
   background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: var(--radius-md);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
   align-self: stretch;
   min-height: 0;
   overflow: auto;
   box-shadow:
-    0 1px 0 rgba(255,255,255,0.02) inset,
-    0 8px 24px rgba(0,0,0,0.18);
+    0 1px 0 rgba(255,255,255,0.025) inset,
+    0 10px 28px rgba(0,0,0,0.20);
 }
 
 .aurix-copilot-header {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  gap: 5px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .aurix-copilot-eyebrow {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text);
-  opacity: 0.92;
+  opacity: 0.94;
 }
 
 .aurix-copilot-subtitle {
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.65;
+  opacity: 0.68;
   font-weight: var(--font-weight-medium);
 }
 
 .aurix-risk-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
 }
 
 .aurix-risk-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
 }
 
 .aurix-risk-group-title {
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.72;
+  opacity: 0.78;
   font-weight: var(--font-weight-semibold);
   margin: 0;
 }
@@ -7076,25 +7076,25 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 7px;
 }
 
 .aurix-risk-signal {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 11.5px;
-  line-height: 1.4;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .aurix-risk-dot {
   flex: none;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  margin-top: 7px;
+  margin-top: 8px;
   background: var(--text-muted);
   opacity: 0.55;
 }
@@ -7102,17 +7102,17 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 .aurix-risk-signal.is-warn .aurix-risk-dot {
   background: #E9A857;
   opacity: 0.95;
-  box-shadow: 0 0 6px rgba(233, 168, 87, 0.35);
+  box-shadow: 0 0 7px rgba(233, 168, 87, 0.40);
 }
 
 .aurix-risk-signal.is-info .aurix-risk-dot {
-  background: rgba(138, 166, 255, 0.85);
-  opacity: 0.9;
+  background: rgba(138, 166, 255, 0.88);
+  opacity: 0.92;
 }
 
 .aurix-risk-signal.is-ok .aurix-risk-dot {
   background: #3FBF7F;
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 .aurix-risk-signal.is-warn .aurix-risk-text {
@@ -7130,45 +7130,48 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 /* ── Mobile layout (<1024px): executive cockpit ──────────────────────────── */
+/* AW-6 §10: más respiración entre header / cards / risk / bottom-nav. */
 .aurix-workspace-shell.is-mobile {
-  gap: var(--space-3);
-  padding-bottom: var(--space-2);
+  gap: 18px;
+  padding-bottom: var(--space-3);
 }
 
 .aurix-mobile-header {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px 0 4px;
+  gap: 4px;
+  padding: 6px 0 8px;
 }
 
 .aurix-mobile-title {
-  font-size: var(--font-size-xl);
+  font-size: 26px;
   font-weight: var(--font-weight-semibold);
   letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .aurix-mobile-subtitle {
-  font-size: var(--font-size-sm);
+  font-size: 13.5px;
   color: var(--text-muted);
+  letter-spacing: 0.01em;
 }
 
-/* AW-5 §10: 6 cards × 2 columns × 3 rows. Tighter density, premium feel. */
+/* AW-6 §8: 6 cards × 2 columns × 3 rows. Polish tipográfico. */
 .aurix-mobile-summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
 .aurix-summary-card {
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  border-radius: 14px;
   background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.07);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-height: 76px;
+  gap: 6px;
+  min-height: 88px;
   justify-content: center;
   position: relative;
   overflow: hidden;
@@ -7181,39 +7184,40 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   border-radius: inherit;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0) 50%);
+    linear-gradient(180deg, rgba(255,255,255,0.030), rgba(255,255,255,0) 50%);
 }
 
 .aurix-summary-card.is-positive {
-  border-color: rgba(63, 191, 127, 0.18);
+  border-color: rgba(63, 191, 127, 0.22);
 }
 
 .aurix-summary-card.is-negative {
-  border-color: rgba(224, 90, 90, 0.18);
+  border-color: rgba(224, 90, 90, 0.22);
 }
 
 .aurix-summary-card.is-warn {
-  border-color: rgba(233, 168, 87, 0.20);
+  border-color: rgba(233, 168, 87, 0.22);
 }
 
 .aurix-summary-card.is-info {
-  border-color: rgba(138, 166, 255, 0.20);
+  border-color: rgba(138, 166, 255, 0.22);
 }
 
 .aurix-summary-label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: var(--font-weight-semibold);
-  opacity: 0.78;
+  opacity: 0.82;
 }
 
 .aurix-summary-value {
-  font-size: 17px;
+  font-size: 19px;
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7232,7 +7236,7 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 .aurix-summary-hint {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-muted);
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
@@ -7240,23 +7244,23 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 
 .aurix-summary-card.is-positive .aurix-summary-hint {
   color: #3FBF7F;
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 .aurix-summary-card.is-negative .aurix-summary-hint {
   color: #E05A5A;
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
-/* AW-5 §11: mobile risk strip — quiet, terminal-grade. */
+/* AW-6 §8: mobile risk strip — más legible y discreta. */
 .aurix-mobile-risk {
   background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: var(--radius-md);
-  padding: 12px 14px 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 16px 18px 18px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .aurix-mobile-risk-header {
@@ -7265,12 +7269,12 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
 }
 
 .aurix-mobile-risk-eyebrow {
-  font-size: 10px;
+  font-size: 11.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text);
   font-weight: var(--font-weight-semibold);
-  opacity: 0.78;
+  opacity: 0.86;
 }
 
 .aurix-mobile-risk-list {
@@ -7279,27 +7283,27 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 7px;
 }
 
 .aurix-mobile-risk-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 1.4;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .aurix-mobile-risk-dot {
   flex: none;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  margin-top: 6px;
+  margin-top: 8px;
   background: rgba(138, 166, 255, 0.85);
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
 .aurix-mobile-risk-text {
@@ -7307,19 +7311,17 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   min-width: 0;
 }
 
-/* AW-5 §13: FAB — premium glass+glow finish. No new interaction. */
+/* AW-6 §9: FAB cleanup — más discreto, menos glow agresivo, premium quiet. */
 .aurix-mobile-copilot {
   position: fixed;
   right: var(--space-3);
-  bottom: 88px; /* clear bottom-nav */
-  width: 56px;
-  height: 56px;
+  bottom: 92px; /* clear bottom-nav with extra breathing */
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
-  border: 1px solid rgba(138, 166, 255, 0.28);
+  border: 1px solid rgba(255,255,255,0.10);
   background:
-    radial-gradient(circle at 30% 22%, rgba(138, 166, 255, 0.32), transparent 55%),
-    radial-gradient(circle at 70% 80%, rgba(138, 166, 255, 0.10), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0)),
+    radial-gradient(circle at 30% 25%, rgba(138, 166, 255, 0.14), transparent 65%),
     var(--bg-card);
   color: var(--text);
   cursor: pointer;
@@ -7327,36 +7329,31 @@ body.is-detail-view .mobile-slide            { height: auto !important; }
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 18px 36px rgba(0,0,0,0.55),
-    0 0 0 1px rgba(255,255,255,0.04) inset,
-    0 0 24px rgba(138, 166, 255, 0.18);
+    0 10px 22px rgba(0,0,0,0.42),
+    0 0 0 1px rgba(255,255,255,0.03) inset;
   z-index: 30;
   padding: 0;
-  transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out, border-color 140ms ease-out;
 }
 
 .aurix-mobile-copilot-glyph {
-  font-size: 19px;
+  font-size: 17px;
   line-height: 1;
   color: var(--text);
-  opacity: 0.95;
-  text-shadow:
-    0 0 14px rgba(138, 166, 255, 0.55),
-    0 0 4px rgba(138, 166, 255, 0.30);
+  opacity: 0.85;
 }
 
 .aurix-mobile-copilot:hover {
+  border-color: rgba(138, 166, 255, 0.30);
   transform: translateY(-1px);
   box-shadow:
-    0 22px 42px rgba(0,0,0,0.55),
-    0 0 0 1px rgba(255,255,255,0.04) inset,
-    0 0 30px rgba(138, 166, 255, 0.26);
+    0 14px 26px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(255,255,255,0.04) inset;
 }
 
 .aurix-mobile-copilot:active {
   transform: scale(0.96);
   box-shadow:
-    0 8px 18px rgba(0,0,0,0.45),
-    0 0 0 1px rgba(255,255,255,0.04) inset,
-    0 0 16px rgba(138, 166, 255, 0.14);
+    0 6px 14px rgba(0,0,0,0.40),
+    0 0 0 1px rgba(255,255,255,0.03) inset;
 }

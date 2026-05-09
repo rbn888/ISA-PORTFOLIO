@@ -2629,15 +2629,15 @@ function _renderWorkspaceDesktop(sheet) {
   // Column count drives the CSS grid template (row-header + N data cells)
   const gridStyle = `--aw-grid-cols:${cols.length}`;
 
+  // AW-6 §6: formula bar = command surface. Layout: fx | coord | divider |
+  // value (1fr) | sheet-name. One divisor sólo, más respiración alrededor.
   return `
     <div class="aurix-workspace-shell is-desktop">
       <header class="aurix-toolbar">
         <div class="aurix-formula-fx" aria-hidden="true">fx</div>
-        <div class="aurix-formula-divider" aria-hidden="true"></div>
         <div class="aurix-formula-coord ${coordEmpty ? 'is-empty' : ''}">${_escapeWorkspaceText(coordLabel)}</div>
         <div class="aurix-formula-divider" aria-hidden="true"></div>
         <div class="${valueClass}">${_escapeWorkspaceText(valueDisplay)}</div>
-        <div class="aurix-toolbar-spacer"></div>
         <div class="aurix-sheet-name">${_escapeWorkspaceText(sheet.name)}</div>
       </header>
       <div class="aurix-workspace-body">
