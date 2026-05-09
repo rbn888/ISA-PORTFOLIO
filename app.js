@@ -2138,8 +2138,6 @@ function _onWorkspaceContainerClick(e) {
     const id = cellEl.dataset.cellId;
     if (!id) return;
 
-    console.log('[aw-7.1] click', { id, detail: e.detail, isEditing: WORKSPACE_RUNTIME.isEditing });
-
     // AW-7.1 hotfix: el browser despacha `dblclick` en el deepest common
     // inclusive ancestor de los dos targets. Como `renderWorkspace()` re-crea
     // los nodos célula entre click#1 y click#2, el ancestor común termina
@@ -2147,7 +2145,6 @@ function _onWorkspaceContainerClick(e) {
     // bailaba. `e.detail` es un contador a nivel de pointer events que NO
     // se resetea con mutaciones DOM — fuente fiable para detectar dobleclick.
     if (e.detail >= 2) {
-      console.log('[aw-7.1] click→dblclick path', { id });
       if (WORKSPACE_RUNTIME.isEditing && WORKSPACE_RUNTIME.editingCell === id) return;
       setActiveCell(id);
       if (beginWorkspaceCellEdit(id)) {
@@ -2175,7 +2172,6 @@ function _onWorkspaceContainerClick(e) {
 // Si el browser sí dispara este evento sobre la celda, los guards evitan
 // doble-arranque de edición.
 function _onWorkspaceContainerDblClick(e) {
-  console.log('[aw-7.1] dblclick fired', { target: e.target?.tagName, hasCellId: !!e.target.closest?.('[data-cell-id]') });
   const cellEl = e.target.closest('[data-cell-id]');
   if (!cellEl) return;
   const id = cellEl.dataset.cellId;
@@ -2299,9 +2295,6 @@ function _onWorkspaceKeyDown(e) {
     && !_AW4_NAV_KEYS[e.key]
   ) {
     const cur = WORKSPACE_RUNTIME.activeCellId;
-    console.log('[aw-7.1] typing entry', {
-      key: e.key, activeCellId: cur, targetTag: e.target?.tagName,
-    });
     if (cur) {
       const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
       const cell  = sheet?.cells.get(cur) || null;
@@ -2559,18 +2552,11 @@ function _coerceWorkspaceLiteral(raw) {
 }
 
 function beginWorkspaceCellEdit(cellId, initialValue) {
-  const inBounds = _isCellInGridBounds(cellId);
-  const sheet    = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
-  const cell     = sheet ? sheet.cells.get(cellId) : null;
-  const editable = _isWorkspaceCellEditable(cell);
-  console.log('[aw-7.1] beginWorkspaceCellEdit', {
-    cellId, inBounds, hasSheet: !!sheet, hasCell: !!cell,
-    cellType: cell?.type, readonly: cell?.readonly, editable,
-    initialValueGiven: initialValue != null,
-  });
-  if (!inBounds) return false;
+  if (!_isCellInGridBounds(cellId)) return false;
+  const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
   if (!sheet) return false;
-  if (!editable) return false;
+  const cell = sheet.cells.get(cellId);
+  if (!_isWorkspaceCellEditable(cell)) return false;
 
   const seed = (initialValue != null)
     ? String(initialValue)
