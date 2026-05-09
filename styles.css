@@ -7382,3 +7382,115 @@ body.workspace-active .header {
     0 6px 14px rgba(0,0,0,0.40),
     0 0 0 1px rgba(255,255,255,0.03) inset;
 }
+
+/* ── AW-6.2: Immersive desktop workstation refinement ──────────────────────
+   Presentation-only refinement on top of AW-6 + AW-6.1. Compresses the
+   global header (workspace tab only), turns the toolbar into a flush
+   command strip, narrows the Risk Monitor and tightens cell rhythm so the
+   grid genuinely behaves like the primary surface. Mobile is untouched. */
+
+/* Header compresión — sólo cuando el tab activo es workspace. */
+body.workspace-active .header {
+  padding-top: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 0;
+}
+
+@media (min-width: 1024px) {
+  /* Workspace surface: gutters mínimos, top padding casi nulo. */
+  body.workspace-active .aurix-workspace {
+    padding: 6px clamp(14px, 1.6vw, 22px) 12px;
+  }
+
+  /* Aprovecha la altura ganada por header + workspace top compactos. */
+  .aurix-workspace-shell.is-desktop {
+    height: calc(100vh - 56px);
+    gap: 8px;
+  }
+
+  /* Toolbar = command strip plano integrado, no card flotante. */
+  .aurix-toolbar {
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 40px;
+    padding: 4px 4px 6px;
+    gap: 12px;
+  }
+
+  /* Coord badge más limpio, placeholder más sutil. */
+  .aurix-formula-coord {
+    background: rgba(138, 166, 255, 0.07);
+    border-color: rgba(138, 166, 255, 0.18);
+    padding: 5px 11px;
+  }
+
+  .aurix-formula-coord.is-empty {
+    background: transparent;
+    border-color: rgba(255,255,255,0.06);
+  }
+
+  .aurix-formula-value.is-empty {
+    opacity: 0.55;
+  }
+
+  /* Grid ~89% / Risk Monitor 200px (~11%). */
+  .aurix-workspace-body {
+    grid-template-columns: minmax(0, 1fr) 200px;
+    gap: 10px;
+  }
+
+  /* Más filas visibles sin bajar tipografía. */
+  .aurix-grid-cell {
+    padding: 7px 12px;
+    min-height: 40px;
+  }
+  .aurix-grid-row-header {
+    min-height: 40px;
+  }
+  .aurix-grid-col-header {
+    height: 34px;
+    padding: 7px 10px;
+  }
+  .aurix-grid-corner {
+    height: 34px;
+  }
+
+  /* Risk Monitor: ligeramente más compacto, sigue legible. */
+  .aurix-copilot-panel {
+    padding: 16px 14px 18px;
+    gap: 18px;
+    border-radius: 12px;
+  }
+  .aurix-copilot-header {
+    padding-bottom: 12px;
+    gap: 4px;
+  }
+  .aurix-copilot-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+  }
+  .aurix-copilot-subtitle {
+    font-size: 9.5px;
+  }
+  .aurix-risk-body {
+    gap: 16px;
+  }
+  .aurix-risk-group {
+    gap: 7px;
+  }
+  .aurix-risk-list {
+    gap: 6px;
+  }
+  .aurix-risk-signal {
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  /* Grid panel border más sutil para sentir continuidad con la toolbar. */
+  .aurix-grid-panel {
+    border-radius: 12px;
+  }
+}
