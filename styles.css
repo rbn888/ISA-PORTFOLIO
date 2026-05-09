@@ -6836,16 +6836,25 @@ body.workspace-active .header {
   border-color: rgba(255,255,255,0.07);
 }
 
+/* AW-7.2: formula bar es ahora <input>. Resetear defaults nativos del input
+   y mantener tipografía/contraste premium del AW-5/AW-6. */
 .aurix-formula-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 14.5px;
   color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: none;
   padding: 4px 10px;
+  margin: 0;
   letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  caret-color: rgba(138, 166, 255, 0.95);
 }
 
 .aurix-formula-value.is-formula {
@@ -6860,6 +6869,30 @@ body.workspace-active .header {
   color: var(--text-muted);
   font-style: italic;
   opacity: 0.7;
+}
+
+.aurix-formula-value::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.55;
+}
+
+/* AW-7.2: readonly (system cell o sin selección) — sin caret, cursor neutro. */
+.aurix-formula-value.is-readonly,
+.aurix-formula-value[readonly] {
+  cursor: default;
+  caret-color: transparent;
+}
+
+/* AW-7.2: editable — refuerzo visual cuando el input tiene foco. */
+.aurix-formula-value.is-editable:focus {
+  background: rgba(138, 166, 255, 0.06);
+  border-radius: 4px;
+}
+
+.aurix-formula-value.is-editing {
+  background: rgba(138, 166, 255, 0.06);
+  border-radius: 4px;
 }
 
 .aurix-sheet-name {

@@ -2061,6 +2061,9 @@ const WORKSPACE_RUNTIME = {
   isEditing:                false,
   editingValue:             '',
   lastEditAt:               0,
+  // AW-7.2: tracks where the next post-render focus should land.
+  // Transient UX hint, NOT a duplicate of editingValue. 'cell' | 'formula' | null.
+  _editFocusTarget:         null,
 };
 
 // AW-2: Sheet & Cell models — mutable internals, immutable snapshots.
@@ -2129,8 +2132,25 @@ function createInitialWorkspaceSheet() {
 }
 
 function _onWorkspaceContainerClick(e) {
-  // Click sobre el input de edición: dejar al input gestionar focus/caret.
+  // Click sobre el input de edición inline: dejar al input gestionar focus/caret.
   if (e.target.closest('[data-cell-edit-input]')) return;
+
+  // AW-7.2: click sobre formula bar input.
+  const fbInput = e.target.closest('[data-formula-bar-input]');
+  if (fbInput) {
+    if (fbInput.readOnly) return;                       // system / sin selección
+    if (WORKSPACE_RUNTIME.isEditing) return;            // ya editando, deja al input
+    const cellId = WORKSPACE_RUNTIME.activeCellId;
+    if (!cellId) return;
+    const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
+    const cell  = sheet?.cells.get(cellId) || null;
+    if (!_isWorkspaceCellEditable(cell)) return;
+    WORKSPACE_RUNTIME._editFocusTarget = 'formula';
+    if (beginWorkspaceCellEdit(cellId)) {
+      renderWorkspace();
+    }
+    return;
+  }
 
   // Cell selection (desktop). Mobile rows are not clickable in AW-3.
   const cellEl = e.target.closest('[data-cell-id]');
@@ -2147,6 +2167,7 @@ function _onWorkspaceContainerClick(e) {
     if (e.detail >= 2) {
       if (WORKSPACE_RUNTIME.isEditing && WORKSPACE_RUNTIME.editingCell === id) return;
       setActiveCell(id);
+      WORKSPACE_RUNTIME._editFocusTarget = 'cell';
       if (beginWorkspaceCellEdit(id)) {
         renderWorkspace();
       }
@@ -2179,17 +2200,21 @@ function _onWorkspaceContainerDblClick(e) {
   if (WORKSPACE_RUNTIME.isEditing && WORKSPACE_RUNTIME.editingCell === id) return;
 
   setActiveCell(id);
+  WORKSPACE_RUNTIME._editFocusTarget = 'cell';
   if (beginWorkspaceCellEdit(id)) {
     renderWorkspace();
   }
 }
 
-// AW-7.1: bus de teclado del input de edición (delegado).
-function _onWorkspaceCellInputKeyDown(e) {
-  if (!e.target.closest('[data-cell-edit-input]')) return;
-  if (!WORKSPACE_RUNTIME.isEditing) return;
+// AW-7.1 / AW-7.2: bus de teclado del input de edición (delegado).
+// Matchea tanto la celda inline como la formula bar — single source of truth:
+// ambos leen y escriben WORKSPACE_RUNTIME.editingValue.
+const _AW72_EDIT_INPUT_SELECTOR = '[data-cell-edit-input], [data-formula-bar-input]';
 
-  const inputEl = e.target;
+function _onWorkspaceEditInputKeyDown(e) {
+  const inputEl = e.target.closest?.(_AW72_EDIT_INPUT_SELECTOR);
+  if (!inputEl) return;
+  if (!WORKSPACE_RUNTIME.isEditing) return;
 
   if (e.key === 'Escape') {
     e.preventDefault();
@@ -2220,18 +2245,40 @@ function _onWorkspaceCellInputKeyDown(e) {
   }
 }
 
-// AW-7.1: input event keeps editingValue in sync (no re-render — mantiene focus).
-function _onWorkspaceCellInputChange(e) {
-  if (!e.target.closest('[data-cell-edit-input]')) return;
-  if (!WORKSPACE_RUNTIME.isEditing) return;
-  WORKSPACE_RUNTIME.editingValue = e.target.value;
-}
-
-// AW-7.1: blur del input → commit (commit-on-focus-loss).
-function _onWorkspaceCellInputBlur(e) {
-  const inputEl = e.target.closest('[data-cell-edit-input]');
+// AW-7.1 / AW-7.2: input event sincroniza editingValue y refleja el valor en
+// el input gemelo (sin re-render → preserva focus y caret).
+function _onWorkspaceEditInputChange(e) {
+  const inputEl = e.target.closest?.(_AW72_EDIT_INPUT_SELECTOR);
   if (!inputEl) return;
   if (!WORKSPACE_RUNTIME.isEditing) return;
+
+  WORKSPACE_RUNTIME.editingValue = inputEl.value;
+
+  // AW-7.2: bidirectional live sync — mirror al gemelo (cell ↔ formula bar).
+  const otherSelector = inputEl.matches('[data-cell-edit-input]')
+    ? '[data-formula-bar-input]'
+    : '[data-cell-edit-input]';
+  const otherInput = document.querySelector(otherSelector);
+  if (otherInput && otherInput !== inputEl && otherInput.value !== inputEl.value) {
+    otherInput.value = inputEl.value;
+  }
+}
+
+// AW-7.1 / AW-7.2: blur → commit, salvo cuando el foco salta entre los dos
+// inputs sincronizados (cell ↔ formula bar) — eso no debe cerrar la edición.
+function _onWorkspaceEditInputBlur(e) {
+  const inputEl = e.target.closest?.(_AW72_EDIT_INPUT_SELECTOR);
+  if (!inputEl) return;
+  if (!WORKSPACE_RUNTIME.isEditing) return;
+
+  const next = e.relatedTarget;
+  if (next && next.matches?.(_AW72_EDIT_INPUT_SELECTOR)) {
+    // Focus going to the synced twin input — keep editing.
+    WORKSPACE_RUNTIME._editFocusTarget = next.matches('[data-formula-bar-input]')
+      ? 'formula' : 'cell';
+    return;
+  }
+
   WORKSPACE_RUNTIME.editingValue = inputEl.value;
   commitWorkspaceCellEdit();
   // No renderWorkspace aquí: blur puede dispararse por click sobre otra celda
@@ -2280,6 +2327,7 @@ function _onWorkspaceKeyDown(e) {
       const cell  = sheet?.cells.get(cur) || null;
       if (_isWorkspaceCellEditable(cell)) {
         e.preventDefault();
+        WORKSPACE_RUNTIME._editFocusTarget = 'cell';
         if (beginWorkspaceCellEdit(cur)) {
           renderWorkspace();
         }
@@ -2300,6 +2348,7 @@ function _onWorkspaceKeyDown(e) {
       const cell  = sheet?.cells.get(cur) || null;
       if (_isWorkspaceCellEditable(cell)) {
         e.preventDefault();
+        WORKSPACE_RUNTIME._editFocusTarget = 'cell';
         if (beginWorkspaceCellEdit(cur, e.key)) {
           renderWorkspace();
         }
@@ -2355,9 +2404,10 @@ function initializeWorkspaceRuntime() {
     // AW-7.1: dblclick → edit + delegated input listeners (use capture for blur
     // since blur doesn't bubble by default).
     container.addEventListener('dblclick', _onWorkspaceContainerDblClick);
-    container.addEventListener('keydown',  _onWorkspaceCellInputKeyDown);
-    container.addEventListener('input',    _onWorkspaceCellInputChange);
-    container.addEventListener('blur',     _onWorkspaceCellInputBlur, true);
+    // AW-7.2: input handlers ahora aplican a celda inline + formula bar.
+    container.addEventListener('keydown',  _onWorkspaceEditInputKeyDown);
+    container.addEventListener('input',    _onWorkspaceEditInputChange);
+    container.addEventListener('blur',     _onWorkspaceEditInputBlur, true);
     container._aw3HandlersAttached = true;
   }
 
@@ -2782,16 +2832,38 @@ function _renderWorkspaceMatrixCell(cellId, cell) {
 
 function _renderWorkspaceFormulaBarValue(sheet) {
   const id = WORKSPACE_RUNTIME.activeCellId;
-  if (!id) return { coord: '', value: '', empty: true, kind: 'none' };
+  if (!id) {
+    return { coord: '', value: '', empty: true, kind: 'none', readonly: true, placeholder: 'Select a cell' };
+  }
   const cell = sheet.cells[id] || null;
-  if (!cell) return { coord: id, value: '', empty: true, kind: 'empty' };
-  if (cell.type === 'formula' && cell.formula) {
-    return { coord: id, value: '=' + cell.formula, empty: false, kind: 'formula' };
+
+  // AW-7.2: durante edición, formula bar refleja editingValue (live, sin
+  // estado paralelo — única fuente mutable: WORKSPACE_RUNTIME.editingValue).
+  if (WORKSPACE_RUNTIME.isEditing && WORKSPACE_RUNTIME.editingCell === id) {
+    return {
+      coord:       id,
+      value:       WORKSPACE_RUNTIME.editingValue ?? '',
+      empty:       false,
+      kind:        'editing',
+      readonly:    false,
+      placeholder: '',
+    };
   }
-  if (cell.value != null && cell.value !== '') {
-    return { coord: id, value: String(cell.value), empty: false, kind: 'literal' };
+
+  // AW-7.2: system cells (formula o readonly:true) → representación readonly.
+  if (cell && (cell.readonly || cell.type === 'formula')) {
+    if (cell.type === 'formula' && cell.formula) {
+      return { coord: id, value: '=' + cell.formula, empty: false, kind: 'formula', readonly: true, placeholder: '' };
+    }
+    const literal = cell.value != null ? String(cell.value) : '';
+    return { coord: id, value: literal, empty: literal === '', kind: 'literal', readonly: true, placeholder: '' };
   }
-  return { coord: id, value: '', empty: true, kind: 'empty' };
+
+  // AW-7.2: user cell (editable).
+  if (cell && cell.value != null && cell.value !== '') {
+    return { coord: id, value: String(cell.value), empty: false, kind: 'literal', readonly: false, placeholder: '' };
+  }
+  return { coord: id, value: '', empty: true, kind: 'empty', readonly: false, placeholder: 'Empty cell' };
 }
 
 function _renderWorkspaceDesktop(sheet) {
@@ -2815,20 +2887,18 @@ function _renderWorkspaceDesktop(sheet) {
     return rowHeader + cellHtml;
   }).join('');
 
-  // AW-5 §5: premium formula bar — separated badges + readonly value field.
+  // AW-5 §5 / AW-7.2: formula bar como input editable bidireccional.
   const fb = _renderWorkspaceFormulaBarValue(sheet);
   const coordLabel  = fb.coord || '—';
   const coordEmpty  = !fb.coord;
-  const valueText   = fb.value;
   const valueClass  = [
     'aurix-formula-value',
-    fb.empty                 ? 'is-empty'   : '',
-    fb.kind === 'formula'    ? 'is-formula' : '',
-    fb.kind === 'literal'    ? 'is-literal' : '',
+    fb.empty                 ? 'is-empty'    : '',
+    fb.kind === 'formula'    ? 'is-formula'  : '',
+    fb.kind === 'literal'    ? 'is-literal'  : '',
+    fb.kind === 'editing'    ? 'is-editing'  : '',
+    fb.readonly              ? 'is-readonly' : 'is-editable',
   ].filter(Boolean).join(' ');
-  const valueDisplay = fb.empty
-    ? (fb.kind === 'none' ? 'Select a cell' : 'Empty cell')
-    : valueText;
 
   // AW-5 §8: terminal-grade Risk Monitor — categorized sections.
   const categories = _buildWorkspaceRiskCategories();
@@ -2858,7 +2928,17 @@ function _renderWorkspaceDesktop(sheet) {
         <div class="aurix-formula-fx" aria-hidden="true">fx</div>
         <div class="aurix-formula-coord ${coordEmpty ? 'is-empty' : ''}">${_escapeWorkspaceText(coordLabel)}</div>
         <div class="aurix-formula-divider" aria-hidden="true"></div>
-        <div class="${valueClass}">${_escapeWorkspaceText(valueDisplay)}</div>
+        <input
+          class="${valueClass}"
+          data-formula-bar-input
+          type="text"
+          value="${_escapeWorkspaceText(fb.value)}"
+          placeholder="${_escapeWorkspaceText(fb.placeholder)}"
+          ${fb.readonly ? 'readonly tabindex="-1"' : ''}
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Formula bar"
+        />
         <div class="aurix-sheet-name">${_escapeWorkspaceText(sheet.name)}</div>
       </header>
       <div class="aurix-workspace-body">
@@ -3013,17 +3093,19 @@ function renderWorkspace() {
   WORKSPACE_RUNTIME.lastComputedAt = WORKSPACE_RUNTIME.lastRenderAt;
   WORKSPACE_RUNTIME.stale          = false;
 
-  // AW-7.1: focus management — el input recién renderizado debe tomar foco.
-  // El cursor va al final cuando entras desde typing/Enter; selectAll cuando
-  // entras desde dblclick (siempre selectAll mantiene UX consistente: typing
-  // reemplaza la selección con el primer carácter de forma natural).
+  // AW-7.1 / AW-7.2: focus management. Tras cada render en edit mode, el
+  // input correspondiente al entry point recupera el foco con caret al final.
+  // _editFocusTarget se setea en cada entry point ('cell' por defecto si nadie
+  // lo marca explícitamente) — distinguir cell vs formula bar evita que la
+  // edición desde la formula bar salte al input inline tras el render.
   if (WORKSPACE_RUNTIME.isEditing && isDesktop) {
-    const inputEl = container.querySelector('[data-cell-edit-input]');
-    if (inputEl) {
-      inputEl.focus();
-      // place caret at end so initial-typed character isn't shifted
-      const len = inputEl.value.length;
-      try { inputEl.setSelectionRange(len, len); } catch (_) {}
+    const target = WORKSPACE_RUNTIME._editFocusTarget === 'formula'
+      ? container.querySelector('[data-formula-bar-input]')
+      : container.querySelector('[data-cell-edit-input]');
+    if (target) {
+      target.focus();
+      const len = target.value.length;
+      try { target.setSelectionRange(len, len); } catch (_) {}
     }
   }
 
