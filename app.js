@@ -2138,11 +2138,6 @@ function _onWorkspaceContainerClick(e) {
   // AW-7.2: click sobre formula bar input.
   const fbInput = e.target.closest('[data-formula-bar-input]');
   if (fbInput) {
-    console.log('[aw-7.2] fb click', {
-      readOnly:     fbInput.readOnly,
-      isEditing:    WORKSPACE_RUNTIME.isEditing,
-      activeCellId: WORKSPACE_RUNTIME.activeCellId,
-    });
     if (fbInput.readOnly) return;                       // system / sin selección
     if (WORKSPACE_RUNTIME.isEditing) return;            // ya editando, deja al input
     const cellId = WORKSPACE_RUNTIME.activeCellId;
@@ -2151,16 +2146,8 @@ function _onWorkspaceContainerClick(e) {
     const cell  = sheet?.cells.get(cellId) || null;
     if (!_isWorkspaceCellEditable(cell)) return;
     WORKSPACE_RUNTIME._editFocusTarget = 'formula';
-    const ok = beginWorkspaceCellEdit(cellId);
-    console.log('[aw-7.2] fb beginEdit →', { ok, isEditing: WORKSPACE_RUNTIME.isEditing });
-    if (ok) {
+    if (beginWorkspaceCellEdit(cellId)) {
       renderWorkspace();
-      console.log('[aw-7.2] fb post-render', {
-        isEditing:        WORKSPACE_RUNTIME.isEditing,
-        editingCell:      WORKSPACE_RUNTIME.editingCell,
-        focusedTagName:   document.activeElement?.tagName,
-        focusedHasFbAttr: !!document.activeElement?.matches?.('[data-formula-bar-input]'),
-      });
     }
     return;
   }
@@ -2290,10 +2277,7 @@ function _onWorkspaceEditInputBlur(e) {
   // formula bar disparaba beginEdit → render → blur sintético en el input
   // viejo → commit/cancel inmediato → edit jamás visible. Si el target está
   // desconectado del DOM, el blur viene del re-render: NO comprometer.
-  if (inputEl.isConnected === false) {
-    console.log('[aw-7.2] blur ignored (detached element)');
-    return;
-  }
+  if (inputEl.isConnected === false) return;
 
   const next = e.relatedTarget;
   if (next && next.matches?.(_AW72_EDIT_INPUT_SELECTOR)) {
