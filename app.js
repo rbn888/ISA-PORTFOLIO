@@ -4347,8 +4347,19 @@ function getFinancialFormulaHealth() {
 }
 
 // ── FC-4: Read access layer ────────────────────────────────────────────────────
+// AW-8 symbol-alias map: bridges common external notations (Yahoo Finance
+// futures: GC=F / SI=F / CL=F) to the Twelve Data spot symbols Aurix
+// actually loads into MARKET_DATA (XAU/USD → XAUUSD, etc.). Applied before
+// normalizeSymbol so the existing lookup stays unchanged.
+const MARKET_SYMBOL_ALIASES = {
+  'GC=F': 'XAUUSD',
+  'SI=F': 'XAGUSD',
+  'CL=F': 'WTI',
+};
 function getMarketAsset(symbol) {
-  const norm = normalizeSymbol(symbol);
+  const raw            = String(symbol || '').trim().toUpperCase();
+  const canonicalInput = MARKET_SYMBOL_ALIASES[raw] || raw;
+  const norm           = normalizeSymbol(canonicalInput);
   return MARKET_DATA.find(d => normalizeSymbol(d.symbol) === norm) ?? null;
 }
 function getMarketPrice(symbol) {
