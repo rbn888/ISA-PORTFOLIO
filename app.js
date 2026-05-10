@@ -2079,6 +2079,11 @@ const WORKSPACE_RUNTIME = {
   // automatically when the FC pipeline updates.
   lastMarketVersion:        0,
   lastDerivedVersion:       0,
+  // AW-9.1: formula autocomplete UX state. Pure presentation — editing source
+  // of truth remains editingValue. Desktop-only; mobile gates it via viewport.
+  autocompleteOpen:           false,
+  autocompleteItems:          [],
+  autocompleteSelectedIndex:  0,
 };
 
 // AW-2: Sheet & Cell models — mutable internals, immutable snapshots.
@@ -2148,6 +2153,28 @@ function createInitialWorkspaceSheet() {
 }
 
 function _onWorkspaceContainerClick(e) {
+  // AW-9.1: click on an autocomplete suggestion → apply, then refocus the
+  // input that was being edited.
+  const suggestion = e.target.closest('[data-aw91-suggestion-index]');
+  if (suggestion) {
+    e.preventDefault();
+    e.stopPropagation();
+    const idx = parseInt(suggestion.dataset.aw91SuggestionIndex, 10);
+    const item = WORKSPACE_RUNTIME.autocompleteItems[idx];
+    if (item) {
+      const targetSelector = WORKSPACE_RUNTIME._editFocusTarget === 'formula'
+        ? '[data-formula-bar-input]'
+        : '[data-cell-edit-input]';
+      const inputEl = document.querySelector(targetSelector)
+                   || document.querySelector(_AW72_EDIT_INPUT_SELECTOR);
+      if (inputEl) {
+        _aw91ApplySuggestion(inputEl, item);
+        inputEl.focus();
+      }
+    }
+    return;
+  }
+
   // Click sobre el input de edición inline: dejar al input gestionar focus/caret.
   if (e.target.closest('[data-cell-edit-input]')) return;
 
@@ -2232,6 +2259,39 @@ function _onWorkspaceEditInputKeyDown(e) {
   if (!inputEl) return;
   if (!WORKSPACE_RUNTIME.isEditing) return;
 
+  // AW-9.1: when the autocomplete dropdown is open, intercept the navigation
+  // and confirmation keys so they drive the dropdown instead of the editor.
+  if (WORKSPACE_RUNTIME.autocompleteOpen
+      && WORKSPACE_RUNTIME.autocompleteItems
+      && WORKSPACE_RUNTIME.autocompleteItems.length > 0) {
+    const items = WORKSPACE_RUNTIME.autocompleteItems;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      WORKSPACE_RUNTIME.autocompleteSelectedIndex =
+        (WORKSPACE_RUNTIME.autocompleteSelectedIndex + 1) % items.length;
+      _aw91RenderAutocomplete(inputEl);
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      WORKSPACE_RUNTIME.autocompleteSelectedIndex =
+        (WORKSPACE_RUNTIME.autocompleteSelectedIndex - 1 + items.length) % items.length;
+      _aw91RenderAutocomplete(inputEl);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      _aw91CloseAutocomplete();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const item = items[WORKSPACE_RUNTIME.autocompleteSelectedIndex];
+      _aw91ApplySuggestion(inputEl, item);
+      return;
+    }
+  }
+
   if (e.key === 'Escape') {
     e.preventDefault();
     cancelWorkspaceCellEdit();
@@ -2278,6 +2338,9 @@ function _onWorkspaceEditInputChange(e) {
   if (otherInput && otherInput !== inputEl && otherInput.value !== inputEl.value) {
     otherInput.value = inputEl.value;
   }
+
+  // AW-9.1: refresh autocomplete state derived from editingValue + caret.
+  _aw91UpdateAutocomplete(inputEl);
 }
 
 // AW-7.1 / AW-7.2: blur → commit, salvo cuando el foco salta entre los dos
@@ -2434,6 +2497,13 @@ function initializeWorkspaceRuntime() {
     container.addEventListener('keydown',  _onWorkspaceEditInputKeyDown);
     container.addEventListener('input',    _onWorkspaceEditInputChange);
     container.addEventListener('blur',     _onWorkspaceEditInputBlur, true);
+    // AW-9.1: clicking an autocomplete suggestion would otherwise blur the
+    // editor and commit; preventDefault on mousedown keeps focus on the input.
+    container.addEventListener('mousedown', (ev) => {
+      if (ev.target.closest && ev.target.closest('[data-aw91-suggestion-index]')) {
+        ev.preventDefault();
+      }
+    });
     container._aw3HandlersAttached = true;
   }
 
@@ -3061,6 +3131,164 @@ function _aw8EvalAst(node) {
   throw new _AwEvalError('#ERROR');
 }
 
+// ── AW-9.1: Formula autocomplete (UX layer over AW-8 engine) ─────────────────
+// Centralized suggestion registry — single source of truth, no duplication
+// between the engine and the dropdown. `noArgs` controls caret placement on
+// insertion: zero-arg functions land the caret after `)`, others inside `(`.
+const WORKSPACE_FORMULA_SUGGESTIONS = Object.freeze([
+  { key: 'SUM',               label: 'SUM()',               kind: 'workspace', noArgs: false },
+  { key: 'AVG',               label: 'AVG()',               kind: 'workspace', noArgs: false },
+  { key: 'MIN',               label: 'MIN()',               kind: 'workspace', noArgs: false },
+  { key: 'MAX',               label: 'MAX()',               kind: 'workspace', noArgs: false },
+  { key: 'PRICE',             label: 'PRICE()',             kind: 'financial', noArgs: false },
+  { key: 'PORTFOLIO.VALUE',   label: 'PORTFOLIO.VALUE()',   kind: 'financial', noArgs: true  },
+  { key: 'PORTFOLIO.ASSETS',  label: 'PORTFOLIO.ASSETS()',  kind: 'financial', noArgs: true  },
+  { key: 'EXPOSURE',          label: 'EXPOSURE()',          kind: 'financial', noArgs: false },
+  { key: 'ALLOCATION',        label: 'ALLOCATION()',        kind: 'financial', noArgs: false },
+]);
+
+// Extract the trailing identifier-prefix the user is typing, but only when
+// the value is a formula (=…). Returns null if the dropdown should not open.
+function _aw91ExtractFunctionPrefix(value, caretPos) {
+  if (typeof value !== 'string') return null;
+  if (!value.startsWith('=')) return null;
+  const upTo = (typeof caretPos === 'number' && caretPos >= 0 && caretPos <= value.length)
+    ? value.slice(0, caretPos)
+    : value;
+  // Walk back over [A-Za-z0-9_.] characters.
+  let i = upTo.length;
+  while (i > 0) {
+    const c  = upTo.charCodeAt(i - 1);
+    const ok = (c >= 65 && c <= 90)   // A-Z
+            || (c >= 97 && c <= 122)  // a-z
+            || (c >= 48 && c <= 57)   // 0-9
+            ||  c === 95              // _
+            ||  c === 46;             // .
+    if (!ok) break;
+    i--;
+  }
+  if (i === 0) return null; // would mean no '=' before — shouldn't happen
+  const boundary = upTo[i - 1];
+  // Only suggest at fresh-identifier positions: after '=', operators, paren,
+  // comma, colon, or whitespace. Inside a partially-typed cell ref like
+  // '=A1' the boundary would be '=', so we'd still pick 'A1' as prefix —
+  // filter returns empty (no fn starts with 'A1') so dropdown closes.
+  if (!'=+-*/(,: '.includes(boundary)) return null;
+  return upTo.slice(i);
+}
+
+function _aw91FilterSuggestions(prefix) {
+  const upper = String(prefix || '').toUpperCase();
+  if (upper === '') return WORKSPACE_FORMULA_SUGGESTIONS.slice();
+  return WORKSPACE_FORMULA_SUGGESTIONS.filter(s => s.key.startsWith(upper));
+}
+
+function _aw91RemoveAutocompleteDOM() {
+  const container = document.getElementById('aurixWorkspace');
+  if (!container) return;
+  const drop = container.querySelector('[data-aw91-autocomplete]');
+  if (drop) drop.remove();
+}
+
+function _aw91CloseAutocomplete() {
+  if (!WORKSPACE_RUNTIME.autocompleteOpen
+      && !(WORKSPACE_RUNTIME.autocompleteItems && WORKSPACE_RUNTIME.autocompleteItems.length)) {
+    _aw91RemoveAutocompleteDOM();
+    return;
+  }
+  WORKSPACE_RUNTIME.autocompleteOpen = false;
+  WORKSPACE_RUNTIME.autocompleteItems = [];
+  WORKSPACE_RUNTIME.autocompleteSelectedIndex = 0;
+  _aw91RemoveAutocompleteDOM();
+}
+
+function _aw91RenderAutocomplete(anchorEl) {
+  const container = document.getElementById('aurixWorkspace');
+  if (!container || !anchorEl) return;
+  let drop = container.querySelector('[data-aw91-autocomplete]');
+  if (!drop) {
+    drop = document.createElement('div');
+    drop.setAttribute('data-aw91-autocomplete', '');
+    drop.className = 'aurix-formula-autocomplete';
+    container.appendChild(drop);
+  }
+  const aRect  = anchorEl.getBoundingClientRect();
+  const cRect  = container.getBoundingClientRect();
+  drop.style.left     = (aRect.left   - cRect.left) + 'px';
+  drop.style.top      = (aRect.bottom - cRect.top  + 2) + 'px';
+  drop.style.minWidth = Math.max(200, aRect.width) + 'px';
+
+  const items = WORKSPACE_RUNTIME.autocompleteItems;
+  const sel   = WORKSPACE_RUNTIME.autocompleteSelectedIndex;
+  drop.innerHTML = items.map((item, i) => `
+    <div class="aurix-formula-autocomplete-item ${i === sel ? 'is-selected' : ''} is-${_escapeWorkspaceText(item.kind)}"
+         data-aw91-suggestion-index="${i}">
+      <span class="aurix-formula-autocomplete-label">${_escapeWorkspaceText(item.label)}</span>
+      <span class="aurix-formula-autocomplete-kind">${_escapeWorkspaceText(item.kind)}</span>
+    </div>
+  `).join('');
+}
+
+function _aw91UpdateAutocomplete(inputEl) {
+  if (!inputEl) { _aw91CloseAutocomplete(); return; }
+  if (typeof isWorkspaceDesktop === 'function' && !isWorkspaceDesktop()) {
+    _aw91CloseAutocomplete();
+    return;
+  }
+  if (!WORKSPACE_RUNTIME.isEditing) { _aw91CloseAutocomplete(); return; }
+
+  const value = inputEl.value;
+  const caret = (typeof inputEl.selectionStart === 'number')
+    ? inputEl.selectionStart
+    : value.length;
+  const prefix = _aw91ExtractFunctionPrefix(value, caret);
+  if (prefix == null) { _aw91CloseAutocomplete(); return; }
+
+  const items = _aw91FilterSuggestions(prefix);
+  if (items.length === 0) { _aw91CloseAutocomplete(); return; }
+
+  WORKSPACE_RUNTIME.autocompleteOpen = true;
+  WORKSPACE_RUNTIME.autocompleteItems = items;
+  if (WORKSPACE_RUNTIME.autocompleteSelectedIndex >= items.length) {
+    WORKSPACE_RUNTIME.autocompleteSelectedIndex = 0;
+  }
+  _aw91RenderAutocomplete(inputEl);
+}
+
+function _aw91ApplySuggestion(inputEl, item) {
+  if (!inputEl || !item) return;
+  const value = inputEl.value;
+  const caret = (typeof inputEl.selectionStart === 'number')
+    ? inputEl.selectionStart
+    : value.length;
+  const prefix = _aw91ExtractFunctionPrefix(value, caret);
+  if (prefix == null) return;
+
+  const start    = caret - prefix.length;
+  const before   = value.slice(0, start);
+  const after    = value.slice(caret);
+  const inserted = item.key + '()';
+  const newValue = before + inserted + after;
+  const newCaret = item.noArgs
+    ? before.length + inserted.length         // after final ')'
+    : before.length + inserted.length - 1;    // inside '()'
+
+  inputEl.value = newValue;
+  try { inputEl.setSelectionRange(newCaret, newCaret); } catch (_) {}
+  WORKSPACE_RUNTIME.editingValue = newValue;
+
+  // Mirror the change to the synced twin input (cell ↔ formula bar).
+  const twinSelector = inputEl.matches('[data-cell-edit-input]')
+    ? '[data-formula-bar-input]'
+    : '[data-cell-edit-input]';
+  const twin = document.querySelector(twinSelector);
+  if (twin && twin !== inputEl && twin.value !== newValue) {
+    twin.value = newValue;
+  }
+
+  _aw91CloseAutocomplete();
+}
+
 function resolveWorkspaceCellReference(ref /*, sheet (ignorado) */) {
   // AW-7.4 final: el resolver lee SIEMPRE el sheet vivo desde WORKSPACE_RUNTIME,
   // no desde el parámetro `sheet`. En producción aparecen ventanas (cascade
@@ -3408,6 +3636,8 @@ function cancelWorkspaceCellEdit() {
   WORKSPACE_RUNTIME.editingValue = '';
   WORKSPACE_RUNTIME.isEditing    = false;
   WORKSPACE_RUNTIME.lastEditAt   = Date.now();
+  // AW-9.1: edit ended → close any open autocomplete dropdown.
+  _aw91CloseAutocomplete();
   return true;
 }
 
@@ -3485,6 +3715,8 @@ function commitWorkspaceCellEdit(cellId, value) {
     WORKSPACE_RUNTIME.isEditing    = false;
   }
   WORKSPACE_RUNTIME.lastEditAt = Date.now();
+  // AW-9.1: edit ended → close any open autocomplete dropdown.
+  _aw91CloseAutocomplete();
   // AW-7.5: propagate selectivo a dependientes downstream (orden topológico).
   _propagateWorkspaceChange(targetId);
   // AW-7.3: persistir tras mutación efectiva (no en el no-op de empty input).
@@ -4101,7 +4333,14 @@ function renderWorkspace() {
       target.focus();
       const len = target.value.length;
       try { target.setSelectionRange(len, len); } catch (_) {}
+      // AW-9.1: refresh autocomplete after the editor regains focus, so
+      // restoring an in-progress formula (typing-entry / re-render mid-edit)
+      // keeps the dropdown in sync with editingValue + caret.
+      _aw91UpdateAutocomplete(target);
     }
+  } else {
+    // AW-9.1: not editing → ensure the dropdown is gone after re-render.
+    _aw91CloseAutocomplete();
   }
 
   console.log('[workspace] rendered v' + WORKSPACE_RUNTIME.renderVersion + ' (' + (isDesktop ? 'desktop' : 'mobile') + ')');
