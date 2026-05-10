@@ -2084,6 +2084,9 @@ const WORKSPACE_RUNTIME = {
   autocompleteOpen:           false,
   autocompleteItems:          [],
   autocompleteSelectedIndex:  0,
+  // AW-9.2: inline validation message. UX-only; reuses the AW-8 parser, never
+  // evaluates. null when valid / not editing a formula.
+  validationMessage:          null,
 };
 
 // AW-2: Sheet & Cell models — mutable internals, immutable snapshots.
@@ -2341,6 +2344,9 @@ function _onWorkspaceEditInputChange(e) {
 
   // AW-9.1: refresh autocomplete state derived from editingValue + caret.
   _aw91UpdateAutocomplete(inputEl);
+  // AW-9.2: refresh inline validation (runs after autocomplete so it can
+  // anchor relative to the dropdown's current position).
+  _aw92UpdateValidation(inputEl);
 }
 
 // AW-7.1 / AW-7.2: blur → commit, salvo cuando el foco salta entre los dos
@@ -3325,6 +3331,128 @@ function _aw91ApplySuggestion(inputEl, item) {
   _aw91CloseAutocomplete();
 }
 
+// ── AW-9.2: Inline formula validation (UX layer, reuses AW-8 parser) ─────────
+// Lightweight feedback while typing. No second parser, no evaluation: parse
+// the current editingValue with parseWorkspaceFormula and walk the AST to
+// detect unknown function calls. Range issues that the parser rejects get a
+// dedicated message via a small heuristic on the raw string. Division by
+// zero and cycles are intentionally NOT checked here (runtime concerns).
+
+function _aw92IsRangeError(s) {
+  // Triggered only as a follow-up to a parse failure, when a colon is
+  // present. Walks each `:` and checks both sides have a cell-ref shape.
+  if (typeof s !== 'string' || !s.includes(':')) return false;
+  const parts = s.split(':');
+  for (let i = 0; i < parts.length - 1; i++) {
+    const left  = parts[i];
+    const right = parts[i + 1];
+    const leftEnd    = /[A-Z]+\d+\s*$/i.test(left);
+    const rightStart = /^\s*[A-Z]+\d+/i.test(right);
+    if (!leftEnd || !rightStart) return true;
+  }
+  return false;
+}
+
+function _aw92FindUnknownFunction(node) {
+  if (!node) return null;
+  switch (node.type) {
+    case 'call': {
+      const upper = String(node.name || '').toUpperCase();
+      const known = Object.prototype.hasOwnProperty.call(_AW8_WORKSPACE_FUNCTIONS, upper)
+                 || Object.prototype.hasOwnProperty.call(_AW8_FINANCIAL_FUNCTIONS, upper);
+      if (!known) return upper;
+      for (const a of (node.args || [])) {
+        const inner = _aw92FindUnknownFunction(a);
+        if (inner) return inner;
+      }
+      return null;
+    }
+    case 'binary': return _aw92FindUnknownFunction(node.lhs) || _aw92FindUnknownFunction(node.rhs);
+    case 'unary':  return _aw92FindUnknownFunction(node.operand);
+    default: return null;
+  }
+}
+
+function _aw92ValidateFormula(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('=')) return null; // not a formula → no message
+  if (trimmed === '=')          return null; // just opened — don't error yet
+
+  const parsed = parseWorkspaceFormula(trimmed);
+  if (!parsed) {
+    if (_aw92IsRangeError(trimmed)) return 'Invalid range';
+    return 'Invalid formula';
+  }
+  const unknown = _aw92FindUnknownFunction(parsed);
+  if (unknown) return 'Unknown function';
+  return null;
+}
+
+function _aw92RemoveValidationDOM() {
+  const container = document.getElementById('aurixWorkspace');
+  if (!container) return;
+  const pill = container.querySelector('[data-aw92-validation]');
+  if (pill) pill.remove();
+}
+
+function _aw92RenderValidation(anchorEl) {
+  const container = document.getElementById('aurixWorkspace');
+  if (!container || !anchorEl) return;
+  const msg = WORKSPACE_RUNTIME.validationMessage;
+  if (!msg) { _aw92RemoveValidationDOM(); return; }
+
+  let pill = container.querySelector('[data-aw92-validation]');
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.setAttribute('data-aw92-validation', '');
+    pill.className = 'aurix-formula-validation';
+    container.appendChild(pill);
+  }
+  pill.textContent = msg;
+
+  // Position contextually: below the autocomplete dropdown when it is open
+  // AND below the editor; otherwise just below the editor with a small gap.
+  const aRect = anchorEl.getBoundingClientRect();
+  const cRect = container.getBoundingClientRect();
+  const drop  = container.querySelector('[data-aw91-autocomplete]');
+  let top;
+  if (drop && WORKSPACE_RUNTIME.autocompleteOpen) {
+    const dRect = drop.getBoundingClientRect();
+    if (dRect.top >= aRect.bottom) {
+      top = dRect.bottom - cRect.top + 4; // below the dropdown
+    } else {
+      top = aRect.bottom - cRect.top + 4; // dropdown flipped above → use editor
+    }
+  } else {
+    top = aRect.bottom - cRect.top + 4;
+  }
+  pill.style.top  = top + 'px';
+  pill.style.left = (aRect.left - cRect.left) + 'px';
+}
+
+function _aw92UpdateValidation(inputEl) {
+  if (!inputEl) {
+    WORKSPACE_RUNTIME.validationMessage = null;
+    _aw92RemoveValidationDOM();
+    return;
+  }
+  if (typeof isWorkspaceDesktop === 'function' && !isWorkspaceDesktop()) {
+    WORKSPACE_RUNTIME.validationMessage = null;
+    _aw92RemoveValidationDOM();
+    return;
+  }
+  if (!WORKSPACE_RUNTIME.isEditing) {
+    WORKSPACE_RUNTIME.validationMessage = null;
+    _aw92RemoveValidationDOM();
+    return;
+  }
+  const message = _aw92ValidateFormula(inputEl.value);
+  WORKSPACE_RUNTIME.validationMessage = message;
+  if (message) _aw92RenderValidation(inputEl);
+  else         _aw92RemoveValidationDOM();
+}
+
 function resolveWorkspaceCellReference(ref /*, sheet (ignorado) */) {
   // AW-7.4 final: el resolver lee SIEMPRE el sheet vivo desde WORKSPACE_RUNTIME,
   // no desde el parámetro `sheet`. En producción aparecen ventanas (cascade
@@ -3674,6 +3802,9 @@ function cancelWorkspaceCellEdit() {
   WORKSPACE_RUNTIME.lastEditAt   = Date.now();
   // AW-9.1: edit ended → close any open autocomplete dropdown.
   _aw91CloseAutocomplete();
+  // AW-9.2: edit ended → clear inline validation.
+  WORKSPACE_RUNTIME.validationMessage = null;
+  _aw92RemoveValidationDOM();
   return true;
 }
 
@@ -3753,6 +3884,9 @@ function commitWorkspaceCellEdit(cellId, value) {
   WORKSPACE_RUNTIME.lastEditAt = Date.now();
   // AW-9.1: edit ended → close any open autocomplete dropdown.
   _aw91CloseAutocomplete();
+  // AW-9.2: edit ended → clear inline validation.
+  WORKSPACE_RUNTIME.validationMessage = null;
+  _aw92RemoveValidationDOM();
   // AW-7.5: propagate selectivo a dependientes downstream (orden topológico).
   _propagateWorkspaceChange(targetId);
   // AW-7.3: persistir tras mutación efectiva (no en el no-op de empty input).
@@ -4373,10 +4507,15 @@ function renderWorkspace() {
       // restoring an in-progress formula (typing-entry / re-render mid-edit)
       // keeps the dropdown in sync with editingValue + caret.
       _aw91UpdateAutocomplete(target);
+      // AW-9.2: refresh validation in the same focus-restore step.
+      _aw92UpdateValidation(target);
     }
   } else {
     // AW-9.1: not editing → ensure the dropdown is gone after re-render.
     _aw91CloseAutocomplete();
+    // AW-9.2: not editing → clear inline validation too.
+    WORKSPACE_RUNTIME.validationMessage = null;
+    _aw92RemoveValidationDOM();
   }
 
   console.log('[workspace] rendered v' + WORKSPACE_RUNTIME.renderVersion + ' (' + (isDesktop ? 'desktop' : 'mobile') + ')');
