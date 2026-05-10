@@ -2495,6 +2495,13 @@ function recalculateWorkspaceSheet(sheetId) {
         const result = evaluateWorkspaceFormula(parsed, sheet);
         nextComputed = result.computed;
         nextInvalid  = result.invalid;
+        console.log('[aw-7.4] recalc user', {
+          id:      cell.id,
+          formula: cell.formula,
+          parsedOK: !!parsed,
+          nextComputed,
+          nextInvalid,
+        });
       }
 
       if (nextComputed !== cell.computed || nextInvalid !== !!cell.invalid) {
@@ -2810,6 +2817,13 @@ function commitWorkspaceCellEdit(cellId, value) {
   const raw = (value != null) ? value : WORKSPACE_RUNTIME.editingValue;
   const trimmed = String(raw ?? '').trim();
 
+  console.log('[aw-7.4] commit', {
+    targetId,
+    rawType:  typeof raw,
+    trimmed,
+    isFormulaInput: isWorkspaceFormulaInput(trimmed),
+  });
+
   // AW-7.4: si el input arranca con `=`, ruta de fórmula; si no, literal.
   if (isWorkspaceFormulaInput(trimmed)) {
     if (!cell) {
@@ -2823,6 +2837,12 @@ function commitWorkspaceCellEdit(cellId, value) {
       cell.invalid  = false;
       cell.updatedAt = Date.now();
     }
+    console.log('[aw-7.4] commit→formula stored', {
+      targetId,
+      type:     cell.type,
+      formula:  cell.formula,
+      computed: cell.computed,
+    });
   } else {
     const coerced = _coerceWorkspaceLiteral(trimmed);
     if (!cell) {
@@ -3013,6 +3033,7 @@ function _hydrateWorkspaceFromPersistence() {
   if (!payload) return 0;
   const sheet = WORKSPACE_RUNTIME.sheets.get('main');
   if (!sheet) return 0;
+  console.log('[aw-7.4] hydrate payload userCells:', JSON.stringify(payload.sheets.main.userCells));
   const applied = mergeWorkspaceUserCells(sheet, payload.sheets.main.userCells);
   console.log('[workspace-persist] hydrated', { applied });
   return applied;
@@ -3060,7 +3081,11 @@ function _formatComputedValue(v) {
 }
 
 function _formatWorkspaceCellDisplay(cell) {
-  if (cell.type === 'formula') return _formatComputedValue(cell.computed);
+  if (cell.type === 'formula') {
+    const out = _formatComputedValue(cell.computed);
+    console.log('[aw-7.4] cellDisplay formula', { id: cell.id, formula: cell.formula, computed: cell.computed, invalid: cell.invalid, display: out });
+    return out;
+  }
   return _escapeWorkspaceText(cell.value ?? '');
 }
 
