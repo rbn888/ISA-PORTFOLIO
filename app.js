@@ -2229,9 +2229,6 @@ function _onWorkspaceContainerClick(e) {
     }
     return;
   }
-  // Reserved: copilot button (mobile FAB) — no expand modal yet (AW-4+).
-  // const copilotEl = e.target.closest('[data-aurix-copilot]');
-  // if (copilotEl) { /* future */ }
 }
 
 // AW-7.1: doble click sobre user cell entra en modo edición.
@@ -4456,14 +4453,6 @@ function _renderWorkspaceMobile(sheet) {
         </header>
         <ul class="aurix-mobile-risk-list">${riskItems}</ul>
       </section>
-      <button
-        class="aurix-mobile-copilot"
-        type="button"
-        data-aurix-copilot
-        aria-label="Open assistant"
-      >
-        <span class="aurix-mobile-copilot-glyph" aria-hidden="true">◉</span>
-      </button>
     </div>
   `;
 }
