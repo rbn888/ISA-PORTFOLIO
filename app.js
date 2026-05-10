@@ -11523,11 +11523,27 @@ const unsubscribeDerivedInvalidate = MARKET_EVENTS.subscribe('market:update', ()
   invalidateDerivedFinancialState('market-update');
 });
 
-// AW-2: workspace reactive subscriber — mark stale only. The FC-10 formula
-// recompute cascade owns recalculation + render; the subscriber must not
-// trigger heavy work directly to keep the deterministic flow intact.
+// AW-2 / AW-8: workspace reactive subscriber.
+// AW-2 originally marked stale only, deferring recompute to the FC-10
+// cascade. AW-8 broke that assumption: workspace formulas can reference
+// market symbols (=PRICE("BTC")) that the user does NOT hold in the
+// portfolio, in which case the FC cascade never fires (it gates on
+// doesMarketEventAffectPortfolio). To honour the AW-8 reactive contract
+// — "BTC updates → =PRICE('BTC') recomputes" — the subscriber now also
+// drives recalculateWorkspaceSheet directly. Recalc itself is selective
+// and graph-driven (AW-7.5), so this is no longer "heavy" work.
 const unsubscribeWorkspaceReactive = MARKET_EVENTS.subscribe('market:update', () => {
   WORKSPACE_RUNTIME.stale = true;
+  if (!WORKSPACE_RUNTIME.initialized) return;
+  try {
+    recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
+    if (typeof currentTab !== 'undefined' && currentTab === 'workspace' &&
+        typeof renderWorkspace === 'function') {
+      renderWorkspace();
+    }
+  } catch (e) {
+    console.error('[workspace-reactive] recalc failed:', e?.message);
+  }
 });
 
 // FC-10: register base financial formulas (pure consumers of derived snapshot).
