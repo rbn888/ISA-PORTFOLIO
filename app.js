@@ -2717,9 +2717,28 @@ function parseWorkspaceFormula(raw) {
 }
 
 function resolveWorkspaceCellReference(ref, sheet) {
-  if (!sheet || !ref) return NaN;
-  if (!_isCellInGridBounds(ref)) return NaN;
-  const cell = sheet.cells.get(ref);
+  if (!sheet || !ref) {
+    console.log('[aw-7.4] resolve bail: sheet/ref', { hasSheet: !!sheet, ref });
+    return NaN;
+  }
+  if (!_isCellInGridBounds(ref)) {
+    console.log('[aw-7.4] resolve bail: out of bounds', { ref });
+    return NaN;
+  }
+  const cellsType = sheet.cells && typeof sheet.cells.get === 'function' ? 'Map' : (sheet.cells ? 'plain' : 'none');
+  const cell = (cellsType === 'Map') ? sheet.cells.get(ref)
+              : (cellsType === 'plain') ? sheet.cells[ref]
+              : null;
+  console.log('[aw-7.4] resolve', {
+    ref,
+    cellsType,
+    hasCell: !!cell,
+    cellType: cell?.type,
+    cellValue: cell?.value,
+    cellValueType: typeof cell?.value,
+    cellComputed: cell?.computed,
+    cellInvalid: cell?.invalid,
+  });
   if (!cell) return 0;                                    // empty user cell → 0
   if (cell.type === 'formula') {
     if (cell.invalid) return NaN;
@@ -2871,6 +2890,20 @@ function commitWorkspaceCellEdit(cellId, value) {
     WORKSPACE_RUNTIME.isEditing    = false;
   }
   WORKSPACE_RUNTIME.lastEditAt = Date.now();
+
+  // [aw-7.4 diagnostic] dump sheet cells right before recalc so we can see the
+  // exact state of C1/D1 etc. when a formula cell is being evaluated.
+  try {
+    const dump = {};
+    for (const [k, c] of sheet.cells) {
+      dump[k] = { type: c.type, value: c.value, valueType: typeof c.value, formula: c.formula, computed: c.computed };
+    }
+    console.log('[aw-7.4] sheet before recalc:', dump);
+    console.log('[aw-7.4] cells.size=' + sheet.cells.size + ' cellsCtor=' + (sheet.cells.constructor && sheet.cells.constructor.name));
+  } catch (e) {
+    console.warn('[aw-7.4] dump failed:', e?.message);
+  }
+
   // AW-7.4: brute-force recalc tras commit para que computed/invalid queden
   // listos antes del snapshot. Render volverá a llamarlo (idempotente).
   recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
