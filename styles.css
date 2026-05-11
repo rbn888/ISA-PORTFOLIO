@@ -7640,3 +7640,43 @@ body.workspace-active .header {
 @media (max-width: 1023.98px) {
   .aurix-formula-validation { display: none !important; }
 }
+
+/* NAV-1A: desktop top navigation (≥1024px)
+   Brand stays in .header-left, tabs occupy the center, .header-right keeps
+   the existing menu-toggle. Mobile is unchanged: .header-tabs hidden by
+   default, .bottom-nav visible. */
+.header-tabs {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .header-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0 auto;
+  }
+  .header-tab {
+    background: transparent;
+    border: 0;
+    color: rgba(220, 235, 255, 0.62);
+    font-family: 'Inter', sans-serif;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0.01em;
+    line-height: 1;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+  }
+  .header-tab:hover {
+    color: rgba(220, 255, 240, 0.95);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .header-tab.active {
+    color: #6BFFB8;
+    background: rgba(107, 255, 184, 0.08);
+  }
+  .bottom-nav { display: none; }
+}

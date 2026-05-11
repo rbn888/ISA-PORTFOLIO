@@ -9301,6 +9301,9 @@ function updateBottomNavActive() {
   document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
     el.classList.toggle('active', el.dataset.tab === currentTab);
   });
+  document.querySelectorAll('.header-tab[data-tab]').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === currentTab);
+  });
   enforceNavOrder();
 }
 
@@ -11672,6 +11675,9 @@ document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
     el.classList.add('active');
     switchTab(tab);
   });
+});
+document.querySelectorAll('.header-tab[data-tab]').forEach(el => {
+  el.addEventListener('click', () => switchTab(el.dataset.tab));
 });
 document.getElementById('assetsBackBtn')
   ?.addEventListener('click', () => setActiveCategory(null));
