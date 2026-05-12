@@ -480,6 +480,61 @@ const T = {
     metrics_f5_desc:   'Detección del régimen de volatilidad para cada clase de activo.',
     metrics_f6:        'Monitor de riesgo inteligente',
     metrics_f6_desc:   'Alertas en vivo de exposición y concentración de cartera.',
+    // Navigation labels (desktop header tabs)
+    navDashboard:      'Panel',
+    navMarket:         'Mercado',
+    navMetrics:        'Métricas',
+    navWorkspace:      'Workspace',
+    // Tooltips (bottom nav)
+    tipSearch:         'Buscar',
+    tipMetrics:        'Métricas',
+    tipWorkspace:      'Workspace',
+    // ARIA labels
+    ariaBackHome:      'Volver al inicio',
+    ariaPrimaryNav:    'Navegación principal',
+    ariaSearch:        'Buscar',
+    ariaSettings:      'Ajustes y preferencias',
+    ariaCurrency:      'Moneda',
+    // Shell labels
+    donutTotal:        'total',
+    watchlistTitle:    'Lista de seguimiento',
+    watchlistTitleCaps:'LISTA DE SEGUIMIENTO',
+    bootLoading:       'Cargando…',
+    // Search placeholders
+    searchAssetPH:     'Buscar activo...',
+    reNamePH:          'ej. Apartamento Madrid',
+    // Add asset modal toggles
+    typeAsset:         'Activo',
+    typeLiquidity:     'Liquidez',
+    // Transaction modal
+    txModalTitle:      'Añadir transacción',
+    txTypeLabel:       'Tipo',
+    txTypeBuy:         'Compra',
+    txTypeSell:        'Venta',
+    txPriceLabel:      'Precio por unidad',
+    txSubmit:          'Añadir transacción',
+    // Asset detail modal
+    adValueLabel:      'Valor total',
+    adPriceLabel:      'Precio',
+    adTxLabel:         'Transacciones',
+    adAddBtn:          '+ Añadir',
+    // FAB menu
+    fabAddAsset:       'Añadir activo',
+    fabAddLiquidity:   'Añadir liquidez',
+    // Market table headers
+    marketColAsset:    'Activo',
+    marketColPrice:    'Precio',
+    marketCol24h:      '24h',
+    // Workspace placeholders
+    wsSelectCell:      'Selecciona una celda',
+    wsEmptyCell:       'Celda vacía',
+    // Validation / errors
+    errQtyPositive:    'Introduce una cantidad válida mayor que 0.',
+    errQtyMustPositive:'La cantidad debe ser positiva.',
+    // Insights
+    pctOfPortfolio:    ' de la cartera',
+    // Watchlist empty
+    watchlistEmpty:    'No hay activos en seguimiento',
     // Workspace shell
     ws_title:              'Workspace',
     ws_risk_monitor:       'Monitor de riesgo',
@@ -678,6 +733,61 @@ const T = {
     metrics_f5_desc:   'Volatility regime detection across every asset class you hold.',
     metrics_f6:        'Smart Risk Monitoring',
     metrics_f6_desc:   'Live exposure and concentration alerts for your portfolio.',
+    // Navigation labels (desktop header tabs)
+    navDashboard:      'Dashboard',
+    navMarket:         'Market',
+    navMetrics:        'Metrics',
+    navWorkspace:      'Workspace',
+    // Tooltips (bottom nav)
+    tipSearch:         'Search',
+    tipMetrics:        'Metrics',
+    tipWorkspace:      'Workspace',
+    // ARIA labels
+    ariaBackHome:      'Back to home',
+    ariaPrimaryNav:    'Primary',
+    ariaSearch:        'Search',
+    ariaSettings:      'Settings & preferences',
+    ariaCurrency:      'Currency',
+    // Shell labels
+    donutTotal:        'total',
+    watchlistTitle:    'Watchlist',
+    watchlistTitleCaps:'WATCHLIST',
+    bootLoading:       'Loading…',
+    // Search placeholders
+    searchAssetPH:     'Search asset...',
+    reNamePH:          'e.g. Madrid Apartment',
+    // Add asset modal toggles
+    typeAsset:         'Asset',
+    typeLiquidity:     'Liquidity',
+    // Transaction modal
+    txModalTitle:      'Add transaction',
+    txTypeLabel:       'Type',
+    txTypeBuy:         'Buy',
+    txTypeSell:        'Sell',
+    txPriceLabel:      'Price per unit',
+    txSubmit:          'Add transaction',
+    // Asset detail modal
+    adValueLabel:      'Total value',
+    adPriceLabel:      'Price',
+    adTxLabel:         'Transactions',
+    adAddBtn:          '+ Add',
+    // FAB menu
+    fabAddAsset:       'Add asset',
+    fabAddLiquidity:   'Add liquidity',
+    // Market table headers
+    marketColAsset:    'Asset',
+    marketColPrice:    'Price',
+    marketCol24h:      '24h',
+    // Workspace placeholders
+    wsSelectCell:      'Select a cell',
+    wsEmptyCell:       'Empty cell',
+    // Validation / errors
+    errQtyPositive:    'Enter a valid quantity greater than 0.',
+    errQtyMustPositive:'The quantity must be positive.',
+    // Insights
+    pctOfPortfolio:    ' of portfolio',
+    // Watchlist empty
+    watchlistEmpty:    'No assets being tracked',
     // Workspace shell
     ws_title:              'Workspace',
     ws_risk_monitor:       'Risk Monitor',
@@ -703,6 +813,15 @@ function applyI18n() {
     const v = T[lang][el.dataset.i18nPh];
     if (typeof v === 'string') el.placeholder = v;
   });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const v = T[lang][el.dataset.i18nTitle];
+    if (typeof v === 'string') el.title = v;
+  });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    const v = T[lang][el.dataset.i18nAria];
+    if (typeof v === 'string') el.setAttribute('aria-label', v);
+  });
+  document.documentElement.lang = lang;
 }
 
 // Sync TYPE_META labels to current language (used by donut legend + suggestions)
@@ -4270,7 +4389,7 @@ function _renderWorkspaceMatrixCell(cellId, cell) {
 function _renderWorkspaceFormulaBarValue(sheet) {
   const id = WORKSPACE_RUNTIME.activeCellId;
   if (!id) {
-    return { coord: '', value: '', empty: true, kind: 'none', readonly: true, placeholder: 'Select a cell' };
+    return { coord: '', value: '', empty: true, kind: 'none', readonly: true, placeholder: t('wsSelectCell') };
   }
   const cell = sheet.cells[id] || null;
 
@@ -4306,7 +4425,7 @@ function _renderWorkspaceFormulaBarValue(sheet) {
   if (cell && cell.value != null && cell.value !== '') {
     return { coord: id, value: String(cell.value), empty: false, kind: 'literal', readonly: false, placeholder: '' };
   }
-  return { coord: id, value: '', empty: true, kind: 'empty', readonly: false, placeholder: 'Empty cell' };
+  return { coord: id, value: '', empty: true, kind: 'empty', readonly: false, placeholder: t('wsEmptyCell') };
 }
 
 function _renderWorkspaceDesktop(sheet) {
@@ -6814,7 +6933,7 @@ function renderDetailHero(type, typeAssets) {
   const portfolioTotal = totalValueBase();
   const pctEl = heroEl.querySelector('.detail-hero-pct');
   if (portfolioTotal > 0) {
-    pctEl.textContent = `${((totalValue / portfolioTotal) * 100).toFixed(1)}% of portfolio`;
+    pctEl.textContent = `${((totalValue / portfolioTotal) * 100).toFixed(1)}%${t('pctOfPortfolio')}`;
   } else {
     pctEl.textContent = '';
   }
@@ -8452,7 +8571,7 @@ function renderMyAssetsBlock(data) {
     if (b.price !== a.price) return (b.price || 0) - (a.price || 0);
     return a.symbol.localeCompare(b.symbol);
   });
-  const tableHeader = `<div class="market-table-header"><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
+  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${t('marketCol24h')}</div><div></div><div></div></div>`;
   return `<div class="market-section-header">${t('tab_watchlist')}</div>${tableHeader}${sorted.map(renderMarketItem).join('')}`;
 }
 
@@ -8466,7 +8585,7 @@ function renderAllAssets(data) {
   if (!final.length) {
     return `<div class="market-empty">${t('market_no_results')}</div>`;
   }
-  const tableHeader = `<div class="market-table-header"><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
+  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${t('marketCol24h')}</div><div></div><div></div></div>`;
   return `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${final.map(renderMarketItem).join('')}`;
 }
 
@@ -8559,7 +8678,7 @@ function renderFromCache(type, data) {
       </div>`).join('')}</div>`;
   }
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
-  const tableHeader = `<div class="market-table-header"><div>Asset</div><div>Price</div><div>24h</div><div></div><div></div></div>`;
+  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${t('marketCol24h')}</div><div></div><div></div></div>`;
   return `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
 }
 
@@ -10965,7 +11084,7 @@ reduceForm.addEventListener('submit', e => {
 
   const amount = parseLocalFloat(reduceQtyInput.value);
   if (isNaN(amount) || amount <= 0) {
-    reduceError.textContent = 'Introduce una cantidad válida mayor que 0.';
+    reduceError.textContent = t('errQtyPositive');
     return;
   }
   if (amount > asset.qty) {
@@ -11063,7 +11182,7 @@ function updateAddPreview() {
   addError.textContent = '';
 
   if (amount < 0) {
-    addError.textContent = 'La cantidad debe ser positiva.';
+    addError.textContent = t('errQtyMustPositive');
     previewAddQtyTotal.textContent    = '—';
     previewAddValueTotal.textContent  = '—';
     return;
@@ -11086,7 +11205,7 @@ addForm.addEventListener('submit', e => {
 
   const amount = parseLocalFloat(addQtyInput.value);
   if (isNaN(amount) || amount <= 0) {
-    addError.textContent = 'Introduce una cantidad válida mayor que 0.';
+    addError.textContent = t('errQtyPositive');
     return;
   }
 
@@ -12949,7 +13068,7 @@ function _wlRenderBody() {
     : [];
 
   if (tracked.length === 0) {
-    body.innerHTML = '<div class="watchlist-modal-empty">No hay activos en seguimiento</div>';
+    body.innerHTML = '<div class="watchlist-modal-empty">' + t('watchlistEmpty') + '</div>';
   } else {
     body.innerHTML = tracked.map(a => {
       const key       = a.sym || a.name;

@@ -24,28 +24,38 @@
   z-index:9999;
   transition:opacity 0.2s ease;
 ">
-  <div style="opacity:0.7">Loading...</div>
+  <div style="opacity:0.7" id="bootLoaderText">Loading...</div>
 </div>
+<script>
+  (function() {
+    try {
+      var lang = localStorage.getItem('portfolio_lang') || 'es';
+      var el = document.getElementById('bootLoaderText');
+      if (el) el.textContent = lang === 'es' ? 'Cargando…' : 'Loading…';
+      document.documentElement.lang = lang;
+    } catch (_) {}
+  })();
+</script>
 
   <div class="app" id="appRoot">
 
     <header class="header">
       <div class="header-left">
-        <button class="logo-block header-title" id="logoHome" aria-label="Volver al inicio">
+        <button class="logo-block header-title" id="logoHome" aria-label="Volver al inicio" data-i18n-aria="ariaBackHome">
           <span class="logo-aurix">AURIX</span>
         </button>
       </div>
-      <nav class="header-tabs" id="headerTabs" aria-label="Primary">
-        <button class="header-tab" data-tab="home">Dashboard</button>
-        <button class="header-tab" data-tab="market">Market</button>
-        <button class="header-tab" data-tab="profile">Metrics</button>
-        <button class="header-tab" data-tab="workspace">Workspace</button>
+      <nav class="header-tabs" id="headerTabs" aria-label="Primary" data-i18n-aria="ariaPrimaryNav">
+        <button class="header-tab" data-tab="home" data-i18n="navDashboard">Dashboard</button>
+        <button class="header-tab" data-tab="market" data-i18n="navMarket">Market</button>
+        <button class="header-tab" data-tab="profile" data-i18n="navMetrics">Metrics</button>
+        <button class="header-tab" data-tab="workspace" data-i18n="navWorkspace">Workspace</button>
       </nav>
       <div class="header-right">
-        <button id="headerSearch" class="header-search" aria-label="Search">
+        <button id="headerSearch" class="header-search" aria-label="Search" data-i18n-aria="ariaSearch">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.6-4.6"/></svg>
         </button>
-        <button id="menuToggle" class="menu-toggle" aria-label="Settings &amp; preferences" aria-expanded="false">
+        <button id="menuToggle" class="menu-toggle" aria-label="Settings &amp; preferences" aria-expanded="false" data-i18n-aria="ariaSettings">
           <span class="menu-toggle-bar"></span>
           <span class="menu-toggle-bar"></span>
           <span class="menu-toggle-bar"></span>
@@ -55,7 +65,7 @@
           <button class="menu-item menu-item--lang" data-lang="es" role="menuitem">🇪🇸 Español</button>
           <button class="menu-item menu-item--lang" data-lang="en" role="menuitem">🇬🇧 English</button>
           <div class="menu-divider"></div>
-          <div class="menu-curr-row" role="group" aria-label="Currency">
+          <div class="menu-curr-row" role="group" aria-label="Currency" data-i18n-aria="ariaCurrency">
             <button class="menu-curr-btn" data-currency="USD" role="menuitem">$ USD</button>
             <button class="menu-curr-btn" data-currency="EUR" role="menuitem">€ EUR</button>
           </div>
@@ -137,14 +147,14 @@
                 <canvas id="donutChart"></canvas>
                 <div class="donut-center-label">
                   <div class="donut-center-val" id="donutCenterVal"></div>
-                  <div class="donut-center-sub" id="donutCenterSub">total</div>
+                  <div class="donut-center-sub" id="donutCenterSub" data-i18n="donutTotal">total</div>
                 </div>
               </div>
               <div class="distribution-legend" id="distributionLegend"></div>
             </div>
           </div>
           <div class="watchlist-section">
-            <div class="section-title card-title">LISTA DE SEGUIMIENTO</div>
+            <div class="section-title card-title" data-i18n="watchlistTitleCaps">LISTA DE SEGUIMIENTO</div>
             <div class="watchlist-inner-card">
               <div id="trackingContent"></div>
             </div>
@@ -192,7 +202,7 @@
                 <canvas id="donutChartMobile"></canvas>
                 <div class="donut-center-label">
                   <div class="donut-center-val" id="donutCenterValMobile"></div>
-                  <div class="donut-center-sub" id="donutCenterSubMobile">total</div>
+                  <div class="donut-center-sub" id="donutCenterSubMobile" data-i18n="donutTotal">total</div>
                 </div>
               </div>
               <div class="distribution-legend" id="distributionLegendMobile"></div>
@@ -268,13 +278,13 @@
       <div class="item" data-tab="market">
         <svg viewBox="0 0 24 24"><path d="M4 16l5-5 4 3 7-8"/><path d="M20 6v4h-4"/></svg>
       </div>
-      <div class="item" data-tab="search" title="Search">
+      <div class="item" data-tab="search" title="Search" data-i18n-title="tipSearch">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.6-4.6"/></svg>
       </div>
-      <div class="item" data-tab="profile" title="Metrics">
+      <div class="item" data-tab="profile" title="Metrics" data-i18n-title="tipMetrics">
         <svg viewBox="0 0 24 24"><path d="M5 21V13"/><path d="M12 21V6"/><path d="M19 21V10"/></svg>
       </div>
-      <div class="item" data-tab="workspace" title="Workspace">
+      <div class="item" data-tab="workspace" title="Workspace" data-i18n-title="tipWorkspace">
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
       </div>
     </nav>
@@ -290,8 +300,8 @@
       </div>
 
       <div class="add-type-toggle">
-        <button type="button" class="type-btn active" data-type="asset">Activo</button>
-        <button type="button" class="type-btn" data-type="liquidity">Liquidez</button>
+        <button type="button" class="type-btn active" data-type="asset" data-i18n="typeAsset">Activo</button>
+        <button type="button" class="type-btn" data-type="liquidity" data-i18n="typeLiquidity">Liquidez</button>
       </div>
 
       <form id="assetForm" class="modal-body">
@@ -300,7 +310,7 @@
         <div id="searchWrap">
           <div id="searchInputWrap" class="search-form-group">
             <div class="search-field-wrap">
-              <input type="text" id="assetSearch" placeholder="Buscar activo..." autocomplete="off" spellcheck="false">
+              <input type="text" id="assetSearch" data-i18n-ph="searchAssetPH" placeholder="Buscar activo..." autocomplete="off" spellcheck="false">
               <button type="button" class="search-clear" id="searchClear" style="display:none" tabindex="-1">✕</button>
             </div>
             <div class="asset-suggestions" id="assetSuggestions"></div>
@@ -375,7 +385,7 @@
         <!-- Real estate: name (visible solo en modo inmueble) -->
         <div class="form-group" id="reNameGroup" style="display:none">
           <label for="reName" data-i18n="reName">Nombre del inmueble</label>
-          <input type="text" id="reName" placeholder="ej. Apartamento Madrid" autocomplete="off">
+          <input type="text" id="reName" data-i18n-ph="reNamePH" placeholder="ej. Apartamento Madrid" autocomplete="off">
         </div>
 
         <!-- Real estate: currency (visible solo en modo inmueble) -->
@@ -534,28 +544,28 @@
   <div class="modal-overlay" id="txOverlay">
     <div class="modal modal--sm">
       <div class="modal-header">
-        <h3>Añadir transacción</h3>
+        <h3 data-i18n="txModalTitle">Añadir transacción</h3>
         <button class="modal-close" id="txClose">✕</button>
       </div>
       <form id="txForm" class="modal-body">
         <div class="form-group">
-          <label>Tipo</label>
+          <label data-i18n="txTypeLabel">Tipo</label>
           <div class="type-toggle" id="txTypeToggle">
-            <button type="button" class="type-btn active" data-txtype="buy">Compra</button>
-            <button type="button" class="type-btn" data-txtype="sell">Venta</button>
+            <button type="button" class="type-btn active" data-txtype="buy" data-i18n="txTypeBuy">Compra</button>
+            <button type="button" class="type-btn" data-txtype="sell" data-i18n="txTypeSell">Venta</button>
           </div>
           <input type="hidden" id="txTypeHidden" value="buy">
         </div>
         <div class="form-group">
-          <label for="txQty">Cantidad</label>
+          <label for="txQty" data-i18n="qty">Cantidad</label>
           <input type="text" inputmode="decimal" id="txQty" placeholder="0" autocomplete="off">
         </div>
         <div class="form-group">
-          <label for="txPrice">Precio por unidad</label>
+          <label for="txPrice" data-i18n="txPriceLabel">Precio por unidad</label>
           <input type="text" inputmode="decimal" id="txPrice" placeholder="0,00" autocomplete="off">
         </div>
         <div class="reduce-error" id="txError"></div>
-        <button type="submit" class="btn-submit btn-submit--green">Añadir transacción</button>
+        <button type="submit" class="btn-submit btn-submit--green" data-i18n="txSubmit">Añadir transacción</button>
       </form>
     </div>
   </div>
@@ -571,11 +581,11 @@
         <div class="ad-summary">
           <div class="ad-hero">
             <div class="ad-hero-value" id="adValue">—</div>
-            <div class="ad-hero-label" id="adValueLabel">Valor total</div>
+            <div class="ad-hero-label" id="adValueLabel" data-i18n="adValueLabel">Valor total</div>
           </div>
           <div class="ad-secondary">
             <div class="ad-row">
-              <span class="ad-label" id="adPriceLabel">Precio</span>
+              <span class="ad-label" id="adPriceLabel" data-i18n="adPriceLabel">Precio</span>
               <span class="ad-value" id="adPrice">—</span>
             </div>
             <div class="ad-row ad-row--pnl" id="adPnLRow">
@@ -586,10 +596,10 @@
         </div>
         <div class="ad-tx-section" id="adTxSection">
           <div class="ad-tx-header">
-            <span id="adTxTitle">Transacciones</span>
+            <span id="adTxTitle" data-i18n="adTxLabel">Transacciones</span>
           </div>
           <div class="ad-tx-list" id="adTxList"></div>
-          <button class="btn-add-tx-detail" id="adAddTx">+ Añadir</button>
+          <button class="btn-add-tx-detail" id="adAddTx" data-i18n="adAddBtn">+ Añadir</button>
         </div>
       </div>
     </div>
@@ -610,7 +620,7 @@
   <div id="watchlist-modal" class="watchlist-modal hidden">
     <div class="watchlist-modal-content">
       <div class="watchlist-modal-header">
-        <h2>Lista de seguimiento</h2>
+        <h2 data-i18n="watchlistTitle">Lista de seguimiento</h2>
         <div class="modal-actions">
           <button class="add-button" id="watchlistAddBtn" onclick="toggleWatchlistEditMode()">+</button>
           <button class="watchlist-modal-close" onclick="closeWatchlistModal()">✕</button>
@@ -618,15 +628,15 @@
       </div>
       <div class="watchlist-modal-body" id="watchlistModalBody"></div>
       <div class="add-asset-panel hidden" id="addAssetPanel">
-        <input class="add-asset-input" id="addAssetInput" placeholder="Buscar activo..." autocomplete="off" />
+        <input class="add-asset-input" id="addAssetInput" data-i18n-ph="searchAssetPH" placeholder="Buscar activo..." autocomplete="off" />
         <div class="add-asset-results" id="addAssetResults"></div>
       </div>
     </div>
   </div>
 <!-- Global FAB menu — outside card, position: fixed via JS, never clipped -->
 <div id="fabMenuGlobal" class="fab-menu-global">
-  <button class="fab-option" data-action="asset">Añadir activo</button>
-  <button class="fab-option" data-action="liquidity">Añadir liquidez</button>
+  <button class="fab-option" data-action="asset" data-i18n="fabAddAsset">Añadir activo</button>
+  <button class="fab-option" data-action="liquidity" data-i18n="fabAddLiquidity">Añadir liquidez</button>
 </div>
 
 </body>
