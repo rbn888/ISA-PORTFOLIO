@@ -7780,93 +7780,187 @@ body.workspace-active .header {
   /* Aprovecha la altura ganada por header + workspace top compactos. */
   .aurix-workspace-shell.is-desktop {
     height: calc(100vh - 56px);
-    gap: 8px;
-  }
-
-  /* Toolbar = command strip plano integrado, no card flotante. */
-  .aurix-toolbar {
-    background: transparent;
-    border: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    border-radius: 0;
-    box-shadow: none;
-    min-height: 40px;
-    padding: 4px 4px 6px;
-    gap: 12px;
-  }
-
-  /* Coord badge más limpio, placeholder más sutil. */
-  .aurix-formula-coord {
-    background: rgba(138, 166, 255, 0.07);
-    border-color: rgba(138, 166, 255, 0.18);
-    padding: 5px 11px;
-  }
-
-  .aurix-formula-coord.is-empty {
-    background: transparent;
-    border-color: rgba(255,255,255,0.06);
-  }
-
-  .aurix-formula-value.is-empty {
-    opacity: 0.55;
-  }
-
-  /* Grid ~89% / Risk Monitor 200px (~11%). */
-  .aurix-workspace-body {
-    grid-template-columns: minmax(0, 1fr) 200px;
     gap: 10px;
   }
 
-  /* Más filas visibles sin bajar tipografía. */
-  .aurix-grid-cell {
-    padding: 7px 12px;
-    min-height: 40px;
+  /* ── Toolbar — premium command surface.
+     Subtle glass card (not the heavy "floating card" of AW-5, but no
+     longer the flat strip of AW-6.2 either): tinted dark glass with
+     backdrop blur, a hairline border on all sides and rounded corners
+     so it reads as a deliberate command surface that belongs to the
+     same shell language as the rest of the app. */
+  .aurix-toolbar {
+    background: rgba(13, 18, 30, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    min-height: 44px;
+    padding: 6px 14px;
+    gap: 14px;
   }
-  .aurix-grid-row-header {
-    min-height: 40px;
+
+  /* fx indicator: slightly calmer so the surrounding controls breathe. */
+  .aurix-formula-fx {
+    font-size: 15px;
+    opacity: 0.82;
+  }
+
+  /* Vertical divider — softer so it doesn't compete with content. */
+  .aurix-formula-divider {
+    background: rgba(255, 255, 255, 0.08);
+    height: 20px;
+  }
+
+  /* Coord badge: slightly stronger Aurix-blue accent to read as a chip,
+     not a stamp. */
+  .aurix-formula-coord {
+    background: rgba(138, 166, 255, 0.10);
+    border-color: rgba(138, 166, 255, 0.26);
+    padding: 5px 11px;
+    font-size: 12.5px;
+  }
+  .aurix-formula-coord.is-empty {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Formula input: same monospace + tabular nums, refined focus state. */
+  .aurix-formula-value {
+    font-size: 14px;
+  }
+  .aurix-formula-value.is-empty { opacity: 0.55; }
+  .aurix-formula-value.is-editable:focus,
+  .aurix-formula-value.is-editing {
+    background: rgba(138, 166, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(138, 166, 255, 0.18);
+  }
+
+  /* Sheet name: quieter eyebrow on the right. */
+  .aurix-sheet-name {
+    font-size: 10.5px;
+    opacity: 0.62;
+    letter-spacing: 0.16em;
+  }
+
+  /* ── Workspace body: same Aurix glass language as the toolbar so the
+     two surfaces read as one panel. */
+  .aurix-workspace-body {
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 12px;
+  }
+
+  .aurix-grid-panel {
+    background: rgba(13, 18, 30, 0.40);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .aurix-grid-panel:focus-visible {
+    border-color: rgba(138, 166, 255, 0.40);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.02),
+      0 0 0 3px rgba(138, 166, 255, 0.08);
+  }
+
+  /* Quieter grid rhythm — lower the line noise so values dominate. */
+  .aurix-grid-corner,
+  .aurix-grid-col-header {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)),
+      rgba(13, 18, 30, 0.55);
+    border-bottom-color: rgba(255, 255, 255, 0.07);
   }
   .aurix-grid-col-header {
     height: 34px;
     padding: 7px 10px;
+    opacity: 0.66;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    border-right-color: rgba(255, 255, 255, 0.03);
   }
-  .aurix-grid-corner {
-    height: 34px;
+  .aurix-grid-row-header {
+    background: rgba(13, 18, 30, 0.55);
+    min-height: 40px;
+    font-size: 11.5px;
+    opacity: 0.58;
+    border-right-color: rgba(255, 255, 255, 0.05);
+    border-bottom-color: rgba(255, 255, 255, 0.025);
+  }
+  .aurix-grid-corner { height: 34px; }
+
+  /* Cells: keep desktop 7/12 padding (aligned with .aurix-cell-edit),
+     soften separators so the grid reads quieter, micro letter-spacing. */
+  .aurix-grid-cell {
+    padding: 7px 12px;
+    min-height: 40px;
+    font-size: 13.5px;
+    letter-spacing: 0.003em;
+    border-right-color: rgba(255, 255, 255, 0.022);
+    border-bottom-color: rgba(255, 255, 255, 0.025);
+  }
+  .aurix-grid-cell:hover {
+    background: rgba(255, 255, 255, 0.030);
+  }
+  .aurix-grid-cell.is-formula {
+    background: rgba(138, 166, 255, 0.035);
   }
 
-  /* Risk Monitor: ligeramente más compacto, sigue legible. */
+  /* Active cell: same outline contract as before (engine relies on it),
+     plus a subtle outer glow for premium feel. */
+  .aurix-grid-cell.is-active {
+    background: rgba(138, 166, 255, 0.14);
+    box-shadow:
+      inset 0 0 0 1px rgba(138, 166, 255, 0.22),
+      0 0 0 3px rgba(138, 166, 255, 0.10),
+      0 0 14px rgba(138, 166, 255, 0.16);
+  }
+
+  /* ── Risk Monitor: matched glass surface so the right rail belongs
+     to the same product as the grid. Slightly more breathable. */
   .aurix-copilot-panel {
     padding: 16px 14px 18px;
     gap: 18px;
     border-radius: 12px;
+    background: rgba(13, 18, 30, 0.40);
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
   .aurix-copilot-header {
     padding-bottom: 12px;
     gap: 4px;
+    border-bottom-color: rgba(255, 255, 255, 0.05);
   }
   .aurix-copilot-eyebrow {
     font-size: 11px;
     letter-spacing: 0.18em;
+    color: rgba(235, 243, 255, 0.92);
   }
   .aurix-copilot-subtitle {
     font-size: 9.5px;
+    color: rgba(220, 230, 250, 0.50);
   }
-  .aurix-risk-body {
-    gap: 16px;
-  }
-  .aurix-risk-group {
-    gap: 7px;
-  }
-  .aurix-risk-list {
-    gap: 6px;
-  }
+  .aurix-risk-body { gap: 16px; }
+  .aurix-risk-group { gap: 7px; }
+  .aurix-risk-list { gap: 4px; }
   .aurix-risk-signal {
     font-size: 12.5px;
     line-height: 1.45;
+    padding: 5px 6px;
+    margin: 0 -6px;
+    border-radius: 6px;
+    transition: background 0.18s ease;
   }
-
-  /* Grid panel border más sutil para sentir continuidad con la toolbar. */
-  .aurix-grid-panel {
-    border-radius: 12px;
+  .aurix-risk-signal:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .aurix-risk-dot {
+    margin-top: 7px;
   }
 }
 
