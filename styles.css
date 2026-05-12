@@ -341,6 +341,10 @@ main { animation: page-enter .4s var(--ease-out) forwards; }
 /* Hidden proxy button — keeps revokeAccess listener, never shown */
 #btnExit { display: none !important; }
 
+/* Desktop-only header-right widgets — hidden by default so mobile stays clean */
+.header-search { display: none; }
+.menu-toggle-glyph { display: none; }
+
 /* ── Language switcher ─────────────────────────────────── */
 .lang-switcher {
   display: flex;
@@ -7649,43 +7653,39 @@ body.workspace-active .header {
 }
 
 @media (min-width: 1024px) {
-  /* ── Shell: sticky glass header, no extra horizontal padding so brand
-     aligns with the .app content edge (which already has space-6 padding) */
+  /* ── Shell: refined glass header, subtle depth, single hairline rule */
   .header {
     padding-top: var(--space-4);
     padding-bottom: var(--space-3);
-    background: rgba(11, 15, 26, 0.55);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-bottom-color: rgba(255, 255, 255, 0.06);
+    background: rgba(11, 15, 26, 0.62);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
   .header.header--scrolled {
-    background: rgba(11, 15, 26, 0.85);
+    background: rgba(11, 15, 26, 0.88);
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
   }
 
   /* ── Grid column reassignment for the three zones */
-  .header-left {
-    justify-self: start;
-    grid-column: 1;
-  }
-  .header-right {
-    grid-column: 3;
-  }
+  .header-left  { justify-self: start; grid-column: 1; }
+  .header-right { grid-column: 3; gap: 8px; }
 
-  /* ── Branding presence: bigger, wider tracking, stronger blue aura */
+  /* ── Branding: tighter tracking, softer aura, more solid silhouette */
   .logo-block .logo-aurix {
-    font-size: 26px;
-    letter-spacing: 0.44em;
+    font-size: 24px;
+    letter-spacing: 0.30em;
     filter:
-      drop-shadow(0 0 10px rgba(74, 130, 240, 0.32))
-      drop-shadow(0 0 24px rgba(74, 130, 240, 0.14));
+      drop-shadow(0 0 8px rgba(74, 130, 240, 0.22))
+      drop-shadow(0 0 18px rgba(74, 130, 240, 0.10));
   }
 
-  /* ── Tabs: Linear/Stripe-style underline indicator */
+  /* ── Tabs: more weight, bigger hit area, refined active state */
   .header-tabs {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
+    gap: 4px;
     grid-column: 2;
     justify-self: center;
     margin: 0;
@@ -7694,64 +7694,115 @@ body.workspace-active .header {
     position: relative;
     background: transparent;
     border: 0;
-    color: rgba(220, 230, 250, 0.55);
+    color: rgba(220, 230, 250, 0.62);
     font-family: 'Inter', sans-serif;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    letter-spacing: 0.025em;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.015em;
     line-height: 1;
-    padding: var(--space-1) var(--space-1);
-    border-radius: 0;
+    padding: 8px 14px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: color 0.2s ease;
+    transition: color 0.18s ease, background-color 0.18s ease;
   }
   .header-tab:hover {
-    color: rgba(230, 240, 255, 0.95);
+    color: rgba(235, 243, 255, 0.96);
+    background: rgba(255, 255, 255, 0.03);
   }
   .header-tab.active {
-    color: var(--aurix-blue-light);
+    color: rgba(235, 243, 255, 1);
+    font-weight: 600;
   }
   .header-tab.active::after {
     content: '';
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -10px;
+    left: 14px;
+    right: 14px;
+    bottom: -7px;
     height: 1.5px;
     background: linear-gradient(90deg,
-      rgba(74, 130, 240, 0.0)  0%,
+      rgba(74, 130, 240, 0)   0%,
       var(--aurix-blue-light) 50%,
-      rgba(74, 130, 240, 0.0) 100%);
-    box-shadow: 0 0 8px rgba(74, 130, 240, 0.45);
+      rgba(74, 130, 240, 0)   100%);
+    box-shadow: 0 0 6px rgba(74, 130, 240, 0.35);
     border-radius: 1px;
   }
 
-  /* ── Utility zone: convert the mobile hamburger into a horizontal
-     "more" glyph (3 dots) on desktop. Same button, same JS, same panel —
-     only the visual swaps so the trigger reads as software-pro, not app. */
+  /* ── Utility zone: search + account trigger.
+     Identical 36×36 footprint and hover treatment so they read as a
+     coherent pair, not two unrelated controls. */
+  .header-search,
   .menu-toggle {
-    flex-direction: row;
-    justify-content: center;
+    display: inline-flex;
     align-items: center;
-    gap: 3px;
-    height: 36px;
+    justify-content: center;
     width: 36px;
+    height: 36px;
     padding: 0;
+    margin: 0;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background-color 0.18s ease;
   }
-  .menu-toggle-bar {
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: rgba(220, 230, 250, 0.6);
+  .header-search:hover,
+  .menu-toggle:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.035);
   }
-  /* Neutralise the X-animation on desktop — dots stay dots, only color
-     deepens to indicate open state */
-  .menu-toggle.open .menu-toggle-bar:nth-child(1),
-  .menu-toggle.open .menu-toggle-bar:nth-child(2),
-  .menu-toggle.open .menu-toggle-bar:nth-child(3) {
+  .header-search svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: rgba(220, 230, 250, 0.72);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.18s ease;
+  }
+  .header-search:hover svg { stroke: rgba(235, 243, 255, 0.95); }
+
+  /* Hide the mobile hamburger bars on desktop and reveal the account glyph */
+  .menu-toggle-bar { display: none; }
+  .menu-toggle-glyph {
+    display: block;
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: rgba(220, 230, 250, 0.72);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 0.18s ease;
+  }
+  .menu-toggle:hover .menu-toggle-glyph { stroke: rgba(235, 243, 255, 0.95); }
+  .menu-toggle.open {
+    border-color: rgba(74, 130, 240, 0.32);
+    background: rgba(74, 130, 240, 0.06);
+  }
+  .menu-toggle.open .menu-toggle-glyph { stroke: var(--aurix-blue-light); }
+
+  /* ── Dashboard CTAs: stronger type, flat surface, no neon halo */
+  .btn-summary-action {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    padding: 9px 16px;
+    border-radius: 8px;
+  }
+  .btn-primary,
+  .btn-secondary {
+    box-shadow: none;
+    font-weight: 500;
+    border-color: rgba(79, 142, 247, 0.20);
+    background: rgba(79, 142, 247, 0.06);
+  }
+  .btn-primary:hover,
+  .btn-secondary:hover {
     transform: none;
-    opacity: 1;
-    background: var(--aurix-blue-light);
+    background: rgba(79, 142, 247, 0.12);
+    border-color: rgba(79, 142, 247, 0.38);
   }
 
   /* ── Mobile bottom nav hidden on desktop */

@@ -11697,6 +11697,7 @@ document.querySelectorAll('.header-tab[data-tab]').forEach(el => {
 document.getElementById('assetsBackBtn')
   ?.addEventListener('click', () => setActiveCategory(null));
 btnAdd.addEventListener('click', openModal);
+document.getElementById('headerSearch')?.addEventListener('click', openModal);
 document.getElementById('btnAddContext')?.addEventListener('click', () => {
   if (!activeCategory) return;
   if (activeCategory === 'cash') {

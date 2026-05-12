@@ -42,10 +42,17 @@
         <button class="header-tab" data-tab="profile">Profile</button>
       </nav>
       <div class="header-right">
-        <button id="menuToggle" class="menu-toggle" aria-label="Menu" aria-expanded="false">
+        <button id="headerSearch" class="header-search" aria-label="Search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.6-4.6"/></svg>
+        </button>
+        <button id="menuToggle" class="menu-toggle" aria-label="Account & settings" aria-expanded="false">
           <span class="menu-toggle-bar"></span>
           <span class="menu-toggle-bar"></span>
           <span class="menu-toggle-bar"></span>
+          <svg class="menu-toggle-glyph" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="9" r="3.4"/>
+            <path d="M5.5 19.5c0-3.4 2.9-5.8 6.5-5.8s6.5 2.4 6.5 5.8"/>
+          </svg>
         </button>
 
         <div id="menuPanel" class="menu-panel" role="menu">
