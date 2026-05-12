@@ -9301,7 +9301,7 @@ function fmtMktPrice(p) {
 
 // ── Bottom nav ─────────────────────────────────────────────
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
-const NAV_ORDER = ['home', 'market', 'search', 'workspace', 'profile'];
+const NAV_ORDER = ['home', 'market', 'search', 'profile', 'workspace'];
 
 function enforceNavOrder() {
   const container = document.getElementById('bottomNav');
@@ -9369,7 +9369,9 @@ function switchTab(tab) {
     } else if (tab === 'market') {
       renderMarket();
     } else {
-      placeholder.innerHTML = `<p class="placeholder-label">${tab.charAt(0).toUpperCase() + tab.slice(1)}</p>`;
+      const _placeholderLabels = { profile: 'Metrics' };
+      const _label = _placeholderLabels[tab] || (tab.charAt(0).toUpperCase() + tab.slice(1));
+      placeholder.innerHTML = `<p class="placeholder-label">${_label}</p>`;
     }
     updateBottomNavActive();
   }
