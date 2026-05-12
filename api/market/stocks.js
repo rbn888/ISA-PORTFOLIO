@@ -1,42 +1,36 @@
 // GET /api/market/stocks
 // Response: { data: [{ symbol, name, price, change24h, image }] }
+//
+// TwelveData charges 1 credit per symbol on /price, batched or not. The live
+// universe is right-sized to one batched request against the curated core
+// set so each visit consumes a bounded, predictable number of credits.
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://rbn888.github.io';
 
-const STOCK_SYMBOLS = [
+// Core live coverage — top-20 megacaps. One request, 20 credits per call.
+const CORE_STOCK_SYMBOLS = [
   'AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT',
-  'BRK.B','JNJ','PG','UNH','HD','BAC','XOM','CVX','ABBV','LLY',
-  'AVGO','COST','MRK','PEP','KO','TMO','CSCO','ACN','MCD','ABT',
-  'NKE','DHR','NEE','PM','TXN','QCOM','HON','SPGI','INTU','ISRG',
+  'BRK.B','JNJ','PG','XOM','BAC','AVGO','COST','KO','MCD','NKE',
+];
+
+// Extended universe retained for future expansion (paid tier or on-demand
+// hydration). Not fetched by the default live endpoint.
+const EXTENDED_STOCK_SYMBOLS = [
+  'UNH','HD','CVX','ABBV','LLY','MRK','PEP','TMO','CSCO','ACN',
+  'ABT','DHR','NEE','PM','TXN','QCOM','HON','SPGI','INTU','ISRG',
   'AMAT','ADI','REGN','VRTX','PANW','KLAC','LRCX','MRVL','SNPS','CDNS',
 ];
 
-const BATCH_SIZE = 8;
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function fetchBatch(batch, apiKey, batchIndex) {
-  await sleep(batchIndex * 100);
-  const url = `https://api.twelvedata.com/price?symbol=${batch.join(',')}&apikey=${apiKey}`;
-  const r   = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!r.ok) throw new Error(`TwelveData HTTP ${r.status}`);
-
-  const data  = await r.json();
-  const items = [];
-
-  if (batch.length === 1) {
-    const price = parseFloat(data.price);
-    if (!isNaN(price)) items.push({ symbol: batch[0], name: batch[0], price, change24h: null, image: null });
-  } else {
-    for (const symbol of batch) {
-      const price = parseFloat(data[symbol]?.price);
-      if (!isNaN(price)) items.push({ symbol, name: symbol, price, change24h: null, image: null });
-    }
+async function fetchStocksBatch(symbols, apiKey) {
+  const url = `https://api.twelvedata.com/price?symbol=${symbols.join(',')}&apikey=${apiKey}`;
+  const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (r.status === 429) throw new Error('rate_limit');
+  if (!r.ok)             throw new Error(`http_${r.status}`);
+  const json = await r.json();
+  if (json && (json.status === 'error' || json.code)) {
+    throw new Error(`provider:${json.code ?? ''} ${json.message ?? ''}`.trim());
   }
-
-  return items;
+  return json;
 }
 
 export default async function handler(req, res) {
@@ -48,22 +42,35 @@ export default async function handler(req, res) {
   if (req.method !== 'GET')    return res.status(405).json({ error: 'method_not_allowed' });
 
   const API_KEY = process.env.TWELVE_API_KEY;
-  if (!API_KEY) return res.status(200).json({ data: [] });
-
-  const batches = [];
-  for (let i = 0; i < STOCK_SYMBOLS.length; i += BATCH_SIZE) {
-    batches.push(STOCK_SYMBOLS.slice(i, i + BATCH_SIZE));
+  if (!API_KEY) {
+    console.error('[API][stocks] TWELVE_API_KEY not configured');
+    return res.status(200).json({ data: [] });
   }
 
-  const settled = await Promise.all(
-    batches.map((batch, idx) =>
-      fetchBatch(batch, API_KEY, idx).catch(e => {
-        console.error(`[API][stocks] batch ${idx} failed:`, e.message);
-        return [];
-      })
-    )
-  );
+  let payload;
+  try {
+    payload = await fetchStocksBatch(CORE_STOCK_SYMBOLS, API_KEY);
+  } catch (e) {
+    console.error('[API][stocks] provider failure:', e.message);
+    return res.status(200).json({ data: [] });
+  }
 
-  const data = settled.flat();
+  const data = [];
+  for (const symbol of CORE_STOCK_SYMBOLS) {
+    const entry = payload?.[symbol];
+    if (!entry || entry.status === 'error' || entry.code) {
+      console.error(`[API][stocks] ${symbol} invalid or missing in response`);
+      continue;
+    }
+    const price = parseFloat(entry.price);
+    if (!isFinite(price) || price <= 0) {
+      console.error(`[API][stocks] ${symbol} non-numeric price:`, entry.price);
+      continue;
+    }
+    data.push({ symbol, name: symbol, price, change24h: null, image: null });
+  }
+
   return res.status(200).json({ data });
 }
+
+export { CORE_STOCK_SYMBOLS, EXTENDED_STOCK_SYMBOLS };
