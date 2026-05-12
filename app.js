@@ -9301,7 +9301,7 @@ function fmtMktPrice(p) {
 
 // ── Bottom nav ─────────────────────────────────────────────
 const TAB_KEYS = { home: 'tabHome', insights: 'tabInsights', market: 'tabMarket', profile: 'tabProfile' };
-const NAV_ORDER = ['home', 'market', 'add', 'workspace', 'profile'];
+const NAV_ORDER = ['home', 'market', 'search', 'workspace', 'profile'];
 
 function enforceNavOrder() {
   const container = document.getElementById('bottomNav');
@@ -11685,7 +11685,7 @@ document.querySelector('.header-title')
 document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
   el.addEventListener('click', () => {
     const tab = el.dataset.tab;
-    if (tab === 'add') { openModal(); return; }
+    if (tab === 'search') { openModal(); return; }
     document.querySelectorAll('#bottomNav .item').forEach(i => i.classList.remove('active'));
     el.classList.add('active');
     switchTab(tab);

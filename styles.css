@@ -4585,20 +4585,20 @@ main { padding-bottom: 72px; }
   background: #6BFFB8;
   box-shadow: 0 0 6px rgba(107,255,184,0.6);
 }
-.bottom-nav .item[data-tab="add"] {
-  background: rgba(255,255,255,0.08);
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  opacity: 1;
+/* Search — premium central tab. Slightly more presence than peers
+   (larger icon, stronger stroke, brighter rest opacity), but stays
+   flat inside the bar — no FAB, no circular pill, no glow. */
+.bottom-nav .item[data-tab="search"] {
+  opacity: 0.72;
 }
-.bottom-nav .item[data-tab="add"] svg {
-  stroke: rgba(255,255,255,0.8);
-  stroke-width: 2;
+.bottom-nav .item[data-tab="search"]:hover {
+  opacity: 0.92;
 }
-.bottom-nav .item[data-tab="add"]::after {
-  display: none;
+.bottom-nav .item[data-tab="search"] svg {
+  width: 25px;
+  height: 25px;
+  stroke-width: 1.85;
+  stroke: rgba(210,232,255,0.85);
 }
 
 .top-fade {
@@ -6439,9 +6439,6 @@ main { padding-bottom: 72px; }
 @media (max-width: 768px) {
   /* Hide large action buttons — FAB replaces them */
   #btnAdd, #btnAddLiquidity { display: none; }
-
-  /* Hide bottom-nav add tab — action moved into FAB */
-  .bottom-nav [data-tab="add"] { display: none; }
 
   /* FAB container — optically aligned with meta line (activos · actualizado) */
   .portfolio-actions-mobile {
