@@ -535,6 +535,35 @@ const T = {
     pctOfPortfolio:    ' de la cartera',
     // Watchlist empty
     watchlistEmpty:    'No hay activos en seguimiento',
+    // Status pills
+    statusOpen:        'Abierto',
+    statusClosed:      'Cerrado',
+    // Rent / income labels
+    rentSuffix:        '/mes',
+    monthlyIncome:     'Ingresos mensuales',
+    totalMonthlyIncome:'Ingresos mensuales totales',
+    noIncome:          'Sin ingresos',
+    // Insights misc strings
+    defaultPortfolio:  'la cartera',
+    oneAsset:          'un activo',
+    // Asset detail extras
+    noTransactions:    'Sin transacciones',
+    btnEditShort:      'Editar',
+    btnDeleteShort:    'Eliminar',
+    // Insights history
+    insightsHistory:   'Historial',
+    insightsNoTx:      'Aún no hay transacciones',
+    // Insights ambient (templated)
+    ambientDominant:    (name, pct) => `${name} ${pct}% de la cartera. Peso dominante.`,
+    ambientGains:       (name, pct) => `${name} +${pct}%. Beneficios sobre la mesa.`,
+    ambientCategory:    (label, pct) => `${label} ${pct}% de la cartera. Exposición alta.`,
+    ambientOpenPos:     count => `${count} posiciones abiertas. Distribución activa.`,
+    // Insights empty-state pool
+    insightsEmptyAdd:   'Añade activos para comenzar a recibir insights.',
+    insightsEmptyAdd2:  'Añade activos para empezar a recibir insights.',
+    insightsEmptyStart: 'Tu cartera está vacía. Empieza añadiendo un activo.',
+    // Additional validation
+    errQtyGtZero:      'Introduce una cantidad mayor que 0.',
     // Workspace shell
     ws_title:              'Workspace',
     ws_risk_monitor:       'Monitor de riesgo',
@@ -788,6 +817,35 @@ const T = {
     pctOfPortfolio:    ' of portfolio',
     // Watchlist empty
     watchlistEmpty:    'No assets being tracked',
+    // Status pills
+    statusOpen:        'Open',
+    statusClosed:      'Closed',
+    // Rent / income labels
+    rentSuffix:        '/mo',
+    monthlyIncome:     'Monthly income',
+    totalMonthlyIncome:'Total monthly income',
+    noIncome:          'No income',
+    // Insights misc strings
+    defaultPortfolio:  'portfolio',
+    oneAsset:          'one asset',
+    // Asset detail extras
+    noTransactions:    'No transactions',
+    btnEditShort:      'Edit',
+    btnDeleteShort:    'Delete',
+    // Insights history
+    insightsHistory:   'History',
+    insightsNoTx:      'No transactions yet',
+    // Insights ambient (templated)
+    ambientDominant:    (name, pct) => `${name} at ${pct}% of portfolio. Dominant weight.`,
+    ambientGains:       (name, pct) => `${name} +${pct}%. Gains on the table.`,
+    ambientCategory:    (label, pct) => `${label} at ${pct}% of portfolio. High exposure.`,
+    ambientOpenPos:     count => `${count} open positions. Active distribution.`,
+    // Insights empty-state pool
+    insightsEmptyAdd:   'Start adding assets to receive insights.',
+    insightsEmptyAdd2:  'Add assets to start receiving portfolio insights.',
+    insightsEmptyStart: 'Your portfolio is empty. Start by adding an asset.',
+    // Additional validation
+    errQtyGtZero:      'Enter a quantity greater than 0.',
     // Workspace shell
     ws_title:              'Workspace',
     ws_risk_monitor:       'Risk Monitor',
@@ -6335,13 +6393,8 @@ function getMarketStatus(type) {
 }
 
 function getMarketLabel(status) {
-  if (lang === 'es') {
-    if (status === 'open')   return 'Mercado abierto';
-    if (status === 'closed') return 'Mercado cerrado';
-    if (status === '24/7')   return '24/7';
-  }
-  if (status === 'open')   return 'Market open';
-  if (status === 'closed') return 'Market closed';
+  if (status === 'open')   return t('liveMarket');
+  if (status === 'closed') return t('closed');
   return '24/7';
 }
 
@@ -6355,8 +6408,8 @@ function getStatusHtml(asset) {
   const cls   = status === '24/7' ? 'crypto' : status;  // '24/7' → 'crypto'
   const label = {
     '24/7':   `🟣 24/7`,
-    'open':   `🟢 ${lang === 'es' ? 'Abierto' : 'Open'}`,
-    'closed': `🔴 ${lang === 'es' ? 'Cerrado' : 'Closed'}`,
+    'open':   `🟢 ${t('statusOpen')}`,
+    'closed': `🔴 ${t('statusClosed')}`,
   }[status];
 
   return `<div class="market-status ${cls}">${label}</div>`;
@@ -6677,11 +6730,11 @@ function updateCategoryCards() {
         .reduce((s, a) => s + a.rent, 0);
       const totalRentBase = toBase(totalRentEur, 'EUR') + toBase(totalRentUsd, 'USD');
       if (totalRentBase > 0) {
-        const rentLabel     = lang === 'es' ? '/mes' : '/mo';
-        const rentLblText   = lang === 'es' ? 'Ingresos mensuales' : 'Monthly income';
+        const rentLabel     = t('rentSuffix');
+        const rentLblText   = t('monthlyIncome');
         const multipleProps = typeAssets.filter(a => a.rent > 0).length > 1;
         const rentLblFull   = multipleProps
-          ? (lang === 'es' ? 'Ingresos mensuales totales' : 'Total monthly income')
+          ? t('totalMonthlyIncome')
           : rentLblText;
         rentLineHtml = `<div class="cat-card-rent-group">
           <span class="cat-card-rent-lbl">${rentLblFull}</span>
@@ -7014,11 +7067,11 @@ function renderInsightsHero() {
 
 function renderInsightsHistory(txs) {
   if (!txs.length) {
-    return `<div class="insights-history-empty">No transactions yet</div>`;
+    return `<div class="insights-history-empty">${t('insightsNoTx')}</div>`;
   }
   return `
     <div class="insights-history">
-      <div class="insights-history-header">History</div>
+      <div class="insights-history-header">${t('insightsHistory')}</div>
       <div class="ins-tx-list">${txs.map(renderTxRow).join('')}</div>
     </div>`;
 }
@@ -7037,8 +7090,7 @@ function generateBaseInsights() {
   const candidates = [];
 
   if (!assets.length) {
-    const es = lang === 'es';
-    return [{ text: es ? 'Añade activos para comenzar a recibir insights.' : 'Start adding assets to receive insights.', priority: 4, topic: 'distribution', score: 0, id: 'empty', semanticKey: 'empty_portfolio', build: null }];
+    return [{ text: t('insightsEmptyAdd'), priority: 4, topic: 'distribution', score: 0, id: 'empty', semanticKey: 'empty_portfolio', build: null }];
   }
 
   let maxValue = 0, maxAsset = null;
@@ -7337,8 +7389,7 @@ function detectConfidenceRisk() {
     assets.forEach(a => { const v = a.qty * a.price; if (v > topVal) { topVal = v; topAsset = a; } });
     const pnlRound  = Math.round(pnl);
     const concRound = Math.round(concentration);
-    const es        = lang === 'es';
-    const n         = topAsset ? escHtml(topAsset.name) : (es ? 'un activo' : 'one asset');
+    const n         = topAsset ? escHtml(topAsset.name) : t('oneAsset');
     const nk        = n.replace(/\s+/g, '_');
     return {
       id: `conc_confidence_${nk}_${Math.floor(concRound / 10) * 10}`,
@@ -7595,7 +7646,7 @@ function generateSignatureInsight() {
     id: `sig_concentrated_${assets.length}`,
     semanticKey: 'portfolio_concentration_style',
     topic: 'concentration', priority: 3, score: 50,
-    data: { name: n || (lang === 'es' ? 'la cartera' : 'portfolio'), count: assets.length },
+    data: { name: n || t('defaultPortfolio'), count: assets.length },
     build: (d, i) => buildInsightText('concentration_signature', d, i),
   };
   return {
@@ -7816,7 +7867,6 @@ function inferInsightType(c) {
 }
 
 function getAmbientMessages() {
-  const es         = lang === 'es';
   const totalValue = getTotalPortfolioValue();
 
   if (assets.length > 0) {
@@ -7830,10 +7880,7 @@ function getAmbientMessages() {
     });
     if (topByVal && totalValue > 0) {
       const pct = Math.round((topVal / totalValue) * 100);
-      pool.push(es
-        ? `${escHtml(topByVal.name)} ${pct}% de la cartera. Peso dominante.`
-        : `${escHtml(topByVal.name)} at ${pct}% of portfolio. Dominant weight.`
-      );
+      pool.push(t('ambientDominant')(escHtml(topByVal.name), pct));
     }
 
     // Best performer by % gain
@@ -7844,10 +7891,7 @@ function getAmbientMessages() {
       if (g > bestGain) { bestGain = g; bestPerformer = a; }
     });
     if (bestPerformer && bestGain > 0) {
-      pool.push(es
-        ? `${escHtml(bestPerformer.name)} +${Math.round(bestGain)}%. Beneficios sobre la mesa.`
-        : `${escHtml(bestPerformer.name)} +${Math.round(bestGain)}%. Gains on the table.`
-      );
+      pool.push(t('ambientGains')(escHtml(bestPerformer.name), Math.round(bestGain)));
     }
 
     // Dominant category
@@ -7858,18 +7902,12 @@ function getAmbientMessages() {
       const topType = types.sort((a, b) => byType[b] - byType[a])[0];
       const typePct = totalValue > 0 ? Math.round((byType[topType] / totalValue) * 100) : 0;
       const label   = (T[lang].typeMeta && T[lang].typeMeta[topType]) || topType;
-      pool.push(es
-        ? `${label} ${typePct}% de la cartera. Exposición alta.`
-        : `${label} at ${typePct}% of portfolio. High exposure.`
-      );
+      pool.push(t('ambientCategory')(label, typePct));
     }
 
     // Open positions count
     if (assets.length > 1) {
-      pool.push(es
-        ? `${assets.length} posiciones abiertas. Distribución activa.`
-        : `${assets.length} open positions. Active distribution.`
-      );
+      pool.push(t('ambientOpenPos')(assets.length));
     }
 
     if (pool.length > 0) {
@@ -7878,13 +7916,7 @@ function getAmbientMessages() {
   }
 
   // Fallback when no assets
-  const fallback = es ? [
-    'Añade activos para empezar a recibir insights.',
-    'Tu cartera está vacía. Empieza añadiendo un activo.',
-  ] : [
-    'Add assets to start receiving portfolio insights.',
-    'Your portfolio is empty. Start by adding an asset.',
-  ];
+  const fallback = [t('insightsEmptyAdd2'), t('insightsEmptyStart')];
   return fallback.map(text => ({ text, priority: 4, ambient: true }));
 }
 
@@ -9666,14 +9698,14 @@ function render(animate = false) {
     const totalRentBase = filtered
       .filter(a => a.rent > 0)
       .reduce((sum, a) => sum + toBase(a.rent, (a.assetCurrency || 'EUR').toUpperCase()), 0);
-    const rentLabel = lang === 'es' ? '/mes' : '/mo';
+    const rentLabel = t('rentSuffix');
     const bannerEl = document.createElement('div');
     bannerEl.className = 'rent-banner' + (totalRentBase > 0 ? '' : ' rent-banner--zero');
     bannerEl.innerHTML = totalRentBase > 0
-      ? `<span class="rent-banner-label">${lang === 'es' ? 'Ingresos mensuales' : 'Monthly income'}</span>
+      ? `<span class="rent-banner-label">${t('monthlyIncome')}</span>
          <span class="rent-banner-value">+${formatBase(totalRentBase)}${rentLabel}</span>`
-      : `<span class="rent-banner-label">${lang === 'es' ? 'Ingresos mensuales' : 'Monthly income'}</span>
-         <span class="rent-banner-zero">${lang === 'es' ? 'Sin ingresos' : 'No income'}</span>`;
+      : `<span class="rent-banner-label">${t('monthlyIncome')}</span>
+         <span class="rent-banner-zero">${t('noIncome')}</span>`;
     assetsListEl.appendChild(bannerEl);
   }
 
@@ -9741,7 +9773,7 @@ function render(animate = false) {
     const isRE = asset.type === 'real_estate';
 
     const rentHtml = (isRE && asset.rent > 0)
-      ? `<span class="asset-rent">+${formatCurrency(asset.rent, assetCurr)}${lang === 'es' ? '/mes' : '/mo'}</span>`
+      ? `<span class="asset-rent">+${formatCurrency(asset.rent, assetCurr)}${t('rentSuffix')}</span>`
       : '';
 
     const subLineHtml = isCash
@@ -9809,7 +9841,7 @@ function render(animate = false) {
         ? `${formatCurrency(asset.price, assetCurr)}${isGold ? t('perTrOz') : t('perUnit')}`
         : '';
       const darRentHtml = (isRE && asset.rent > 0)
-        ? `<span class="dar-rent">+${formatCurrency(asset.rent, assetCurr)}${lang === 'es' ? '/mes' : '/mo'}</span>`
+        ? `<span class="dar-rent">+${formatCurrency(asset.rent, assetCurr)}${t('rentSuffix')}</span>`
         : '';
 
       const subParts   = [qtyStr, priceStr].filter(Boolean);
@@ -11372,9 +11404,7 @@ function applyInlineEdit(id) {
   const amount  = parseLocalFloat(inputEl.value);
 
   if (isNaN(amount) || amount <= 0) {
-    errorEl.textContent = lang === 'es'
-      ? 'Introduce una cantidad mayor que 0.'
-      : 'Enter a quantity greater than 0.';
+    errorEl.textContent = t('errQtyGtZero');
     inputEl.classList.add('aes-shake');
     setTimeout(() => inputEl.classList.remove('aes-shake'), 500);
     return;
@@ -11757,8 +11787,7 @@ function openAssetDetailModal(assetId) {
   const valueBase = assetNativeValue(asset);
   document.getElementById('adValue').textContent =
     valueBase != null ? formatBase(toBase(valueBase, assetCurr)) : '—';
-  document.getElementById('adValueLabel').textContent =
-    lang === 'es' ? 'Valor total' : 'Total value';
+  document.getElementById('adValueLabel').textContent = t('adValueLabel');
 
   // PnL
   const pnl = assetPnLBase(asset);
@@ -11777,9 +11806,8 @@ function openAssetDetailModal(assetId) {
   const txSection = document.getElementById('adTxSection');
   const txList    = document.getElementById('adTxList');
   const addTxBtn  = document.getElementById('adAddTx');
-  document.getElementById('adTxTitle').textContent =
-    lang === 'es' ? 'Transacciones' : 'Transactions';
-  addTxBtn.textContent = lang === 'es' ? '+ Añadir' : '+ Add';
+  document.getElementById('adTxTitle').textContent = t('adTxLabel');
+  addTxBtn.textContent = t('adAddBtn');
 
   if (isRE || isCash) {
     txSection.style.display = 'none';
@@ -11788,13 +11816,11 @@ function openAssetDetailModal(assetId) {
     const txs = asset.transactions || [];
     txList.dataset.assetId = assetId;
     if (!txs.length) {
-      txList.innerHTML = `<div class="ad-tx-empty">${lang === 'es' ? 'Sin transacciones' : 'No transactions'}</div>`;
+      txList.innerHTML = `<div class="ad-tx-empty">${t('noTransactions')}</div>`;
     } else {
       txList.innerHTML = txs.map((tx, i) => {
         const date  = new Date(tx.ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
-        const label = tx.type === 'buy'
-          ? (lang === 'es' ? 'Compra' : 'Buy')
-          : (lang === 'es' ? 'Venta' : 'Sell');
+        const label = tx.type === 'buy' ? t('txTypeBuy') : t('txTypeSell');
         const cls   = tx.type === 'buy' ? 'tx-buy' : 'tx-sell';
         return `<div class="ad-tx-row">
           <span class="ad-tx-badge ${cls}">${label}</span>
@@ -11802,8 +11828,8 @@ function openAssetDetailModal(assetId) {
             <span class="ad-tx-qty">${formatQty(tx.qty)}</span>
             <span class="ad-tx-sub">@ ${formatCurrency(tx.price, assetCurr)} · ${date}</span>
           </div>
-          <button class="ad-tx-edit"   data-index="${i}" title="${lang === 'es' ? 'Editar' : 'Edit'}">✎</button>
-          <button class="ad-tx-delete" data-index="${i}" title="${lang === 'es' ? 'Eliminar' : 'Delete'}">✕</button>
+          <button class="ad-tx-edit"   data-index="${i}" title="${t('btnEditShort')}">✎</button>
+          <button class="ad-tx-delete" data-index="${i}" title="${t('btnDeleteShort')}">✕</button>
         </div>`;
       }).reverse().join('');
     }
