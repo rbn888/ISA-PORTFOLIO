@@ -463,6 +463,23 @@ const T = {
     empty_watchlist:   'Añade activos ⭐ para seguirlos aquí',
     market_no_results: 'Sin resultados',
     stale:             'sin actualizar',
+    // Metrics placeholder
+    metrics_badge:     'Próximamente',
+    metrics_title:     'Métricas avanzadas',
+    metrics_subtitle:  'Inteligencia de mercado de próxima generación',
+    metrics_microcopy: 'Estamos construyendo herramientas avanzadas de análisis institucional para Aurix.',
+    metrics_f1:        'Mapas de liquidación',
+    metrics_f1_desc:   'Zonas de liquidación forzada en tiempo real entre exchanges.',
+    metrics_f2:        'Sentimiento de mercado',
+    metrics_f2_desc:   'Señales agregadas alcistas y bajistas del comportamiento del mercado.',
+    metrics_f3:        'Señales macro',
+    metrics_f3_desc:   'Indicadores top-down que conectan el contexto macro con tu cartera.',
+    metrics_f4:        'Flujos cross-asset',
+    metrics_f4_desc:   'Hacia dónde rota el capital entre crypto, renta variable y materias.',
+    metrics_f5:        'Regímenes de volatilidad',
+    metrics_f5_desc:   'Detección del régimen de volatilidad para cada clase de activo.',
+    metrics_f6:        'Monitor de riesgo inteligente',
+    metrics_f6_desc:   'Alertas en vivo de exposición y concentración de cartera.',
     // Workspace shell
     ws_title:              'Workspace',
     ws_risk_monitor:       'Monitor de riesgo',
@@ -644,6 +661,23 @@ const T = {
     empty_watchlist:   'Add assets ⭐ to track them here',
     market_no_results: 'No results',
     stale:             'stale data',
+    // Metrics placeholder
+    metrics_badge:     'Coming Soon',
+    metrics_title:     'Advanced Metrics',
+    metrics_subtitle:  'Next-generation market intelligence',
+    metrics_microcopy: "We're building advanced institutional-grade analytics for Aurix.",
+    metrics_f1:        'Liquidation Heatmaps',
+    metrics_f1_desc:   'Real-time forced-liquidation zones across major exchanges.',
+    metrics_f2:        'Market Sentiment',
+    metrics_f2_desc:   'Aggregated bullish and bearish signals from market behaviour.',
+    metrics_f3:        'Macro Signals',
+    metrics_f3_desc:   'Top-down indicators linking the macro context to your portfolio.',
+    metrics_f4:        'Cross-Asset Flows',
+    metrics_f4_desc:   'Where capital is rotating between crypto, equities and commodities.',
+    metrics_f5:        'Volatility Regimes',
+    metrics_f5_desc:   'Volatility regime detection across every asset class you hold.',
+    metrics_f6:        'Smart Risk Monitoring',
+    metrics_f6_desc:   'Live exposure and concentration alerts for your portfolio.',
     // Workspace shell
     ws_title:              'Workspace',
     ws_risk_monitor:       'Risk Monitor',
@@ -9337,6 +9371,43 @@ function switchView(view) {
   }
 }
 
+// Premium "coming soon" surface for the Metrics tab. Presentation only —
+// no fetching, no live data. Communicates product vision while the real
+// metrics module is being built.
+function renderMetricsPlaceholder() {
+  const features = [
+    { glyph: '<rect x="4" y="4" width="5" height="5" rx="1"/><rect x="11" y="4" width="5" height="5" rx="1"/><rect x="18" y="4" width="2" height="5" rx="1"/><rect x="4" y="11" width="5" height="5" rx="1"/><rect x="11" y="11" width="5" height="5" rx="1"/><rect x="4" y="18" width="5" height="2" rx="1"/>' },
+    { glyph: '<path d="M4 16l5-5 4 3 7-8"/><path d="M20 6v4h-4"/>' },
+    { glyph: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18"/>' },
+    { glyph: '<path d="M4 8h12"/><path d="M13 5l3 3-3 3"/><path d="M20 16H8"/><path d="M11 13l-3 3 3 3"/>' },
+    { glyph: '<path d="M3 16l4-8 4 6 4-10 4 8 2-3"/>' },
+    { glyph: '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6l8-3z"/>' },
+  ];
+  const cards = features.map((f, i) => `
+    <article class="metrics-feature-card">
+      <div class="metrics-feature-glyph">
+        <svg viewBox="0 0 24 24" aria-hidden="true">${f.glyph}</svg>
+      </div>
+      <h3 class="metrics-feature-title">${t('metrics_f' + (i + 1))}</h3>
+      <p class="metrics-feature-desc">${t('metrics_f' + (i + 1) + '_desc')}</p>
+    </article>
+  `).join('');
+  return `
+    <section class="metrics-screen">
+      <header class="metrics-hero">
+        <span class="metrics-badge">
+          <span class="metrics-badge-dot"></span>
+          <span>${t('metrics_badge')}</span>
+        </span>
+        <h1 class="metrics-title">${t('metrics_title')}</h1>
+        <p class="metrics-subtitle">${t('metrics_subtitle')}</p>
+        <p class="metrics-microcopy">${t('metrics_microcopy')}</p>
+      </header>
+      <div class="metrics-feature-grid">${cards}</div>
+    </section>
+  `;
+}
+
 function switchTab(tab) {
   switchView('dashboard'); // always collapse hero when navigating
   currentTab = tab;
@@ -9369,9 +9440,10 @@ function switchTab(tab) {
       startInsightRotation();
     } else if (tab === 'market') {
       renderMarket();
+    } else if (tab === 'profile') {
+      placeholder.innerHTML = renderMetricsPlaceholder();
     } else {
-      const _placeholderLabels = { profile: 'Metrics' };
-      const _label = _placeholderLabels[tab] || (tab.charAt(0).toUpperCase() + tab.slice(1));
+      const _label = tab.charAt(0).toUpperCase() + tab.slice(1);
       placeholder.innerHTML = `<p class="placeholder-label">${_label}</p>`;
     }
     updateBottomNavActive();
