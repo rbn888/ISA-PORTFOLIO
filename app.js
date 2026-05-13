@@ -8974,12 +8974,30 @@ async function _refreshGeneric(tab, symbols, fallbackMap, title) {
   await withMarketRefreshLock(tab, async () => {
   const t0 = Date.now();
   try {
-    const results = await Promise.all(
-      symbols.map(async symbol => {
-        try { return _buildItem(symbol, await fetchTwelveData(symbol), fallbackMap, type); }
-        catch { return _buildItem(symbol, null, fallbackMap, type); }
-      })
-    );
+    // Single batched call replaces N× per-symbol POST fan-out.
+    // On any failure → snapshotMap stays empty → _buildItem falls back via
+    // getCachedPrice / getFallbackData / fallbackMap (existing chain).
+    const snapshotMap = new Map();
+    try {
+      const url = `${PRICES_PROXY}/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const json = await res.json();
+        for (const item of (json?.snapshot ?? [])) {
+          if (item?.symbol && Number.isFinite(item.price)) {
+            snapshotMap.set(item.symbol, item);
+          }
+        }
+      }
+    } catch (err) {
+      console.log('[market-runtime] snapshot fetch failed for', tab, '·', err.message);
+    }
+
+    const results = symbols.map(symbol => {
+      const hit  = snapshotMap.get(symbol);
+      const data = hit ? { price: hit.price, previousClose: null } : null;
+      return _buildItem(symbol, data, fallbackMap, type);
+    });
     const safeResults = results.filter(item => item && item.symbol);
     if (commitMarketData(type, safeResults)) {
       _dedupeMarketData();
