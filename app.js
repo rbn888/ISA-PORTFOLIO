@@ -3804,8 +3804,28 @@ function _extractFormulaDependencies(parsed) {
         }
         if (name === 'PORTFOLIO.VALUE')  { deps.add('FINANCIAL:PORTFOLIO_VALUE');  return; }
         if (name === 'PORTFOLIO.ASSETS') { deps.add('FINANCIAL:PORTFOLIO_ASSETS'); return; }
-        if (name === 'EXPOSURE')         { deps.add('FINANCIAL:EXPOSURE');         return; }
-        if (name === 'ALLOCATION')       { deps.add('FINANCIAL:ALLOCATION');       return; }
+        if (name === 'EXPOSURE') {
+          // Per-category labelling: a future per-bucket propagator can match
+          // FINANCIAL:EXPOSURE:<CAT> precisely. Today the AW-7 recalc still
+          // propagates every FINANCIAL:* on derived-state delta — identical
+          // runtime behaviour, finer-grained metadata for the next phase.
+          const a = node.args && node.args[0];
+          if (a && a.type === 'str' && a.value) {
+            deps.add('FINANCIAL:EXPOSURE:' + String(a.value).toLowerCase());
+          } else {
+            deps.add('FINANCIAL:EXPOSURE');
+          }
+          return;
+        }
+        if (name === 'ALLOCATION') {
+          const a = node.args && node.args[0];
+          if (a && a.type === 'str' && a.value) {
+            deps.add('FINANCIAL:ALLOCATION:' + String(a.value).toUpperCase());
+          } else {
+            deps.add('FINANCIAL:ALLOCATION');
+          }
+          return;
+        }
         // Unknown function: still walk args (they may surface refs/ranges
         // even if the call itself will error at evaluate time).
         for (const a of node.args || []) walk(a);
