@@ -5878,27 +5878,29 @@ async function fetchTwelveData(symbol) {
 
 const fetchYahooData = fetchTwelveData;
 
-// ── Gold spot price: TwelveData XAU/USD → GC=F → fallback (proxied) ──
+// ── Gold spot price: XAU/USD → GC=F → fallback (single batched snapshot) ──
 async function fetchGoldSpotPrice() {
-  // Primary: TwelveData XAU/USD spot via backend proxy
   try {
-    const data = await fetchTwelveData('XAU/USD');
-    if (data?.price > 0) {
-      goldPriceUpdatedAt = Date.now();
-      return data.price;
+    const url = `${PRICES_PROXY}/snapshot?symbols=${encodeURIComponent('XAU/USD,GC=F')}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const json = await res.json();
+      const bySym = new Map();
+      for (const p of (json?.snapshot ?? [])) bySym.set(p.symbol, p);
+      const xau = bySym.get('XAU/USD');
+      if (xau && Number.isFinite(xau.price) && xau.price > 0) {
+        goldPriceUpdatedAt = Date.now();
+        return xau.price;
+      }
+      const gcf = bySym.get('GC=F');
+      if (gcf && Number.isFinite(gcf.price) && gcf.price > 0) {
+        goldPriceUpdatedAt = Date.now();
+        return gcf.price;
+      }
     }
   } catch { /* fall through */ }
 
-  // Secondary: TwelveData GC=F futures (≈ spot) via backend proxy
-  try {
-    const data = await fetchYahooData('GC=F');
-    if (data?.price > 0) {
-      goldPriceUpdatedAt = Date.now();
-      return data.price;
-    }
-  } catch { /* fall through */ }
-
-  // Tertiary: hardcoded fallback — no timestamp update (not a live price)
+  // Final fallback: hardcoded — no timestamp update (not a live price)
   const fb = getFallbackData('GC=F');
   return fb?.price ?? FALLBACK_PRICES['GC=F'];
 }
@@ -8918,16 +8920,28 @@ async function _refreshCrypto() {
   await withMarketRefreshLock('crypto', async () => {
   const t0 = Date.now();
   try {
-    const res = await fetch('https://isa-portfolio-ten.vercel.app/api/market/crypto');
+    const symbols = CRYPTO_IDS.map(c => c.symbol);
+    const url     = `${PRICES_PROXY}/snapshot?symbols=${encodeURIComponent(symbols.join(','))}`;
+    const res     = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`http_${res.status}`);
-    const { data } = await res.json();
-    const items = (data || []).map(c => ({
-      symbol:                      c.symbol,
-      name:                        c.name,
-      current_price:               c.price,
-      price_change_percentage_24h: c.change24h,
-      source:                      'coingecko',
-    })).filter(c => c.current_price != null);
+    const json     = await res.json();
+    const priceBy  = new Map();
+    for (const p of (json?.snapshot ?? [])) {
+      if (p?.symbol && Number.isFinite(p.price)) priceBy.set(p.symbol, p);
+    }
+    const items = CRYPTO_IDS
+      .map(c => {
+        const hit = priceBy.get(c.symbol);
+        if (!hit) return null;
+        return {
+          symbol:                      c.symbol,
+          name:                        c.name,
+          current_price:               hit.price,
+          price_change_percentage_24h: hit.change24h ?? null,
+          source:                      'coingecko',
+        };
+      })
+      .filter(Boolean);
 
     if (!items.length) return;
     _setCryptoData(items);
@@ -10298,7 +10312,7 @@ async function selectAsset(entry) {
     } else if (entry.marketSymbol) {
       pendingMarketSymbol = entry.marketSymbol;
       if (entry.ticker === 'XAU') {
-        // Gold: dedicated source chain (XAU/USD → GC=F → fallback) via /api/prices
+        // Gold: dedicated source chain (XAU/USD → GC=F → fallback) via snapshot
         price = await fetchGoldSpotPrice();
       } else {
         const data = await fetchYahooData(entry.marketSymbol);
