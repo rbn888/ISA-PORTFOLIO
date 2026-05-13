@@ -1264,6 +1264,15 @@ function save() {
     const { assets: catalogAssets, holdings } = convertToNewModel(assets);
     saveData({ assets: catalogAssets, holdings });
     scheduleSave();
+    // Portfolio mutation invariant: derived financial state must reflect
+    // the new asset set immediately so workspace PORTFOLIO.* / EXPOSURE /
+    // ALLOCATION formulas see fresh data without waiting for the next
+    // market:update tick. recomputeDerivedFinancialState is idempotent
+    // and guarded by an internal `processing` flag.
+    if (typeof recomputeDerivedFinancialState === 'function') {
+      try { recomputeDerivedFinancialState('mutation-sync'); }
+      catch (e) { console.warn('[portfolio] derived recompute failed:', e?.message); }
+    }
   } catch (e) {
     console.warn('[portfolio] save failed (localStorage full or unavailable):', e);
   }
@@ -1494,6 +1503,45 @@ function assetPnLBase(asset) {
   const abs = value - cost;
   const pct = (abs / cost) * 100;
   return { abs, pct };
+}
+
+// Read-only canonical position view. Maps a legacy `assets[]` record to the
+// target portfolio engine contract (see PORTFOLIO ENGINE HARDENING spec).
+// Persistence is unchanged — this is the consumer-side shape that future
+// migrations will move toward. Lookup honours the canonical asset registry
+// when available; otherwise falls back to legacy ticker.
+function getCanonicalPosition(asset) {
+  if (!asset) return null;
+  const qty            = Number(asset.qty || asset.amount || asset.quantity || 0);
+  const currentPrice   = Number(asset.price || 0);
+  const costBasis      = Number(asset.costBasis || 0);
+  const avgCost        = qty > 0 ? costBasis / qty : 0;
+  const currentValue   = qty * currentPrice;
+  const unrealized     = costBasis > 0 ? currentValue - costBasis : 0;
+  const realized       = Number(asset.realizedPnL || 0);
+  const canonical      = (typeof resolveAsset === 'function')
+    ? resolveAsset(asset.ticker || asset.symbol)
+    : null;
+  return {
+    assetId:     canonical?.id || `asset:${String(asset.ticker || asset.symbol || asset.id || '').toLowerCase()}`,
+    quantity:    qty,
+    acquisition: {
+      avgCost,
+      currency:  asset.assetCurrency || 'USD',
+    },
+    valuation: {
+      currentPrice,
+      currentValue,
+    },
+    pnl: {
+      realized,
+      unrealized,
+    },
+    metadata: {
+      type:        canonical?.type || asset.type || 'other',
+      displayName: canonical?.displayName || asset.name || asset.ticker || '',
+    },
+  };
 }
 
 function avgBuyPrice(asset) {
@@ -2171,12 +2219,21 @@ function recomputeDerivedFinancialState(source = 'unknown') {
                           : Array.isArray(assets)            ? assets
                           : [];
 
-    let totalValue = 0;
+    let totalValue        = 0;
+    let totalCostBasis    = 0;
+    let totalRealizedPnL  = 0;
     for (const asset of portfolioAssets) {
       const quantity = Number(asset.qty || asset.amount || asset.quantity || 0);
       const price    = Number(asset.price || 0);
-      totalValue += quantity * price;
+      totalValue       += quantity * price;
+      totalCostBasis   += Number(asset.costBasis   || 0);
+      totalRealizedPnL += Number(asset.realizedPnL || 0);
     }
+    // Aggregate P&L: unrealized = open-position MtM gain; realized = locked
+    // gain from prior partial sells (persisted on the asset record).
+    const totalUnrealizedPnL = totalCostBasis > 0 ? totalValue - totalCostBasis : 0;
+    const totalPnL           = totalUnrealizedPnL + totalRealizedPnL;
+    const totalPnLPercent    = totalCostBasis > 0 ? (totalPnL / totalCostBasis) * 100 : 0;
 
     const allocations = buildPortfolioAllocations(portfolioAssets, totalValue);
     const exposure    = buildPortfolioExposure(portfolioAssets);
@@ -2193,8 +2250,11 @@ function recomputeDerivedFinancialState(source = 'unknown') {
 
     DERIVED_FINANCIAL_STATE.portfolio = Object.freeze({
       totalValue,
-      totalPnL:        0,
-      totalPnLPercent: 0,
+      totalCostBasis,
+      totalPnL,
+      totalPnLPercent,
+      unrealizedPnL:   totalUnrealizedPnL,
+      realizedPnL:     totalRealizedPnL,
       assetCount:      portfolioAssets.length,
       gainers:         Object.freeze(gainers),
       losers:          Object.freeze(losers),
@@ -11457,6 +11517,23 @@ reduceForm.addEventListener('submit', e => {
   const remaining  = asset.qty - amount;
   const wasRemoved = remaining === 0;
   const reduceType = asset.type;
+  // Tax-lot-ready ledger: record the sell at the current price.
+  // Realized P&L uses blended avg cost (current accounting model) and is
+  // added to a persistent realizedPnL field. Tax-lot methods (FIFO/LIFO)
+  // can later consume the transactions[] array without schema changes.
+  const avgCostPerUnit = (asset.costBasis && asset.qty > 0) ? asset.costBasis / asset.qty : 0;
+  const currentPrice   = Number(asset.price);
+  const realized       = (Number.isFinite(currentPrice) && currentPrice > 0)
+    ? (currentPrice - avgCostPerUnit) * amount
+    : 0;
+  if (!Array.isArray(asset.transactions)) asset.transactions = [];
+  asset.transactions.push({
+    type:  'sell',
+    qty:   amount,
+    price: Number.isFinite(currentPrice) ? currentPrice : 0,
+    ts:    Date.now(),
+  });
+  asset.realizedPnL = Number(asset.realizedPnL || 0) + (Number.isFinite(realized) ? realized : 0);
   if (wasRemoved) {
     assets = assets.filter(a => a.id !== reduceTargetId);
   } else {
