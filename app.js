@@ -1131,7 +1131,8 @@ let manualCurrency      = 'USD'; // currency selected in manual mode
 let manualPendingSymbol = null;  // market symbol resolved via OpenFIGI lookup
 let manualPendingCoinId = null;  // CoinGecko coin ID for crypto ISIN assets
 let isinLookupAbortCtrl = null;  // abort controller for in-flight ISIN lookup
-const _isinCache        = new Map(); // ISIN → lookup result (memory cache)
+const _isinCache        = new Map(); // ISIN → { value, ts }; positives kept session-long, negatives expire after _ISIN_NEG_TTL
+const _ISIN_NEG_TTL     = 30 * 60 * 1000; // 30 min — avoid permanent null-poisoning on transient OpenFIGI outages
 let rePendingCurrency   = 'EUR'; // currency selected in RE modal
 let rePendingRent       = 0;     // monthly rent input in RE modal
 let reEditTargetId      = null;  // when set, submit updates this asset instead of creating
@@ -5048,12 +5049,24 @@ function _dedupeMarketData() {
   MARKET_DATA_VERSION++;
 }
 let MARKET_DATA_FULL = [];
+// ── Frontend cache policy ────────────────────────────────────────────────
+// Layers, owner, lifetime:
+//   MARKET_DATA          canonical reactive store (no TTL; replaced on commit)
+//   MARKET_CACHE[tab]    per-tab MARKET_DATA snapshot (60s freshness window
+//                        before refreshMarketInBackground fetches again)
+//   MARKET_CACHE_TS[tab] timestamp of last successful refresh per tab
+//   MARKET_FAILURE_TS    last-failure timestamp; gates 5min backoff
+//   PRICE_CACHE[symbol]  last-known price (per-symbol fallback). Capped at
+//                        PRICE_CACHE_MAX_AGE — older entries are evicted on
+//                        read so we never silently serve infinitely-stale data.
+//   MARKET_METRICS_CACHE small UI-only header strings.
 const MARKET_METRICS_CACHE = {};
 const MARKET_CACHE = {};
 const MARKET_CACHE_TS = {};
 const MARKET_FAILURE_TS = {};
 const MARKET_FAILURE_BACKOFF = 5 * 60 * 1000; // 5 min cooldown after provider failure
 const PRICE_CACHE = {};
+const PRICE_CACHE_MAX_AGE = 10 * 60 * 1000; // 10 min hard cap on per-symbol fallback
 const PRICE_PROVIDERS = {
   crypto:    ['coingecko'],
   stock:     ['twelve', 'fallback'],
@@ -5930,7 +5943,13 @@ function _figiToAssetType(secType, secType2) {
 }
 
 async function getAssetFromISIN(isin, signal) {
-  if (_isinCache.has(isin)) return _isinCache.get(isin);
+  const cached = _isinCache.get(isin);
+  if (cached) {
+    // Positive cache: serve forever. Negative cache: only within _ISIN_NEG_TTL.
+    if (cached.value !== null || (Date.now() - cached.ts) < _ISIN_NEG_TTL) return cached.value;
+    _isinCache.delete(isin);
+  }
+  const cacheNull = () => { _isinCache.set(isin, { value: null, ts: Date.now() }); return null; };
   try {
     const res = await fetch('https://api.openfigi.com/v3/mapping', {
       method:  'POST',
@@ -5938,10 +5957,10 @@ async function getAssetFromISIN(isin, signal) {
       body:    JSON.stringify([{ idType: 'ID_ISIN', idValue: isin }]),
       signal,
     });
-    if (!res.ok) { _isinCache.set(isin, null); return null; }
+    if (!res.ok) return cacheNull();
     const json  = await res.json();
     const items = json?.[0]?.data;
-    if (!items?.length) { _isinCache.set(isin, null); return null; }
+    if (!items?.length) return cacheNull();
 
     // Prefer US-listed ticker; else take first result
     const item   = items.find(i => ['US','UW','UN','UA','UP'].includes(i.exchCode)) || items[0];
@@ -5954,10 +5973,10 @@ async function getAssetFromISIN(isin, signal) {
       symbol: ticker + suffix,
       exch,
     };
-    _isinCache.set(isin, result);
+    _isinCache.set(isin, { value: result, ts: Date.now() });
     return result;
   } catch (err) {
-    if (err.name !== 'AbortError') _isinCache.set(isin, null);
+    if (err.name !== 'AbortError') cacheNull();
     return null;
   }
 }
@@ -9325,11 +9344,13 @@ function getBestCandidate(candidates, type) {
 }
 
 function getCachedPrice(symbol) {
-  const entry = PRICE_CACHE[normalizeSymbol(symbol)];
+  const key   = normalizeSymbol(symbol);
+  const entry = PRICE_CACHE[key];
   if (!entry) return null;
   const age = Date.now() - entry.timestamp;
+  if (age > PRICE_CACHE_MAX_AGE) { delete PRICE_CACHE[key]; return null; }
   return {
-    symbol:     normalizeSymbol(symbol),
+    symbol:     key,
     price:      entry.price,
     timestamp:  entry.timestamp,
     source:     entry.source,

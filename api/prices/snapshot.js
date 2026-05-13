@@ -177,7 +177,7 @@ function resolveSymbol(raw) {
 }
 
 function ttlFor(assetType) {
-  return assetType === 'crypto' ? TTL.crypto : TTL.stock;
+  return TTL[assetType] ?? TTL.stock;
 }
 
 // ── Handler ────────────────────────────────────────────────
@@ -209,8 +209,8 @@ export default async function handler(req, res) {
   log('requested:', requested.length, 'resolved:', resolved.length, 'unresolved:', unresolved.length);
 
   // ── Split: serve from cache vs fetch ─────────────────────
-  const cgItems = []; // { provider, id, canonical }
-  const tdItems = []; // { provider, symbol: providerId, canonical }
+  const cgItems = []; // { provider, id, canonical, assetType }
+  const tdItems = []; // { provider, symbol: providerId, canonical, assetType }
   const cachedHits = new Map(); // canonical → { price, change24h, cachedAt }
 
   for (const { canonical, entry } of resolved) {
@@ -225,9 +225,9 @@ export default async function handler(req, res) {
       continue;
     }
     if (entry.provider === 'coingecko') {
-      cgItems.push({ provider: provKey, id: entry.providerId, canonical });
+      cgItems.push({ provider: provKey, id: entry.providerId, canonical, assetType: entry.assetType });
     } else {
-      tdItems.push({ provider: provKey, symbol: entry.providerId, canonical });
+      tdItems.push({ provider: provKey, symbol: entry.providerId, canonical, assetType: entry.assetType });
     }
   }
 
@@ -243,7 +243,7 @@ export default async function handler(req, res) {
           for (const item of cgItems) {
             const val = result[item.provider];
             if (val) {
-              setCache(item.provider, val, TTL.crypto);
+              setCache(item.provider, val, ttlFor(item.assetType));
               fresh.set(item.canonical, val);
             } else {
               failedSymbols.add(item.canonical);
@@ -269,7 +269,7 @@ export default async function handler(req, res) {
             for (const item of tdItems) {
               const val = result[item.provider];
               if (val) {
-                setCache(item.provider, val, TTL.stock);
+                setCache(item.provider, val, ttlFor(item.assetType));
                 fresh.set(item.canonical, val);
               } else {
                 failedSymbols.add(item.canonical);

@@ -13,13 +13,21 @@ function logError(provider, message) {
   console.error(`[API][ERROR][${provider}] ${new Date().toISOString()} ${message}`);
 }
 
-// ── Cache ──────────────────────────────────────────────────
-const PRICE_CACHE = new Map(); // provider_id → { value, timestamp, ttl }
+// ── Cache policy ────────────────────────────────────────────
+// Single backend cache, keyed by provider_id (e.g. coingecko:bitcoin,
+// twelvedata:AAPL). Owner: this module. Shared with api/prices/snapshot.js
+// via named export. Each entry stores { value, timestamp, ttl }; reads
+// past `ttl` return null (no stale-serve). TTLs are per-asset-class —
+// the snapshot picks the right bucket via the symbol registry.
+const PRICE_CACHE = new Map();
 
 const TTL = {
-  crypto: 30 * 1000,
-  stock:  60 * 1000,
-  fx:     3600 * 1000,
+  crypto:    30  * 1000,   // 24/7 markets, fast-moving
+  stock:     60  * 1000,   // intraday tick
+  etf:       60  * 1000,   // intraday tick
+  index:     60  * 1000,   // intraday tick
+  commodity: 300 * 1000,   // slower-moving (XAU/USD, WTI)
+  fx:        300 * 1000,   // not used today, reserved
 };
 
 function getCached(providerId) {
