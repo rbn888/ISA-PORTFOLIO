@@ -200,3 +200,7 @@ export default async function handler(req, res) {
   log('success · prices returned:', Object.keys(prices).length);
   return res.status(200).json({ prices });
 }
+
+// ── Named exports for reuse by other backend endpoints ─────
+// (e.g., api/prices/snapshot.js — does not affect default handler)
+export { PRICE_CACHE, TTL, getCached, setCache, fetchCoinGecko, fetchTwelveData };
