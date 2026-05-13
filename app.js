@@ -919,7 +919,7 @@ function switchLang(newLang) {
 // ── State ──────────────────────────────────────────────────
 const STORAGE_KEY    = 'portfolio_assets';
 const COINGECKO      = 'https://api.coingecko.com/api/v3';
-const TWELVE_API_KEY = '55e1f0fb31714f0d91081bd8e4e664c9';
+const PRICES_PROXY   = 'https://isa-portfolio-ten.vercel.app/api/prices';
 
 // ── Fallback prices (used when APIs are unavailable) ──────
 const FALLBACK_PRICES = {
@@ -5824,7 +5824,7 @@ async function fetchLivePrices(coinIds) {
   const unique    = [...new Set(coinIds)];
   const providers = unique.map(id => `coingecko:${id}`);
 
-  const res = await fetch('https://isa-portfolio-ten.vercel.app/api/prices', {
+  const res = await fetch(PRICES_PROXY, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ providers }),
@@ -5854,15 +5854,20 @@ async function searchCoinFallback(_query) {
   return null;
 }
 
-// ── Twelve Data API (stocks / ETFs / metals) ───────────────
+// ── Twelve Data API (stocks / ETFs / metals) — proxied via /api/prices ──
 async function fetchTwelveData(symbol) {
-  const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(symbol)}&apikey=${TWELVE_API_KEY}`;
+  const provider = `twelvedata:${symbol}`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(PRICES_PROXY, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ providers: [provider] }),
+      signal:  AbortSignal.timeout(8000),
+    });
     console.log('[twelve]', symbol, 'status:', res.status);
     if (!res.ok) return null;
-    const json = await res.json();
-    const price = parseFloat(json.price);
+    const { prices } = await res.json();
+    const price = prices?.[provider]?.price;
     if (!price || isNaN(price)) return null;
     return { price, previousClose: null };
   } catch (err) {
@@ -5873,24 +5878,18 @@ async function fetchTwelveData(symbol) {
 
 const fetchYahooData = fetchTwelveData;
 
-// ── Gold spot price: exchangerate.host → Yahoo GC=F → fallback ──
+// ── Gold spot price: TwelveData XAU/USD → GC=F → fallback (proxied) ──
 async function fetchGoldSpotPrice() {
-  // Primary: exchangerate.host — XAU/USD spot (free, no key, CORS-friendly)
+  // Primary: TwelveData XAU/USD spot via backend proxy
   try {
-    const res = await fetch(
-      'https://api.exchangerate.host/convert?from=XAU&to=USD&amount=1',
-      { signal: AbortSignal.timeout(4000) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.result > 0) {
-        goldPriceUpdatedAt = Date.now();
-        return data.result;
-      }
+    const data = await fetchTwelveData('XAU/USD');
+    if (data?.price > 0) {
+      goldPriceUpdatedAt = Date.now();
+      return data.price;
     }
   } catch { /* fall through */ }
 
-  // Secondary: Yahoo Finance GC=F (futures ≈ spot)
+  // Secondary: TwelveData GC=F futures (≈ spot) via backend proxy
   try {
     const data = await fetchYahooData('GC=F');
     if (data?.price > 0) {
@@ -10268,7 +10267,7 @@ async function selectAsset(entry) {
     } else if (entry.marketSymbol) {
       pendingMarketSymbol = entry.marketSymbol;
       if (entry.ticker === 'XAU') {
-        // Gold: dedicated source chain (exchangerate.host → Yahoo → fallback)
+        // Gold: dedicated source chain (XAU/USD → GC=F → fallback) via /api/prices
         price = await fetchGoldSpotPrice();
       } else {
         const data = await fetchYahooData(entry.marketSymbol);
