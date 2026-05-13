@@ -9105,7 +9105,7 @@ function renderMarketByType(type) {
 const MARKET_ETFS        = ['SPY','QQQ','VOO','VTI','URTH'];
 const MARKET_INDICES     = ['^GSPC','^IXIC','^DJI'];
 const MARKET_COMMODITIES = ['XAU/USD','XAG/USD','WTI'];
-// Mirrors backend CORE_STOCK_SYMBOLS — single source of truth for the live stock universe.
+// Canonical live stock universe (resolved by the snapshot gateway registry).
 const STOCKS_UNIVERSE = [
   'AAPL','MSFT','NVDA','TSLA','AMZN','META','GOOGL','JPM','V','WMT',
   'BRK.B','JNJ','PG','XOM','BAC','AVGO','COST','KO','MCD','NKE',
