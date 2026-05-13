@@ -4987,10 +4987,26 @@ function getFinancialFormulaHealth() {
 // futures: GC=F / SI=F / CL=F) to the Twelve Data spot symbols Aurix
 // actually loads into MARKET_DATA (XAU/USD → XAUUSD, etc.). Applied before
 // normalizeSymbol so the existing lookup stays unchanged.
+// Resolver aliases consumed by getMarketAsset / getMarketPrice. Single
+// source of canonical-symbol mapping used by workspace =PRICE(...) and
+// any Financial Core consumer. Yahoo-futures shortcuts plus user-friendly
+// names for commodities and major indices.
 const MARKET_SYMBOL_ALIASES = {
-  'GC=F': 'XAUUSD',
-  'SI=F': 'XAGUSD',
-  'CL=F': 'WTI',
+  // Yahoo-style futures → canonical
+  'GC=F':   'XAUUSD',
+  'SI=F':   'XAGUSD',
+  'CL=F':   'WTI',
+  // User-friendly commodity tickers
+  XAU:      'XAU/USD',
+  XAG:      'XAG/USD',
+  GOLD:     'XAU/USD',
+  SILVER:   'XAG/USD',
+  OIL:      'WTI',
+  // User-friendly index shortcuts
+  SP500:    '^GSPC',
+  'S&P500': '^GSPC',
+  NASDAQ:   '^IXIC',
+  DOW:      '^DJI',
 };
 function getMarketAsset(symbol) {
   const raw            = String(symbol || '').trim().toUpperCase();
