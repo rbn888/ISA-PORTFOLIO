@@ -5028,10 +5028,142 @@ const MARKET_SYMBOL_ALIASES = {
   NASDAQ:   '^IXIC',
   DOW:      '^DJI',
 };
+
+// ── Canonical Asset Registry ───────────────────────────────────────────────
+// Single source of identity truth for every asset that Aurix recognises.
+// Each entry exposes a stable canonical id, display metadata, the full set of
+// known synonyms, and provider keys used downstream by the snapshot gateway.
+// Consumers should always go through resolveAsset / getCanonicalAsset rather
+// than touching this object directly.
+const _ASSET_REGISTRY = Object.freeze({
+  // Crypto
+  'asset:btc':   { id:'asset:btc',   type:'crypto', symbol:'BTC',   displayName:'Bitcoin',          aliases:['XBT','BITCOIN','BTC/USD','BTC-USD','BTC/USDT','BTCUSD','BTCUSDT'], providerKeys:{ coingecko:'bitcoin' } },
+  'asset:eth':   { id:'asset:eth',   type:'crypto', symbol:'ETH',   displayName:'Ethereum',         aliases:['ETHER','ETHEREUM','ETH/USD','ETH-USD','ETHUSD','ETH/USDT'],       providerKeys:{ coingecko:'ethereum' } },
+  'asset:usdt':  { id:'asset:usdt',  type:'crypto', symbol:'USDT',  displayName:'Tether',           aliases:['TETHER'],            providerKeys:{ coingecko:'tether' } },
+  'asset:bnb':   { id:'asset:bnb',   type:'crypto', symbol:'BNB',   displayName:'BNB',              aliases:['BINANCECOIN'],       providerKeys:{ coingecko:'binancecoin' } },
+  'asset:sol':   { id:'asset:sol',   type:'crypto', symbol:'SOL',   displayName:'Solana',           aliases:['SOLANA','SOL/USD'],  providerKeys:{ coingecko:'solana' } },
+  'asset:xrp':   { id:'asset:xrp',   type:'crypto', symbol:'XRP',   displayName:'XRP',              aliases:['RIPPLE'],            providerKeys:{ coingecko:'ripple' } },
+  'asset:usdc':  { id:'asset:usdc',  type:'crypto', symbol:'USDC',  displayName:'USD Coin',         aliases:['USD-COIN','USDCOIN'],providerKeys:{ coingecko:'usd-coin' } },
+  'asset:ada':   { id:'asset:ada',   type:'crypto', symbol:'ADA',   displayName:'Cardano',          aliases:['CARDANO'],           providerKeys:{ coingecko:'cardano' } },
+  'asset:avax':  { id:'asset:avax',  type:'crypto', symbol:'AVAX',  displayName:'Avalanche',        aliases:['AVALANCHE'],         providerKeys:{ coingecko:'avalanche-2' } },
+  'asset:doge':  { id:'asset:doge',  type:'crypto', symbol:'DOGE',  displayName:'Dogecoin',         aliases:['DOGECOIN'],          providerKeys:{ coingecko:'dogecoin' } },
+  'asset:trx':   { id:'asset:trx',   type:'crypto', symbol:'TRX',   displayName:'TRON',             aliases:['TRON'],              providerKeys:{ coingecko:'tron' } },
+  'asset:dot':   { id:'asset:dot',   type:'crypto', symbol:'DOT',   displayName:'Polkadot',         aliases:['POLKADOT'],          providerKeys:{ coingecko:'polkadot' } },
+  'asset:link':  { id:'asset:link',  type:'crypto', symbol:'LINK',  displayName:'Chainlink',        aliases:['CHAINLINK'],         providerKeys:{ coingecko:'chainlink' } },
+  'asset:matic': { id:'asset:matic', type:'crypto', symbol:'MATIC', displayName:'Polygon',          aliases:['POLYGON','MATIC-NETWORK'], providerKeys:{ coingecko:'matic-network' } },
+  'asset:shib':  { id:'asset:shib',  type:'crypto', symbol:'SHIB',  displayName:'Shiba Inu',        aliases:['SHIBA-INU','SHIBAINU'], providerKeys:{ coingecko:'shiba-inu' } },
+  'asset:ltc':   { id:'asset:ltc',   type:'crypto', symbol:'LTC',   displayName:'Litecoin',         aliases:['LITECOIN'],          providerKeys:{ coingecko:'litecoin' } },
+  'asset:bch':   { id:'asset:bch',   type:'crypto', symbol:'BCH',   displayName:'Bitcoin Cash',     aliases:['BITCOIN-CASH'],      providerKeys:{ coingecko:'bitcoin-cash' } },
+  'asset:uni':   { id:'asset:uni',   type:'crypto', symbol:'UNI',   displayName:'Uniswap',          aliases:['UNISWAP'],           providerKeys:{ coingecko:'uniswap' } },
+  'asset:atom':  { id:'asset:atom',  type:'crypto', symbol:'ATOM',  displayName:'Cosmos',           aliases:['COSMOS'],            providerKeys:{ coingecko:'cosmos' } },
+  'asset:xlm':   { id:'asset:xlm',   type:'crypto', symbol:'XLM',   displayName:'Stellar',          aliases:['STELLAR'],           providerKeys:{ coingecko:'stellar' } },
+  'asset:near':  { id:'asset:near',  type:'crypto', symbol:'NEAR',  displayName:'NEAR Protocol',    aliases:['NEAR-PROTOCOL'],     providerKeys:{ coingecko:'near' } },
+  'asset:apt':   { id:'asset:apt',   type:'crypto', symbol:'APT',   displayName:'Aptos',            aliases:['APTOS'],             providerKeys:{ coingecko:'aptos' } },
+  'asset:arb':   { id:'asset:arb',   type:'crypto', symbol:'ARB',   displayName:'Arbitrum',         aliases:['ARBITRUM'],          providerKeys:{ coingecko:'arbitrum' } },
+  'asset:op':    { id:'asset:op',    type:'crypto', symbol:'OP',    displayName:'Optimism',         aliases:['OPTIMISM'],          providerKeys:{ coingecko:'optimism' } },
+
+  // Stocks (mirrors STOCKS_UNIVERSE)
+  'asset:aapl':  { id:'asset:aapl',  type:'stock',  symbol:'AAPL',  displayName:'Apple Inc.',       aliases:['APPLE','NASDAQ:AAPL'],  providerKeys:{ twelvedata:'AAPL' } },
+  'asset:msft':  { id:'asset:msft',  type:'stock',  symbol:'MSFT',  displayName:'Microsoft Corp.',  aliases:['MICROSOFT','NASDAQ:MSFT'], providerKeys:{ twelvedata:'MSFT' } },
+  'asset:nvda':  { id:'asset:nvda',  type:'stock',  symbol:'NVDA',  displayName:'NVIDIA Corp.',     aliases:['NVIDIA','NASDAQ:NVDA'], providerKeys:{ twelvedata:'NVDA' } },
+  'asset:tsla':  { id:'asset:tsla',  type:'stock',  symbol:'TSLA',  displayName:'Tesla Inc.',       aliases:['TESLA','NASDAQ:TSLA'],  providerKeys:{ twelvedata:'TSLA' } },
+  'asset:amzn':  { id:'asset:amzn',  type:'stock',  symbol:'AMZN',  displayName:'Amazon.com Inc.',  aliases:['AMAZON','NASDAQ:AMZN'], providerKeys:{ twelvedata:'AMZN' } },
+  'asset:meta':  { id:'asset:meta',  type:'stock',  symbol:'META',  displayName:'Meta Platforms',   aliases:['FACEBOOK','NASDAQ:META'], providerKeys:{ twelvedata:'META' } },
+  'asset:googl': { id:'asset:googl', type:'stock',  symbol:'GOOGL', displayName:'Alphabet Inc.',    aliases:['GOOGLE','ALPHABET','NASDAQ:GOOGL'], providerKeys:{ twelvedata:'GOOGL' } },
+  'asset:jpm':   { id:'asset:jpm',   type:'stock',  symbol:'JPM',   displayName:'JPMorgan Chase',   aliases:['JPMORGAN','NYSE:JPM'],  providerKeys:{ twelvedata:'JPM' } },
+  'asset:v':     { id:'asset:v',     type:'stock',  symbol:'V',     displayName:'Visa Inc.',        aliases:['VISA','NYSE:V'],        providerKeys:{ twelvedata:'V' } },
+  'asset:wmt':   { id:'asset:wmt',   type:'stock',  symbol:'WMT',   displayName:'Walmart Inc.',     aliases:['WALMART','NYSE:WMT'],   providerKeys:{ twelvedata:'WMT' } },
+  'asset:brkb':  { id:'asset:brkb',  type:'stock',  symbol:'BRK.B', displayName:'Berkshire Hathaway',aliases:['BRKB','BERKSHIRE'],    providerKeys:{ twelvedata:'BRK.B' } },
+  'asset:jnj':   { id:'asset:jnj',   type:'stock',  symbol:'JNJ',   displayName:'Johnson & Johnson',aliases:['NYSE:JNJ'],             providerKeys:{ twelvedata:'JNJ' } },
+  'asset:pg':    { id:'asset:pg',    type:'stock',  symbol:'PG',    displayName:'Procter & Gamble', aliases:['NYSE:PG'],              providerKeys:{ twelvedata:'PG' } },
+  'asset:xom':   { id:'asset:xom',   type:'stock',  symbol:'XOM',   displayName:'Exxon Mobil',      aliases:['EXXON','NYSE:XOM'],     providerKeys:{ twelvedata:'XOM' } },
+  'asset:bac':   { id:'asset:bac',   type:'stock',  symbol:'BAC',   displayName:'Bank of America',  aliases:['NYSE:BAC'],             providerKeys:{ twelvedata:'BAC' } },
+  'asset:avgo':  { id:'asset:avgo',  type:'stock',  symbol:'AVGO',  displayName:'Broadcom Inc.',    aliases:['BROADCOM','NASDAQ:AVGO'], providerKeys:{ twelvedata:'AVGO' } },
+  'asset:cost':  { id:'asset:cost',  type:'stock',  symbol:'COST',  displayName:'Costco Wholesale', aliases:['COSTCO','NASDAQ:COST'], providerKeys:{ twelvedata:'COST' } },
+  'asset:ko':    { id:'asset:ko',    type:'stock',  symbol:'KO',    displayName:'Coca-Cola Co.',    aliases:['COCACOLA','NYSE:KO'],   providerKeys:{ twelvedata:'KO' } },
+  'asset:mcd':   { id:'asset:mcd',   type:'stock',  symbol:'MCD',   displayName:'McDonald’s Corp.', aliases:['MCDONALDS','NYSE:MCD'], providerKeys:{ twelvedata:'MCD' } },
+  'asset:nke':   { id:'asset:nke',   type:'stock',  symbol:'NKE',   displayName:'Nike Inc.',        aliases:['NIKE','NYSE:NKE'],      providerKeys:{ twelvedata:'NKE' } },
+
+  // ETFs
+  'asset:spy':   { id:'asset:spy',   type:'etf',    symbol:'SPY',   displayName:'SPDR S&P 500 ETF',  aliases:['SPDR'],            providerKeys:{ twelvedata:'SPY' } },
+  'asset:qqq':   { id:'asset:qqq',   type:'etf',    symbol:'QQQ',   displayName:'Invesco QQQ Trust', aliases:['INVESCO-QQQ'],     providerKeys:{ twelvedata:'QQQ' } },
+  'asset:voo':   { id:'asset:voo',   type:'etf',    symbol:'VOO',   displayName:'Vanguard S&P 500',  aliases:[],                  providerKeys:{ twelvedata:'VOO' } },
+  'asset:vti':   { id:'asset:vti',   type:'etf',    symbol:'VTI',   displayName:'Vanguard Total Stock Market', aliases:[],        providerKeys:{ twelvedata:'VTI' } },
+  'asset:urth':  { id:'asset:urth',  type:'etf',    symbol:'URTH',  displayName:'iShares MSCI World',aliases:[],                  providerKeys:{ twelvedata:'URTH' } },
+  'asset:vea':   { id:'asset:vea',   type:'etf',    symbol:'VEA',   displayName:'Vanguard Developed Markets', aliases:[],         providerKeys:{ twelvedata:'VEA' } },
+
+  // Indices
+  'asset:gspc':  { id:'asset:gspc',  type:'index',  symbol:'^GSPC', displayName:'S&P 500',           aliases:['SP500','S&P500','SPX','GSPC'], providerKeys:{ twelvedata:'^GSPC' } },
+  'asset:ixic':  { id:'asset:ixic',  type:'index',  symbol:'^IXIC', displayName:'NASDAQ Composite',  aliases:['NASDAQ','IXIC','NDX'],         providerKeys:{ twelvedata:'^IXIC' } },
+  'asset:dji':   { id:'asset:dji',   type:'index',  symbol:'^DJI',  displayName:'Dow Jones',         aliases:['DOW','DJI','DJIA','DOWJONES'], providerKeys:{ twelvedata:'^DJI' } },
+
+  // Commodities
+  'asset:xauusd':{ id:'asset:xauusd',type:'commodity', symbol:'XAU/USD', displayName:'Gold (spot)',  aliases:['XAU','GOLD','GC=F','XAUUSD'],   providerKeys:{ twelvedata:'XAU/USD' } },
+  'asset:xagusd':{ id:'asset:xagusd',type:'commodity', symbol:'XAG/USD', displayName:'Silver (spot)',aliases:['XAG','SILVER','SI=F','XAGUSD'], providerKeys:{ twelvedata:'XAG/USD' } },
+  'asset:wti':   { id:'asset:wti',   type:'commodity', symbol:'WTI',     displayName:'Crude Oil (WTI)', aliases:['OIL','CL=F','WTIUSD','WTI/USD'], providerKeys:{ twelvedata:'WTI' } },
+});
+
+// Flat alias → canonical-id index, built once at module init.
+// Indexes: symbol, id, every alias, displayName, every provider key.
+const _ASSET_ALIAS_INDEX = (() => {
+  const idx = Object.create(null);
+  const put = (key, id) => {
+    if (!key) return;
+    const k = String(key).toUpperCase();
+    if (!idx[k]) idx[k] = id; // first-write wins (stable resolution)
+  };
+  for (const asset of Object.values(_ASSET_REGISTRY)) {
+    put(asset.symbol, asset.id);
+    put(asset.id, asset.id);
+    if (asset.displayName) put(asset.displayName, asset.id);
+    for (const alias of (asset.aliases || [])) put(alias, asset.id);
+    if (asset.providerKeys) {
+      for (const v of Object.values(asset.providerKeys)) put(v, asset.id);
+    }
+  }
+  return Object.freeze(idx);
+})();
+
+// Public resolver APIs. Pure, never mutate, never fetch.
+function resolveAsset(input) {
+  if (input == null) return null;
+  const raw = String(input).trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  // Direct alias hit
+  let id = _ASSET_ALIAS_INDEX[upper];
+  if (id) return _ASSET_REGISTRY[id];
+  // Namespaced form ("coingecko:bitcoin", "twelvedata:AAPL", "NASDAQ:AAPL", ...)
+  const colon = upper.indexOf(':');
+  if (colon > 0) {
+    id = _ASSET_ALIAS_INDEX[upper.slice(colon + 1)];
+    if (id) return _ASSET_REGISTRY[id];
+  }
+  return null;
+}
+
+function getCanonicalAsset(id) {
+  if (id == null) return null;
+  return _ASSET_REGISTRY[String(id).toLowerCase()] ?? null;
+}
+
+function resolveProviderKey(asset, provider) {
+  if (!asset || !provider) return null;
+  const key = asset.providerKeys?.[String(provider).toLowerCase()];
+  return key ? `${String(provider).toLowerCase()}:${key}` : null;
+}
+
 function getMarketAsset(symbol) {
-  const raw            = String(symbol || '').trim().toUpperCase();
-  const canonicalInput = MARKET_SYMBOL_ALIASES[raw] || raw;
-  const norm           = normalizeSymbol(canonicalInput);
+  // Canonical registry first — covers XBT, BITCOIN, GOLD, SP500, NASDAQ:AAPL,
+  // coingecko:bitcoin, etc. Falls back to legacy MARKET_SYMBOL_ALIASES if the
+  // symbol is not yet in the registry (compatibility layer for unregistered
+  // long-tail assets).
+  const canonical = resolveAsset(symbol);
+  const raw       = canonical
+    ? canonical.symbol
+    : (MARKET_SYMBOL_ALIASES[String(symbol || '').trim().toUpperCase()]
+        || String(symbol || '').trim().toUpperCase());
+  const norm      = normalizeSymbol(raw);
   return MARKET_DATA.find(d => normalizeSymbol(d.symbol) === norm) ?? null;
 }
 function getMarketPrice(symbol) {
