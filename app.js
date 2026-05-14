@@ -1595,12 +1595,20 @@ function assetNativeValue(asset) {
   return asset.qty * asset.price;
 }
 
+// PR-6: canonical per-asset USD valuation. Single source of truth for any
+// consumer that needs an asset's value in USD — applies the native-currency
+// conversion (EUR cash and EUR-denominated stocks) and the gold karat
+// purity adjustment (via assetNativeValue). All total/exposure/AI
+// calculations must funnel through this so drift cannot exist between
+// surfaces.
+function assetValueUSD(asset) {
+  const curr   = (asset.assetCurrency || 'USD').toUpperCase();
+  const native = assetNativeValue(asset);
+  return curr === 'USD' ? native : native / usdToEur;
+}
+
 function totalValueUSD() {
-  return assets.reduce((sum, a) => {
-    const curr   = (a.assetCurrency || 'USD').toUpperCase();
-    const native = assetNativeValue(a);
-    return sum + (curr === 'USD' ? native : native / usdToEur);
-  }, 0);
+  return assets.reduce((sum, a) => sum + assetValueUSD(a), 0);
 }
 
 function totalValueBase() { return toBase(totalValueUSD(), 'USD'); }
@@ -5599,9 +5607,7 @@ function getDistribution() {
 
   const groups = {};
   assets.forEach(a => {
-    const curr   = (a.assetCurrency || 'USD').toUpperCase();
-    const native = assetNativeValue(a);
-    const valUSD = curr === 'USD' ? native : native / usdToEur;
+    const valUSD = assetValueUSD(a);
     const key    = TYPE_META[a.type] ? a.type : 'other';
     groups[key]  = (groups[key] || 0) + valUSD;
   });
@@ -7510,8 +7516,11 @@ function renderInsightsHistory(txs) {
     </div>`;
 }
 
+// PR-6: insights/legacy helper now delegates to the canonical USD total
+// so AI surfaces, decision insights and risk scoring see the same number
+// the dashboard does (with gold purity + FX normalisation applied).
 function getTotalPortfolioValue() {
-  return assets.reduce((sum, a) => sum + a.qty * a.price, 0);
+  return totalValueUSD();
 }
 
 function own(asset) {
@@ -7604,7 +7613,9 @@ function generateBaseInsights() {
   });
 
   // Confidence-risk: concentrated book in profit
-  const totalPnl   = assets.reduce((s, a) => s + (a.costBasis > 0 ? a.qty * a.price - a.costBasis : 0), 0);
+  // PR-6: PnL accumulator uses the canonical USD valuation so this matches
+  // the dashboard's totalPnL (gold karat + EUR normalised).
+  const totalPnl   = assets.reduce((s, a) => s + (a.costBasis > 0 ? assetValueUSD(a) - a.costBasis : 0), 0);
   const portPnlPct = totalValue > 0 && totalPnl > 0 ? Math.round((totalPnl / totalValue) * 100) : 0;
   if (portPnlPct > 10 && maxAsset && concPct > 40) {
     const nk = maxAsset.name.replace(/\s+/g, '_');
@@ -8441,10 +8452,12 @@ async function generateInsights() {
   let marketInsight = null;
   try {
     const market      = await getMarketSignals();
-    const total       = assets.reduce((s, a) => s + a.qty * a.price, 0);
-    const cryptoValue = assets.filter(a => a.type === 'crypto').reduce((s, a) => s + a.qty * a.price, 0);
-    const cashValue   = assets.filter(a => a.type === 'cash').reduce((s, a) => s + a.qty * a.price, 0);
-    const topCrypto   = assets.filter(a => a.type === 'crypto').sort((a, b) => b.qty * b.price - a.qty * a.price)[0];
+    // PR-6: read from the canonical USD valuation so AI exposure/liquidity
+    // ratios match the dashboard totals exactly (gold karat + FX applied).
+    const total       = totalValueUSD();
+    const cryptoValue = assets.filter(a => a.type === 'crypto').reduce((s, a) => s + assetValueUSD(a), 0);
+    const cashValue   = assets.filter(a => a.type === 'cash').reduce((s, a) => s + assetValueUSD(a), 0);
+    const topCrypto   = assets.filter(a => a.type === 'crypto').sort((a, b) => assetValueUSD(b) - assetValueUSD(a))[0];
     const portfolio   = {
       cryptoExposure: total > 0 ? (cryptoValue / total) * 100 : 0,
       liquidity:      total > 0 ? (cashValue   / total) * 100 : 0,
@@ -12231,6 +12244,7 @@ txForm.addEventListener('submit', e => {
       syncCostBasisFromTransactions(asset);
       save();
       render();
+      onPortfolioChange(true);
       const editedAssetId = _txAssetId;
       closeTxModal();
       openAssetDetailModal(editedAssetId);
@@ -12239,6 +12253,7 @@ txForm.addEventListener('submit', e => {
     const addedAssetId = _txAssetId;
     addTransaction(_txAssetId, txTypeHidden.value, qty, price);
     render();
+    onPortfolioChange(true);
     closeTxModal();
     openAssetDetailModal(addedAssetId);
   }
@@ -12371,6 +12386,7 @@ document.getElementById('adTxList').addEventListener('click', e => {
     syncCostBasisFromTransactions(asset);
     save();
     render();
+    onPortfolioChange(true);
     openAssetDetailModal(assetId);
   }
 });
