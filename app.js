@@ -572,6 +572,51 @@ const T = {
     ws_invalid_formula:    'Fórmula inválida',
     ws_unknown_function:   'Función desconocida',
     ws_invalid_range:      'Rango inválido',
+    // PR-5 i18n unification — chip lookup, alerts, watchlist, AI actions
+    searchLoading:           'Buscando…',
+    lookupLoading:           'Obteniendo precio...',
+    lookupError:             'Precio no disponible. Selecciona el activo de nuevo para reintentar.',
+    invalidQty:              'Cantidad inválida',
+    invalidPrice:            'Precio inválido',
+    sellExceeds:             max => `No puedes vender más de lo que tienes (${max})`,
+    watchlistTrackEmpty:     'Añade activos para seguir el mercado',
+    watchlistModalEmpty:     'No hay activos disponibles',
+    watchlistModalNoResults: 'Sin resultados',
+    aiActionPerformance:     'Ver rendimiento',
+    aiActionDistribution:    'Ver distribución',
+    aiActionActivity:        'Ver operaciones',
+    aiActionLiquidity:       'Ver liquidez',
+    ownPrefix:               asset => `Tu ${asset}`,
+    txBadgeBuy:              'BUY',
+    txBadgeSell:             'SELL',
+    addCtxFallback:          '+ Añadir',
+    // PR-5 i18n unification — workspace cards & risk signals
+    wsCardPortfolioValue:    'Valor de cartera',
+    wsCardDailyPnl:          'P&L diario',
+    wsCardTopAlloc:          'Asignación principal',
+    wsCardCryptoExposure:    'Exposición cripto',
+    wsCardAssetCount:        'Nº de activos',
+    wsCardRiskScore:         'Riesgo',
+    wsRiskBandHigh:          'Alto',
+    wsRiskBandModerate:      'Moderado',
+    wsRiskBandLow:           'Bajo',
+    wsConcentration:         'Concentración',
+    wsExposureLabel:         'Exposición',
+    wsVolatility:            'Volatilidad',
+    wsTopAssetFallback:      'Activo principal',
+    wsConcentrationAbove:    (sym, pct) => `${sym} concentración por encima de ${pct}%`,
+    wsDominantWeight:        (sym, pct) => `${sym} peso dominante (${pct}%)`,
+    wsLowDiversification:    count => `Baja diversificación (${count} posiciones)`,
+    wsBalancedExposure:      'Exposición equilibrada',
+    wsCryptoExposureHigh:    pct => `Exposición cripto elevada (${pct}%)`,
+    wsCryptoExposureMid:     pct => `Exposición cripto ${pct}%`,
+    wsEquityWeight:          pct => `Peso renta variable ${pct}%`,
+    wsExposureNormal:        'Exposición dentro del rango normal',
+    wsSensitivityIncreased:  'Sensibilidad de cartera elevada',
+    wsModerateVolatility:    'Volatilidad moderada',
+    wsSyncingMarket:         'Sincronizando actualizaciones de mercado',
+    wsStableSignal:          'Señal estable',
+    wsNoActiveSignals:       'Sin señales de riesgo activas',
     // Beta screen
     exit: 'Salir',
   },
@@ -854,6 +899,51 @@ const T = {
     ws_invalid_formula:    'Invalid formula',
     ws_unknown_function:   'Unknown function',
     ws_invalid_range:      'Invalid range',
+    // PR-5 i18n unification — chip lookup, alerts, watchlist, AI actions
+    searchLoading:           'Searching…',
+    lookupLoading:           'Fetching price...',
+    lookupError:             'Price unavailable. Select the asset again to retry.',
+    invalidQty:              'Invalid quantity',
+    invalidPrice:            'Invalid price',
+    sellExceeds:             max => `Cannot sell more than you own (${max})`,
+    watchlistTrackEmpty:     'Add assets to track the market',
+    watchlistModalEmpty:     'No assets available',
+    watchlistModalNoResults: 'No results',
+    aiActionPerformance:     'View performance',
+    aiActionDistribution:    'View distribution',
+    aiActionActivity:        'View activity',
+    aiActionLiquidity:       'View liquidity',
+    ownPrefix:               asset => `Your ${asset}`,
+    txBadgeBuy:              'BUY',
+    txBadgeSell:             'SELL',
+    addCtxFallback:          '+ Add',
+    // PR-5 i18n unification — workspace cards & risk signals
+    wsCardPortfolioValue:    'Portfolio Value',
+    wsCardDailyPnl:          'Daily P&L',
+    wsCardTopAlloc:          'Top Allocation',
+    wsCardCryptoExposure:    'Crypto Exposure',
+    wsCardAssetCount:        'Asset Count',
+    wsCardRiskScore:         'Risk Score',
+    wsRiskBandHigh:          'High',
+    wsRiskBandModerate:      'Moderate',
+    wsRiskBandLow:           'Low',
+    wsConcentration:         'Concentration',
+    wsExposureLabel:         'Exposure',
+    wsVolatility:            'Volatility',
+    wsTopAssetFallback:      'Top asset',
+    wsConcentrationAbove:    (sym, pct) => `${sym} concentration above ${pct}%`,
+    wsDominantWeight:        (sym, pct) => `${sym} dominant weight (${pct}%)`,
+    wsLowDiversification:    count => `Low diversification (${count} positions)`,
+    wsBalancedExposure:      'Balanced exposure',
+    wsCryptoExposureHigh:    pct => `Crypto exposure elevated (${pct}%)`,
+    wsCryptoExposureMid:     pct => `Crypto exposure ${pct}%`,
+    wsEquityWeight:          pct => `Equity weight ${pct}%`,
+    wsExposureNormal:        'Exposure within normal range',
+    wsSensitivityIncreased:  'Portfolio sensitivity increased',
+    wsModerateVolatility:    'Moderate volatility profile',
+    wsSyncingMarket:         'Syncing market updates',
+    wsStableSignal:          'Stable signal',
+    wsNoActiveSignals:       'No active risk signals',
     // Beta screen
     exit: 'Exit',
   },
@@ -4464,56 +4554,56 @@ function _buildWorkspaceRiskCategories() {
   const concentration = [];
   const top = allocations[0];
   if (top && Number(top.allocation || 0) > 0.5) {
-    const sym = top.symbol || 'Top asset';
+    const sym = top.symbol || t('wsTopAssetFallback');
     const pct = (Number(top.allocation || 0) * 100).toFixed(0);
-    concentration.push({ tone: 'warn', text: `${sym} concentration above ${pct}%` });
+    concentration.push({ tone: 'warn', text: t('wsConcentrationAbove')(sym, pct) });
   } else if (top && Number(top.allocation || 0) > 0.35) {
-    const sym = top.symbol || 'Top asset';
+    const sym = top.symbol || t('wsTopAssetFallback');
     const pct = (Number(top.allocation || 0) * 100).toFixed(0);
-    concentration.push({ tone: 'info', text: `${sym} dominant weight (${pct}%)` });
+    concentration.push({ tone: 'info', text: t('wsDominantWeight')(sym, pct) });
   }
   if (assetCount > 0 && assetCount < 4) {
-    concentration.push({ tone: 'info', text: `Low diversification (${assetCount} positions)` });
+    concentration.push({ tone: 'info', text: t('wsLowDiversification')(assetCount) });
   }
-  if (!concentration.length) concentration.push({ tone: 'ok', text: 'Balanced exposure' });
+  if (!concentration.length) concentration.push({ tone: 'ok', text: t('wsBalancedExposure') });
 
   const exposureSignals = [];
   if (totalValue > 0) {
     const crypto = Number(exposure.crypto || 0);
     const cryptoPct = crypto / totalValue;
     if (cryptoPct > 0.4) {
-      exposureSignals.push({ tone: 'warn', text: `Crypto exposure elevated (${(cryptoPct * 100).toFixed(0)}%)` });
+      exposureSignals.push({ tone: 'warn', text: t('wsCryptoExposureHigh')((cryptoPct * 100).toFixed(0)) });
     } else if (cryptoPct > 0.15) {
-      exposureSignals.push({ tone: 'info', text: `Crypto exposure ${(cryptoPct * 100).toFixed(0)}%` });
+      exposureSignals.push({ tone: 'info', text: t('wsCryptoExposureMid')((cryptoPct * 100).toFixed(0)) });
     }
     const stocks = Number(exposure.stock || exposure.stocks || 0);
     const stocksPct = stocks / totalValue;
     if (stocksPct > 0.6) {
-      exposureSignals.push({ tone: 'info', text: `Equity weight ${(stocksPct * 100).toFixed(0)}%` });
+      exposureSignals.push({ tone: 'info', text: t('wsEquityWeight')((stocksPct * 100).toFixed(0)) });
     }
   }
   if (!exposureSignals.length) {
-    exposureSignals.push({ tone: 'ok', text: 'Exposure within normal range' });
+    exposureSignals.push({ tone: 'ok', text: t('wsExposureNormal') });
   }
 
   const volatility = [];
   if (totalValue > 0) {
     const cryptoPct = Number(exposure.crypto || 0) / totalValue;
     if (cryptoPct > 0.4) {
-      volatility.push({ tone: 'warn', text: 'Portfolio sensitivity increased' });
+      volatility.push({ tone: 'warn', text: t('wsSensitivityIncreased') });
     } else if (cryptoPct > 0.2) {
-      volatility.push({ tone: 'info', text: 'Moderate volatility profile' });
+      volatility.push({ tone: 'info', text: t('wsModerateVolatility') });
     }
   }
   if (WORKSPACE_RUNTIME.stale) {
-    volatility.push({ tone: 'info', text: 'Syncing market updates' });
+    volatility.push({ tone: 'info', text: t('wsSyncingMarket') });
   }
-  if (!volatility.length) volatility.push({ tone: 'ok', text: 'Stable signal' });
+  if (!volatility.length) volatility.push({ tone: 'ok', text: t('wsStableSignal') });
 
   return [
-    { id: 'concentration', label: 'Concentration', signals: concentration },
-    { id: 'exposure',      label: 'Exposure',      signals: exposureSignals },
-    { id: 'volatility',    label: 'Volatility',    signals: volatility },
+    { id: 'concentration', label: t('wsConcentration'), signals: concentration },
+    { id: 'exposure',      label: t('wsExposureLabel'), signals: exposureSignals },
+    { id: 'volatility',    label: t('wsVolatility'),    signals: volatility },
   ];
 }
 
@@ -4526,7 +4616,7 @@ function _buildWorkspaceCopilotMessages() {
       if (s.tone !== 'ok') out.push(s.text);
     }
   }
-  if (!out.length) out.push('No active risk signals');
+  if (!out.length) out.push(t('wsNoActiveSignals'));
   return out;
 }
 
@@ -4742,37 +4832,37 @@ function _renderWorkspaceMobile(sheet) {
   if (assetCount > 0 && assetCount < 4) riskScore += 10;
   if (assetCount === 0) riskScore = 0;
   riskScore = Math.min(100, Math.max(0, Math.round(riskScore)));
-  const riskBand = riskScore >= 60 ? 'High' : riskScore >= 35 ? 'Moderate' : 'Low';
+  const riskBand = riskScore >= 60 ? t('wsRiskBandHigh') : riskScore >= 35 ? t('wsRiskBandModerate') : t('wsRiskBandLow');
 
   const cards = [
     {
-      label: 'Portfolio Value',
+      label: t('wsCardPortfolioValue'),
       value: assetCount === 0 ? '—' : fmtMoney(totalValue),
       tone:  'neutral',
     },
     {
-      label: 'Daily P&L',
+      label: t('wsCardDailyPnl'),
       value: dailyPnl == null ? '—' : fmtSigned(dailyPnl),
       hint:  dailyPnlPct == null ? null : (dailyPnlPct >= 0 ? '+' : '') + dailyPnlPct.toFixed(2) + '%',
       tone:  dailyPnl == null ? 'neutral' : (dailyPnl >= 0 ? 'positive' : 'negative'),
     },
     {
-      label: 'Top Allocation',
+      label: t('wsCardTopAlloc'),
       value: topLabel,
       tone:  'neutral',
     },
     {
-      label: 'Crypto Exposure',
+      label: t('wsCardCryptoExposure'),
       value: assetCount === 0 ? '—' : cryptoPct.toFixed(1) + '%',
       tone:  cryptoPct > 40 ? 'warn' : 'neutral',
     },
     {
-      label: 'Asset Count',
+      label: t('wsCardAssetCount'),
       value: String(assetCount),
       tone:  'neutral',
     },
     {
-      label: 'Risk Score',
+      label: t('wsCardRiskScore'),
       value: assetCount === 0 ? '—' : String(riskScore),
       hint:  assetCount === 0 ? null : riskBand,
       tone:  riskScore >= 60 ? 'warn' : (riskScore >= 35 ? 'info' : 'positive'),
@@ -7382,7 +7472,7 @@ function getAllTransactions() {
 function renderTxRow(tx) {
   const total     = tx.qty * tx.price;
   const date      = new Date(tx.ts).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-GB');
-  const typeLabel = tx.type === 'buy' ? 'BUY' : 'SELL';
+  const typeLabel = tx.type === 'buy' ? t('txBadgeBuy') : t('txBadgeSell');
   return `
     <div class="tx-row">
       <div class="tx-left">
@@ -7425,7 +7515,7 @@ function getTotalPortfolioValue() {
 }
 
 function own(asset) {
-  return `Tu ${asset}`;
+  return t('ownPrefix')(asset);
 }
 
 function generateBaseInsights() {
@@ -8444,10 +8534,10 @@ async function generateInsights() {
   }
 
   const ACTION_MAP = {
-    performance:   { label: 'Ver rendimiento', type: 'view_performance'  },
-    concentration: { label: 'Ver distribución', type: 'view_distribution' },
-    activity:      { label: 'Ver operaciones', type: 'view_activity'     },
-    liquidity:     { label: 'Ver liquidez',    type: 'view_liquidity'    },
+    performance:   { label: t('aiActionPerformance'),  type: 'view_performance'  },
+    concentration: { label: t('aiActionDistribution'), type: 'view_distribution' },
+    activity:      { label: t('aiActionActivity'),     type: 'view_activity'     },
+    liquidity:     { label: t('aiActionLiquidity'),    type: 'view_liquidity'    },
   };
 
   const finalPool = pool.map(i => ({
@@ -10054,7 +10144,7 @@ function render(animate = false) {
   const btnAddCtxEl = document.getElementById('btnAddContext');
   if (btnAddCtxEl) {
     if (activeCategory) {
-      btnAddCtxEl.textContent = (T[lang].addCtx || {})[activeCategory] || '+ Añadir';
+      btnAddCtxEl.textContent = (T[lang].addCtx || {})[activeCategory] || t('addCtxFallback');
       btnAddCtxEl.style.display = '';
     } else {
       btnAddCtxEl.style.display = 'none';
@@ -10567,7 +10657,7 @@ function renderSuggestions(results, query, loading = false) {
   renderedSuggestions = results;
 
   const loadingHtml = loading
-    ? `<div class="suggestion-loading"><span class="sugg-dot-anim">···</span> Buscando…</div>`
+    ? `<div class="suggestion-loading"><span class="sugg-dot-anim">···</span> ${t('searchLoading')}</div>`
     : '';
 
   if (!results.length) {
@@ -10633,7 +10723,7 @@ async function selectAsset(entry) {
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = isGoldEntry ? '' : 'none';
   if (qtyLabelEl)      qtyLabelEl.textContent        = isGoldEntry ? t('qtyGold')(pendingGoldUnit) : t('qty');
 
-  setLookupStatus('loading', 'Obteniendo precio...');
+  setLookupStatus('loading', t('lookupLoading'));
 
   try {
     let price = null;
@@ -11346,7 +11436,7 @@ assetForm.addEventListener('submit', e => {
 
   if (!selectedDbAsset) return;
   if (!pendingPrice) {
-    setLookupStatus('error', 'Precio no disponible. Selecciona el activo de nuevo para reintentar.');
+    setLookupStatus('error', t('lookupError'));
     return;
   }
 
@@ -12054,11 +12144,11 @@ function validateTransaction(asset, tx) {
   syncQtyFromTransactions(asset);
   const qty   = Number(tx.qty)   || 0;
   const price = Number(tx.price) || 0;
-  if (qty   <= 0) { alert('Cantidad inválida');  return false; }
-  if (price <= 0) { alert('Precio inválido');    return false; }
+  if (qty   <= 0) { alert(t('invalidQty'));   return false; }
+  if (price <= 0) { alert(t('invalidPrice')); return false; }
   if (tx.type === 'sell') {
     const currentQty = asset.qty || 0;
-    if (qty > currentQty) { alert(`No puedes vender más de lo que tienes (${currentQty})`); return false; }
+    if (qty > currentQty) { alert(t('sellExceeds')(currentQty)); return false; }
   }
   return true;
 }
@@ -13433,7 +13523,7 @@ const marketStore = (() => {
       content.innerHTML =
         '<div class="watchlist-empty">' +
           '<div class="watchlist-empty-dot"></div>' +
-          '<span>Añade activos para seguir el mercado</span>' +
+          '<span>' + t('watchlistTrackEmpty') + '</span>' +
         '</div>';
       return;
     }
@@ -13558,7 +13648,7 @@ function _wlRenderPanel() {
 
   if (filtered.length === 0) {
     results.innerHTML = '<div class="watchlist-modal-empty" style="padding:8px 0 0">' +
-      (hidden.length === 0 ? 'No hay activos disponibles' : 'Sin resultados') + '</div>';
+      (hidden.length === 0 ? t('watchlistModalEmpty') : t('watchlistModalNoResults')) + '</div>';
   } else {
     results.innerHTML = filtered.map(a =>
       '<div class="add-asset-result" data-key="' + (a.sym || a.name) + '">' +
