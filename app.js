@@ -7577,11 +7577,86 @@ function _toTitleCase(str) {
 }
 
 function _figiToAssetType(secType, secType2) {
+  // MC-4 note: mutual funds (secType "Mutual Fund") currently map to 'etf'
+  // via the t1.includes('fund') branch. This is intentional for now —
+  // the rest of the codebase only knows {stock, etf, crypto, metal,
+  // commodity, index}, and pricing for non-ETF funds is unreliable
+  // via the existing provider chain. A dedicated 'fund' type with NAV-
+  // daily pricing is deferred to a follow-up PR.
   const t1 = (secType  || '').toLowerCase();
   const t2 = (secType2 || '').toLowerCase();
   if (t1 === 'etp' || t2.includes('etf') || t1.includes('fund') || t2.includes('fund')) return 'etf';
   if (t1 === 'common stock' || t1 === 'equity' || t1.includes('share')) return 'stock';
   return 'other';
+}
+
+// MC-4: deterministic listing preference for OpenFIGI ISIN resolution.
+// OpenFIGI returns multiple listings per ISIN in unpredictable order;
+// before this fix `items.find(US) || items[0]` produced different
+// tickers across runs for the same ISIN. The lists below are ranked
+// once at module init.
+//
+// EU-domiciled instruments (non-US ISINs) follow European retail UX
+// preferences: SM (Spain BME) first because the primary user surface
+// is MyInvestor / EU brokers, then the major Continental exchanges,
+// then LSE, then other EU/APAC, with US as last resort.
+//
+// US-domiciled instruments (ISIN starting "US") keep the historical
+// US-first behavior so Apple / Tesla / Berkshire resolve to their
+// canonical US listing.
+const _FIGI_EXCH_PREFERENCE_EU = [
+  'SM',                              // Spain (BME / Madrid)
+  'GY', 'GX', 'GF',                  // Germany Xetra / Frankfurt
+  'LN',                              // London
+  'NA',                              // Amsterdam
+  'IM',                              // Milan
+  'FP',                              // Paris (Euronext)
+  'SW',                              // Switzerland (SIX)
+  'SS', 'NO', 'DC', 'HE', 'AV',      // Stockholm, Oslo, Copenhagen, Helsinki, Vienna
+  'BB', 'PL',                        // Brussels, Lisbon
+  'AU', 'JP',                        // Sydney, Tokyo
+  'US', 'UW', 'UN', 'UA', 'UP',      // US listings as final fallback
+];
+const _FIGI_EXCH_PREFERENCE_US = [
+  'US', 'UW', 'UN', 'UA', 'UP',
+  ..._FIGI_EXCH_PREFERENCE_EU.filter(c => !['US','UW','UN','UA','UP'].includes(c)),
+];
+const _FIGI_EXCH_RANK_EU = (() => {
+  const m = Object.create(null);
+  _FIGI_EXCH_PREFERENCE_EU.forEach((c, i) => { m[c] = i; });
+  return m;
+})();
+const _FIGI_EXCH_RANK_US = (() => {
+  const m = Object.create(null);
+  _FIGI_EXCH_PREFERENCE_US.forEach((c, i) => { m[c] = i; });
+  return m;
+})();
+
+// Pick a single OpenFIGI item deterministically. Output is independent
+// of OpenFIGI's response ordering. Ranking tiers:
+//   1. exchCode preference (EU or US table, by ISIN country)
+//   2. ticker alphabetical (when two listings share the same rank,
+//      e.g. multiple .L share classes — pick the alphabetically first)
+//   3. exchCode alphabetical (final tiebreaker for total ordering)
+// Unknown exchanges still get a deterministic result via tiers 2/3
+// rather than leaking through OpenFIGI's array order.
+function _pickFigiListing(items, isin) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const isUsDomiciled = String(isin || '').slice(0, 2).toUpperCase() === 'US';
+  const rankMap = isUsDomiciled ? _FIGI_EXCH_RANK_US : _FIGI_EXCH_RANK_EU;
+  const scored = items.filter(Boolean).map(it => ({
+    item: it,
+    rank: (rankMap[it.exchCode] != null) ? rankMap[it.exchCode] : Infinity,
+    tk:   String(it.ticker   || ''),
+    ec:   String(it.exchCode || ''),
+  }));
+  if (scored.length === 0) return null;
+  scored.sort((a, b) =>
+    a.rank - b.rank
+    || a.tk.localeCompare(b.tk)
+    || a.ec.localeCompare(b.ec)
+  );
+  return scored[0].item;
 }
 
 async function getAssetFromISIN(isin, signal) {
@@ -7605,8 +7680,12 @@ async function getAssetFromISIN(isin, signal) {
     const items = json?.data;
     if (!items?.length) return cacheNull();
 
-    // Prefer US-listed ticker; else take first result
-    const item   = items.find(i => ['US','UW','UN','UA','UP'].includes(i.exchCode)) || items[0];
+    // MC-4: deterministic listing pick. US-domiciled ISINs (US...)
+    // keep US-first preference; everything else follows the European
+    // retail order (SM → GY → LN → NA → IM → FP → SW → others). Same
+    // ISIN always resolves to the same ticker/exchange.
+    const item   = _pickFigiListing(items, isin);
+    if (!item) return cacheNull();
     const ticker = item.ticker || '';
     const exch   = item.exchCode || 'US';
     const suffix = FIGI_EXCH_SUFFIX[exch] ?? '';
