@@ -658,15 +658,22 @@ const T = {
     wsSyncLive:              'Mercado al día',
     wsSyncOffline:           'Sin sincronización reciente',
     ws_mobile_note:          'La edición tipo hoja está disponible en escritorio. En móvil se muestran los indicadores clave.',
-    globalSearchPH:           'Buscar activo...',
-    globalSearchHintEmpty:    'Escribe para buscar cualquier activo.',
-    globalSearchNoResults:    'Sin resultados',
-    globalSearchEmptyTitle:   'Busca cualquier activo',
-    globalSearchEmptySub:     'Acciones, cripto, ETFs, fondos, índices y materias primas',
+    globalSearchPH:           'Busca BTC, Tesla, IWDA, Oro...',
+    globalSearchHeroTitle:    'Buscar activos',
+    globalSearchHeroSub:      'Encuentra acciones, cripto, ETFs, fondos, índices y materias primas',
+    globalSearchTrending:     'Populares',
+    globalSearchCategories:   'Categorías',
+    globalSearchRecent:       'Recientes',
     globalSearchLoading:      'Buscando…',
+    globalSearchNoResults:    'Sin resultados',
     globalSearchNoResultsHint:'No encontramos coincidencias. Prueba con otro nombre o ticker.',
-    gs_view_details:          'Ver',
     gs_add_to_portfolio:      '+ Añadir',
+    gs_cat_crypto:            'Cripto',
+    gs_cat_stocks:            'Acciones',
+    gs_cat_etfs:              'ETFs',
+    gs_cat_funds:             'Fondos',
+    gs_cat_indices:           'Índices',
+    gs_cat_commodities:       'Materias primas',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Plantillas',
     ws_assistant_title:      'Asistente de Workspace',
@@ -1100,15 +1107,22 @@ const T = {
     wsSyncLive:              'Market live',
     wsSyncOffline:           'No recent sync',
     ws_mobile_note:          'Spreadsheet editing is available on desktop. Mobile shows key workspace insights.',
-    globalSearchPH:           'Search any asset...',
-    globalSearchHintEmpty:    'Type to search any asset.',
-    globalSearchNoResults:    'No results',
-    globalSearchEmptyTitle:   'Search any asset',
-    globalSearchEmptySub:     'Stocks, crypto, ETFs, funds, indices and commodities',
+    globalSearchPH:           'Search BTC, Tesla, IWDA, Gold...',
+    globalSearchHeroTitle:    'Search assets',
+    globalSearchHeroSub:      'Find stocks, crypto, ETFs, funds, indices and commodities',
+    globalSearchTrending:     'Trending',
+    globalSearchCategories:   'Categories',
+    globalSearchRecent:       'Recent',
     globalSearchLoading:      'Searching…',
+    globalSearchNoResults:    'No results',
     globalSearchNoResultsHint:"We couldn't find a match. Try another name or ticker.",
-    gs_view_details:          'View',
     gs_add_to_portfolio:      '+ Add',
+    gs_cat_crypto:            'Crypto',
+    gs_cat_stocks:            'Stocks',
+    gs_cat_etfs:              'ETFs',
+    gs_cat_funds:             'Funds',
+    gs_cat_indices:           'Indices',
+    gs_cat_commodities:       'Commodities',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Templates',
     ws_assistant_title:      'Workspace Assistant',
@@ -12814,45 +12828,95 @@ const _GLOBAL_SEARCH = {
   debounce:  null,
 };
 
-// GLOBAL-SEARCH-2: handful of well-known assets surfaced as quick-tap
-// chips below the empty state. Each entry is just a search query string
-// piped into the existing searchAllAssets pipeline — no new providers,
-// no hardcoded data flowing into the portfolio.
-const _GS_QUICK_CHIPS = [
-  { label: 'BTC',     q: 'BTC' },
-  { label: 'TSLA',    q: 'TSLA' },
-  { label: 'S&P 500', q: 'S&P 500' },
-  { label: 'IWDA',    q: 'IWDA' },
-  { label: 'Fidelity',q: 'Fidelity' },
-  { label: 'Gold',    q: 'Gold' },
+// GLOBAL-SEARCH-2: trending + category quick-tap chips surfaced in the
+// empty state. Each entry is just a search query string piped into the
+// existing searchAllAssets pipeline — no new providers, no hardcoded
+// data flowing into the portfolio.
+const _GS_TRENDING = [
+  { label:'BTC',  q:'BTC'  },
+  { label:'ETH',  q:'ETH'  },
+  { label:'TSLA', q:'TSLA' },
+  { label:'NVDA', q:'NVDA' },
+  { label:'SPY',  q:'SPY'  },
+  { label:'QQQ',  q:'QQQ'  },
+  { label:'IWDA', q:'IWDA' },
+  { label:'VWCE', q:'VWCE' },
+  { label:'Gold', q:'Gold' },
 ];
+
+// Category chips prefill a representative query so the user sees real
+// results immediately. No new search engine: every query goes through
+// the same searchAllAssets pipeline as a normal text search.
+const _GS_CATEGORIES = [
+  { i18n:'gs_cat_crypto',      q:'BTC'     },
+  { i18n:'gs_cat_stocks',      q:'AAPL'    },
+  { i18n:'gs_cat_etfs',        q:'SPY'     },
+  { i18n:'gs_cat_funds',       q:'Fidelity'},
+  { i18n:'gs_cat_indices',     q:'S&P 500' },
+  { i18n:'gs_cat_commodities', q:'Gold'    },
+];
+
+// Recent searches — capped at 5, query string only (no portfolio data
+// and no metadata about the user's holdings).
+const _GS_RECENT_KEY    = 'aurix.gs.recent.v1';
+const _GS_RECENT_MAX    = 5;
+const _GS_RECENT_MAX_LEN= 32;
+
+function _gsLoadRecent() {
+  try {
+    const raw = localStorage.getItem(_GS_RECENT_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter(s => typeof s === 'string').slice(0, _GS_RECENT_MAX) : [];
+  } catch (_) { return []; }
+}
+function _gsSaveRecent(q) {
+  const v = String(q || '').trim();
+  if (!v || v.length > _GS_RECENT_MAX_LEN) return;
+  try {
+    const cur = _gsLoadRecent();
+    const next = [v, ...cur.filter(x => x.toLowerCase() !== v.toLowerCase())].slice(0, _GS_RECENT_MAX);
+    localStorage.setItem(_GS_RECENT_KEY, JSON.stringify(next));
+  } catch (_) {}
+}
 
 function _gsInit() {
   if (_GLOBAL_SEARCH.el) return _GLOBAL_SEARCH.el;
   const el = document.getElementById('globalSearchOverlay');
   if (!el) return null;
-  _GLOBAL_SEARCH.el      = el;
-  _GLOBAL_SEARCH.input   = document.getElementById('globalSearchInput');
-  _GLOBAL_SEARCH.results = document.getElementById('globalSearchResults');
-  _GLOBAL_SEARCH.hint    = document.getElementById('globalSearchHint');
-  _GLOBAL_SEARCH.empty   = document.getElementById('globalSearchEmpty');
-  _GLOBAL_SEARCH.loading = document.getElementById('globalSearchLoading');
-  _GLOBAL_SEARCH.chips   = document.getElementById('globalSearchChips');
+  _GLOBAL_SEARCH.el         = el;
+  _GLOBAL_SEARCH.input      = document.getElementById('globalSearchInput');
+  _GLOBAL_SEARCH.results    = document.getElementById('globalSearchResults');
+  _GLOBAL_SEARCH.hint       = document.getElementById('globalSearchHint');
+  _GLOBAL_SEARCH.empty      = document.getElementById('globalSearchEmpty');
+  _GLOBAL_SEARCH.loading    = document.getElementById('globalSearchLoading');
+  _GLOBAL_SEARCH.trending   = document.getElementById('globalSearchTrending');
+  _GLOBAL_SEARCH.categories = document.getElementById('globalSearchCategories');
+  _GLOBAL_SEARCH.recentSection = document.getElementById('globalSearchRecentSection');
+  _GLOBAL_SEARCH.recentChips   = document.getElementById('globalSearchRecentChips');
 
-  // Render quick-search chips once at init. Click delegation lives on
-  // the container so chip text/i18n changes don't require rewiring.
-  if (_GLOBAL_SEARCH.chips) {
-    _GLOBAL_SEARCH.chips.innerHTML = _GS_QUICK_CHIPS.map(c =>
+  // Trending chips — static at init, never re-rendered.
+  if (_GLOBAL_SEARCH.trending) {
+    _GLOBAL_SEARCH.trending.innerHTML = _GS_TRENDING.map(c =>
       `<button type="button" class="gs-chip" data-gs-chip="${_gsEscape(c.q)}">${_gsEscape(c.label)}</button>`
     ).join('');
-    _GLOBAL_SEARCH.chips.addEventListener('click', e => {
-      const chip = e.target.closest('[data-gs-chip]');
-      if (!chip || !_GLOBAL_SEARCH.input) return;
-      _GLOBAL_SEARCH.input.value = chip.dataset.gsChip;
-      _GLOBAL_SEARCH.input.focus();
-      _gsRunSearch();
-    });
   }
+  // Category chips — labels via i18n so language switch reflows them.
+  if (_GLOBAL_SEARCH.categories) {
+    _GLOBAL_SEARCH.categories.innerHTML = _GS_CATEGORIES.map(c =>
+      `<button type="button" class="gs-chip is-cat" data-gs-chip="${_gsEscape(c.q)}">${_gsEscape(t(c.i18n) || c.q)}</button>`
+    ).join('');
+  }
+
+  // Single delegated handler for every chip container — trending,
+  // categories and recents share the same data-gs-chip contract.
+  el.addEventListener('click', e => {
+    const chip = e.target.closest('[data-gs-chip]');
+    if (!chip || !_GLOBAL_SEARCH.input) return;
+    _GLOBAL_SEARCH.input.value = chip.dataset.gsChip;
+    _GLOBAL_SEARCH.input.focus();
+    _gsRunSearch();
+  });
 
   // Input → debounced search via the existing searchAllAssets pipeline.
   _GLOBAL_SEARCH.input?.addEventListener('input', () => {
@@ -12867,9 +12931,9 @@ function _gsInit() {
     if (e.key === 'Escape' && !el.hidden) closeGlobalSearch();
   });
 
-  // Delegated row clicks: "Add" routes through the existing Add Asset
-  // flow (modal + selectAsset); "View" is a placeholder pending the
-  // future detail page.
+  // Delegated row clicks: only one action — "Add" routes through the
+  // existing Add Asset flow (modal + selectAsset). No "View" button:
+  // the asset detail page isn't ready and we don't ship dead controls.
   _GLOBAL_SEARCH.results?.addEventListener('click', e => {
     const btn = e.target.closest('[data-gs-action]');
     if (!btn) return;
@@ -12881,12 +12945,25 @@ function _gsInit() {
     if (btn.dataset.gsAction === 'add') {
       closeGlobalSearch();
       _openAddAssetWithFund(item);
-    } else if (btn.dataset.gsAction === 'view') {
-      console.log('[global-search] view details (placeholder):', item.ticker, item.name);
     }
   });
 
   return el;
+}
+
+// Render the Recent chip row (or hide the section if empty). Called
+// every time the overlay opens so newly stored searches surface.
+function _gsRenderRecent() {
+  if (!_GLOBAL_SEARCH.recentSection || !_GLOBAL_SEARCH.recentChips) return;
+  const recent = _gsLoadRecent();
+  if (!recent.length) {
+    _GLOBAL_SEARCH.recentSection.hidden = true;
+    return;
+  }
+  _GLOBAL_SEARCH.recentChips.innerHTML = recent.map(q =>
+    `<button type="button" class="gs-chip is-recent" data-gs-chip="${_gsEscape(q)}">${_gsEscape(q)}</button>`
+  ).join('');
+  _GLOBAL_SEARCH.recentSection.hidden = false;
 }
 
 // GLOBAL-SEARCH-2: explicit state machine — empty / loading / results /
@@ -12928,6 +13005,7 @@ function openGlobalSearch() {
   }
   _GLOBAL_SEARCH.lastQuery = '';
   _GLOBAL_SEARCH._lastItems = [];
+  _gsRenderRecent();
   _gsSetState('empty');
 }
 
@@ -12970,6 +13048,9 @@ async function _gsRunSearch() {
     _gsSetState('noresults');
     return;
   }
+  // Persist the query as a "recent" so the next open surfaces it.
+  // Only on success (≥1 result) to avoid polluting the row with typos.
+  _gsSaveRecent(q);
   _gsSetState('results');
   _gsRenderResults(items);
 
@@ -13005,8 +13086,7 @@ function _gsEscape(s) {
 
 function _gsRenderResults(items) {
   if (!_GLOBAL_SEARCH.results || !items.length) return;
-  const addLabel  = t('gs_add_to_portfolio') || '+ Añadir';
-  const viewLabel = t('gs_view_details')     || 'Ver';
+  const addLabel = t('gs_add_to_portfolio') || '+ Añadir';
   _GLOBAL_SEARCH.results.innerHTML = items.map((item, i) => {
     const b = _gsBadgeFor(item.type);
     return `
@@ -13020,7 +13100,6 @@ function _gsRenderResults(items) {
           <div class="gs-row-meta">—</div>
         </div>
         <div class="gs-row-actions">
-          <button class="gs-row-btn" type="button" data-gs-action="view">${_gsEscape(viewLabel)}</button>
           <button class="gs-row-btn is-primary" type="button" data-gs-action="add">${_gsEscape(addLabel)}</button>
         </div>
       </li>
