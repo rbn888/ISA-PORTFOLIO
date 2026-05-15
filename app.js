@@ -617,6 +617,71 @@ const T = {
     wsSyncingMarket:         'Sincronizando actualizaciones de mercado',
     wsStableSignal:          'Señal estable',
     wsNoActiveSignals:       'Sin señales de riesgo activas',
+    // PR-WP6D: workspace assistant + template panel
+    ws_templates_btn:        'Plantillas',
+    ws_assistant_title:      'Asistente de Workspace',
+    ws_templates_section:    'Plantillas',
+    ws_assistant_placeholder:'Pide a Aurix que cree un workspace...',
+    ws_assistant_build:      'Crear',
+    ws_err_empty:            'introduce un prompt',
+    ws_err_too_long:         max => `prompt demasiado largo (máx ${max} caracteres)`,
+    ws_err_no_ticker:        'incluye un ticker (p.ej. "analyze TSLA")',
+    ws_err_unsupported:      'prompt no soportado — prueba "resumen de cartera", "panel de riesgo", "analyze TSLA", "watch BTC TSLA", "dividend tracker" o "FIRE"',
+    ws_err_build_failed:     'no se pudo crear la plantilla',
+    ws_confirm_apply:        name => `¿Aplicar "${name}"? Esto reemplazará las celdas actuales del workspace (las celdas del sistema se conservan).`,
+    ws_prompt_ticker:        'Símbolo para el Analizador de Posición:',
+    // PR-WP6D: template selector entries
+    ws_tpl_overview_name:    'Visión de cartera',
+    ws_tpl_overview_desc:    'Métricas clave de cartera más precios en vivo de BTC y TSLA',
+    ws_tpl_risk_name:        'Monitor de riesgo',
+    ws_tpl_risk_desc:        'Exposición, vigilancia de concentración y top holdings',
+    ws_tpl_position_name:    'Analizador de posición',
+    ws_tpl_position_desc:    'Inspecciona una posición (pide ticker; por defecto TSLA)',
+    ws_tpl_market_name:      'Vigilancia de mercado',
+    ws_tpl_market_desc:      'Precios en vivo y cambio 24h para BTC, ETH, TSLA, AAPL, SPY y S&P 500',
+    ws_tpl_dividend_name:    'Seguimiento de dividendos',
+    ws_tpl_dividend_desc:    'Introduce cantidad y dividendo por acción por ticker — el ingreso anual se calcula automáticamente',
+    ws_tpl_fire_name:        'Calculadora FIRE',
+    ws_tpl_fire_desc:        'Edita B6-B11 para modelar tu escenario; B12 proyecta valor futuro vía interés compuesto',
+    // PR-WP6D: in-cell labels written by WP-4 / WP-6 templates (rendered via @i18n:)
+    wsTplPortfolioPnl:       'P&L de cartera',
+    wsTplPortfolioPnlPct:    'P&L % de cartera',
+    wsTplCryptoExposure:     'Exposición cripto',
+    wsTplBtcPrice:           'Precio BTC',
+    wsTplTslaPrice:          'Precio TSLA',
+    wsTplConcWatch:          'Vigilancia de concentración',
+    wsTplBtcAlloc:           'Asignación BTC',
+    wsTplEthAlloc:           'Asignación ETH',
+    wsTplTslaAlloc:          'Asignación TSLA',
+    wsTplTopHoldings:        'Top holdings (en vivo)',
+    wsTplBtcValue:           'Valor BTC',
+    wsTplEthValue:           'Valor ETH',
+    wsTplTslaValue:          'Valor TSLA',
+    wsTplPositionAnalyzer:   'Analizador de posición',
+    wsTplTicker:             'Ticker',
+    wsTplQuantity:           'Cantidad',
+    wsTplPrice:              'Precio',
+    wsTplValue:              'Valor',
+    wsTplCostBasis:          'Coste',
+    wsTplPnl:                'P&L',
+    wsTplPnlPct:             'P&L %',
+    wsTpl24hChange:          'Cambio 24h %',
+    wsTplMarketWatch:        'Vigilancia de mercado',
+    wsTplSymbol:             'Símbolo',
+    wsTpl24hPct:             '24h %',
+    wsTplDividendTracker:    'Seguimiento de dividendos',
+    wsTplQty:                'Cantidad',
+    wsTplDivPerShare:        'Div/acción',
+    wsTplAnnual:             'Anual',
+    wsTplTotal:              'Total',
+    wsTplFireCalc:           'Calculadora FIRE',
+    wsTplCurrentAge:         'Edad actual',
+    wsTplTargetAge:          'Edad objetivo',
+    wsTplYears:              'Años',
+    wsTplCurrentSavings:     'Ahorros actuales',
+    wsTplAnnualContrib:      'Aportación anual',
+    wsTplExpectedReturn:     'Rentabilidad esperada %',
+    wsTplFutureValue:        'Valor futuro',
     // Beta screen
     exit: 'Salir',
   },
@@ -944,6 +1009,71 @@ const T = {
     wsSyncingMarket:         'Syncing market updates',
     wsStableSignal:          'Stable signal',
     wsNoActiveSignals:       'No active risk signals',
+    // PR-WP6D: workspace assistant + template panel
+    ws_templates_btn:        'Templates',
+    ws_assistant_title:      'Workspace Assistant',
+    ws_templates_section:    'Templates',
+    ws_assistant_placeholder:'Ask Aurix to build a workspace...',
+    ws_assistant_build:      'Build',
+    ws_err_empty:            'enter a prompt',
+    ws_err_too_long:         max => `prompt too long (max ${max} chars)`,
+    ws_err_no_ticker:        'please include a ticker (e.g. "analyze TSLA")',
+    ws_err_unsupported:      'unsupported prompt — try "portfolio summary", "risk dashboard", "analyze TSLA", "watch BTC TSLA", "dividend tracker", or "FIRE calculator"',
+    ws_err_build_failed:     'could not build template',
+    ws_confirm_apply:        name => `Apply "${name}"? This replaces current workspace cells (system seeds preserved).`,
+    ws_prompt_ticker:        'Ticker symbol for Position Analyzer:',
+    // PR-WP6D: template selector entries
+    ws_tpl_overview_name:    'Portfolio Overview',
+    ws_tpl_overview_desc:    'Key portfolio metrics plus live BTC and TSLA prices',
+    ws_tpl_risk_name:        'Risk Monitor',
+    ws_tpl_risk_desc:        'Exposure, concentration watch, and top holdings',
+    ws_tpl_position_name:    'Position Analyzer',
+    ws_tpl_position_desc:    'Inspect any holding (asks for ticker; defaults to TSLA)',
+    ws_tpl_market_name:      'Market Watch',
+    ws_tpl_market_desc:      'Live prices and 24h change for BTC, ETH, TSLA, AAPL, SPY and S&P 500',
+    ws_tpl_dividend_name:    'Dividend Tracker',
+    ws_tpl_dividend_desc:    'Enter qty and div/share per ticker — annual income computes automatically',
+    ws_tpl_fire_name:        'FIRE Calculator',
+    ws_tpl_fire_desc:        'Edit B6-B11 to model your scenario; B12 projects future value via compounding',
+    // PR-WP6D: in-cell labels written by WP-4 / WP-6 templates (rendered via @i18n:)
+    wsTplPortfolioPnl:       'Portfolio PnL',
+    wsTplPortfolioPnlPct:    'Portfolio PnL %',
+    wsTplCryptoExposure:     'Crypto Exposure',
+    wsTplBtcPrice:           'BTC Price',
+    wsTplTslaPrice:          'TSLA Price',
+    wsTplConcWatch:          'Concentration Watch',
+    wsTplBtcAlloc:           'BTC alloc',
+    wsTplEthAlloc:           'ETH alloc',
+    wsTplTslaAlloc:          'TSLA alloc',
+    wsTplTopHoldings:        'Top Holdings (live)',
+    wsTplBtcValue:           'BTC value',
+    wsTplEthValue:           'ETH value',
+    wsTplTslaValue:          'TSLA value',
+    wsTplPositionAnalyzer:   'Position Analyzer',
+    wsTplTicker:             'Ticker',
+    wsTplQuantity:           'Quantity',
+    wsTplPrice:              'Price',
+    wsTplValue:              'Value',
+    wsTplCostBasis:          'Cost Basis',
+    wsTplPnl:                'PnL',
+    wsTplPnlPct:             'PnL %',
+    wsTpl24hChange:          '24h Change %',
+    wsTplMarketWatch:        'Market Watch',
+    wsTplSymbol:             'Symbol',
+    wsTpl24hPct:             '24h %',
+    wsTplDividendTracker:    'Dividend Tracker',
+    wsTplQty:                'Qty',
+    wsTplDivPerShare:        'Div/Share',
+    wsTplAnnual:             'Annual',
+    wsTplTotal:              'Total',
+    wsTplFireCalc:           'FIRE Calculator',
+    wsTplCurrentAge:         'Current Age',
+    wsTplTargetAge:          'Target Age',
+    wsTplYears:              'Years',
+    wsTplCurrentSavings:     'Current Savings',
+    wsTplAnnualContrib:      'Annual Contribution',
+    wsTplExpectedReturn:     'Expected Return %',
+    wsTplFutureValue:        'Future Value',
     // Beta screen
     exit: 'Exit',
   },
@@ -2485,6 +2615,14 @@ const WORKSPACE_RUNTIME = {
   // automatically when the FC pipeline updates.
   lastMarketVersion:        0,
   lastDerivedVersion:       0,
+  // PR-WP6D: in-memory flag tracking whether the user has typed / pasted /
+  // formatted / cleared a workspace cell since the last template apply.
+  // Distinguishes "fresh / template-only sheet" (no confirm needed) from
+  // "user has done meaningful work" (confirm before overwriting). Reset to
+  // false on _wp4ApplyTemplate; set true on every commit / paste / format /
+  // clear / undo / redo. Hydrate sets it true when the persisted sheet has
+  // any non-default cell so reload of saved user work still gates confirm.
+  userTouched:              false,
   // AW-9.1: formula autocomplete UX state. Pure presentation — editing source
   // of truth remains editingValue. Desktop-only; mobile gates it via viewport.
   autocompleteOpen:           false,
@@ -3928,6 +4066,14 @@ const _AW8_FINANCIAL_FUNCTIONS = Object.freeze({
     if (args.length !== 1 || args[0].type !== 'str') throw new _AwEvalError('#ERROR');
     const symbol = String(args[0].value || '').trim();
     if (!symbol) throw new _AwEvalError('#ERROR');
+    // Canonical: MARKET_DATA only. Routes through getMarketAsset →
+    // resolveAsset → MARKET_SYMBOL_ALIASES. PRICE NEVER reads asset.price
+    // because asset.price is the user's persisted native-currency entry
+    // (EUR for SAN.MC, gold-karat encoded for XAU/XAG, etc) and the
+    // workspace contract is USD only. Cells may surface #ERROR until
+    // MARKET_DATA loads the symbol; the workspace reactive subscriber
+    // (market:update → recalculateWorkspaceSheet → MARKET:* propagation)
+    // re-evaluates them automatically on the next commitMarketData.
     const price = (typeof getMarketPrice === 'function') ? getMarketPrice(symbol) : null;
     if (price == null || !Number.isFinite(price)) throw new _AwEvalError('#ERROR');
     return price;
@@ -4927,6 +5073,28 @@ function _rebuildAndRecomputeAll(sheet) {
   WORKSPACE_RUNTIME.lastGraphBuildAt = Date.now();
 }
 
+// PR-WP6D: scans the sheet for non-default user cells. "Default" here means
+// the system readonly seeds (B1/B2/B3) and the @i18n: label seeds at A1/A2/A3.
+// Anything else (typed value, user formula, custom format) counts as user
+// content and should trigger the apply-confirmation gate.
+function _wp6dHasNonDefaultCells(sheet) {
+  if (!sheet || !sheet.cells) return false;
+  for (const [id, c] of sheet.cells) {
+    if (!c || c.readonly) continue;
+    if ((id === 'A1' || id === 'A2' || id === 'A3') &&
+        c.type === 'value' && typeof c.value === 'string' &&
+        c.value.startsWith('@i18n:')) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+function _wp6dShouldConfirmOverwrite() {
+  return WORKSPACE_RUNTIME.userTouched === true;
+}
+
 function beginWorkspaceCellEdit(cellId, initialValue) {
   if (!_isCellInGridBounds(cellId)) return false;
   const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
@@ -5052,6 +5220,7 @@ function commitWorkspaceCellEdit(cellId, value) {
   _propagateWorkspaceChange(targetId);
   // AW-7.3: persistir tras mutación efectiva (no en el no-op de empty input).
   saveWorkspacePersistence();
+  WORKSPACE_RUNTIME.userTouched = true;   // PR-WP6D
   return true;
 }
 
@@ -5242,6 +5411,11 @@ function _hydrateWorkspaceFromPersistence() {
   // payloads without `layout` simply leave the maps empty so default
   // grid-template-* fall back to the CSS defaults.
   try { _wp3DeserializeLayout(payload.sheets.main.layout); } catch (_) {}
+  // PR-WP6D: persistence can't distinguish typed content from a template
+  // apply, so any non-default content after hydrate gates the confirm prompt.
+  if (typeof _wp6dHasNonDefaultCells === 'function' && _wp6dHasNonDefaultCells(sheet)) {
+    WORKSPACE_RUNTIME.userTouched = true;
+  }
   console.log('[workspace-persist] hydrated', { applied });
   return applied;
 }
@@ -5582,7 +5756,7 @@ function _renderWorkspaceDesktop(sheet) {
         <div class="aurix-sheet-name">${_escapeWorkspaceText(sheet.name)}</div>
         <button type="button" data-aurix-templates
           style="padding:7px 14px;border:1px solid rgba(255,255,255,0.14);border-radius:6px;background:rgba(255,255,255,0.05);color:#e8e8ea;font-family:inherit;font-size:11.5px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;font-weight:600;white-space:nowrap"
-          aria-label="Open workspace templates">Templates</button>
+          aria-label="Open workspace templates">${_escapeWorkspaceText(t('ws_templates_btn') || 'Templates')}</button>
       </header>
       <div class="aurix-workspace-body">
         <section class="aurix-grid-panel" role="grid" aria-label="Spreadsheet" tabindex="0">
@@ -13634,6 +13808,7 @@ function _aw8dUndo() {
   if (_AW8D.history.index <= 0) return false;
   _AW8D.history.index--;
   _aw8dApplyHistorySnapshot(_AW8D.history.stack[_AW8D.history.index]);
+  WORKSPACE_RUNTIME.userTouched = true;   // PR-WP6D: undo is user intent
   return true;
 }
 
@@ -13641,6 +13816,7 @@ function _aw8dRedo() {
   if (_AW8D.history.index >= _AW8D.history.stack.length - 1) return false;
   _AW8D.history.index++;
   _aw8dApplyHistorySnapshot(_AW8D.history.stack[_AW8D.history.index]);
+  WORKSPACE_RUNTIME.userTouched = true;   // PR-WP6D: redo is user intent
   return true;
 }
 
@@ -13753,6 +13929,7 @@ async function _aw8dPasteAt(targetId) {
     }
   }
   saveWorkspacePersistence();
+  WORKSPACE_RUNTIME.userTouched = true;   // PR-WP6D
   recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
   if (typeof renderWorkspace === 'function') renderWorkspace();
 }
@@ -13772,6 +13949,7 @@ function _aw8dApplyFormatToSelection(format) {
   }
   if (!touched) return;
   saveWorkspacePersistence();
+  WORKSPACE_RUNTIME.userTouched = true;   // PR-WP6D
   if (typeof renderWorkspace === 'function') renderWorkspace();
 }
 
@@ -14039,6 +14217,7 @@ function _wp3ClearSelection(fallbackId) {
   }
   if (!changed) return;
   saveWorkspacePersistence();
+  WORKSPACE_RUNTIME.userTouched = true;   // PR-WP6D
   recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
   renderWorkspace();
 }
@@ -14181,21 +14360,23 @@ const _WP4_TEMPLATES = [
     id:          'portfolio-overview',
     name:        'Portfolio Overview',
     description: 'Key portfolio metrics plus live BTC and TSLA prices',
+    nameKey:     'ws_tpl_overview_name',
+    descKey:     'ws_tpl_overview_desc',
     build: () => [
       // A1-A3 carry @i18n: labels so EN/ES toggle keeps working; B1-B3 are
       // system readonly (Portfolio Value / Asset Count / Top Allocation).
       { id: 'A1', type: 'value',   value: '@i18n:wsCardPortfolioValue' },
       { id: 'A2', type: 'value',   value: '@i18n:wsCardAssetCount' },
       { id: 'A3', type: 'value',   value: '@i18n:wsCardTopAlloc' },
-      { id: 'A4', type: 'value',   value: 'Portfolio PnL' },
+      { id: 'A4', type: 'value',   value: '@i18n:wsTplPortfolioPnl' },
       { id: 'B4', type: 'formula', formula: '=PORTFOLIO.PNL()',     format: 'currency' },
-      { id: 'A5', type: 'value',   value: 'Portfolio PnL %' },
+      { id: 'A5', type: 'value',   value: '@i18n:wsTplPortfolioPnlPct' },
       { id: 'B5', type: 'formula', formula: '=PORTFOLIO.PNL_PCT()', format: 'number'   },
-      { id: 'A6', type: 'value',   value: 'Crypto Exposure' },
+      { id: 'A6', type: 'value',   value: '@i18n:wsTplCryptoExposure' },
       { id: 'B6', type: 'formula', formula: '=EXPOSURE("crypto")',  format: 'currency' },
-      { id: 'A7', type: 'value',   value: 'BTC Price' },
+      { id: 'A7', type: 'value',   value: '@i18n:wsTplBtcPrice' },
       { id: 'B7', type: 'formula', formula: '=PRICE("BTC")',        format: 'currency' },
-      { id: 'A8', type: 'value',   value: 'TSLA Price' },
+      { id: 'A8', type: 'value',   value: '@i18n:wsTplTslaPrice' },
       { id: 'B8', type: 'formula', formula: '=PRICE("TSLA")',       format: 'currency' },
     ],
   },
@@ -14203,31 +14384,33 @@ const _WP4_TEMPLATES = [
     id:          'risk-monitor',
     name:        'Risk Monitor',
     description: 'Exposure, concentration watch, and top holdings',
+    nameKey:     'ws_tpl_risk_name',
+    descKey:     'ws_tpl_risk_desc',
     build: () => [
       { id: 'A1', type: 'value',   value: '@i18n:wsCardPortfolioValue' },
       { id: 'A2', type: 'value',   value: '@i18n:wsCardAssetCount' },
       { id: 'A3', type: 'value',   value: '@i18n:wsCardTopAlloc' },
-      { id: 'A4', type: 'value',   value: 'Portfolio PnL' },
+      { id: 'A4', type: 'value',   value: '@i18n:wsTplPortfolioPnl' },
       { id: 'B4', type: 'formula', formula: '=PORTFOLIO.PNL()',     format: 'currency' },
-      { id: 'A5', type: 'value',   value: 'Portfolio PnL %' },
+      { id: 'A5', type: 'value',   value: '@i18n:wsTplPortfolioPnlPct' },
       { id: 'B5', type: 'formula', formula: '=PORTFOLIO.PNL_PCT()', format: 'number'   },
-      { id: 'A6', type: 'value',   value: 'Crypto Exposure' },
+      { id: 'A6', type: 'value',   value: '@i18n:wsTplCryptoExposure' },
       { id: 'B6', type: 'formula', formula: '=EXPOSURE("crypto")',  format: 'currency' },
       // Concentration watch
-      { id: 'A8',  type: 'value',   value: 'Concentration Watch' },
-      { id: 'A9',  type: 'value',   value: 'BTC alloc'  },
+      { id: 'A8',  type: 'value',   value: '@i18n:wsTplConcWatch' },
+      { id: 'A9',  type: 'value',   value: '@i18n:wsTplBtcAlloc'  },
       { id: 'B9',  type: 'formula', formula: '=ALLOCATION("BTC")',  format: 'number' },
-      { id: 'A10', type: 'value',   value: 'ETH alloc'  },
+      { id: 'A10', type: 'value',   value: '@i18n:wsTplEthAlloc'  },
       { id: 'B10', type: 'formula', formula: '=ALLOCATION("ETH")',  format: 'number' },
-      { id: 'A11', type: 'value',   value: 'TSLA alloc' },
+      { id: 'A11', type: 'value',   value: '@i18n:wsTplTslaAlloc' },
       { id: 'B11', type: 'formula', formula: '=ALLOCATION("TSLA")', format: 'number' },
       // Top holdings (live)
-      { id: 'A13', type: 'value',   value: 'Top Holdings (live)' },
-      { id: 'A14', type: 'value',   value: 'BTC value'  },
+      { id: 'A13', type: 'value',   value: '@i18n:wsTplTopHoldings' },
+      { id: 'A14', type: 'value',   value: '@i18n:wsTplBtcValue'  },
       { id: 'B14', type: 'formula', formula: '=ASSET.VALUE("BTC")',  format: 'currency' },
-      { id: 'A15', type: 'value',   value: 'ETH value'  },
+      { id: 'A15', type: 'value',   value: '@i18n:wsTplEthValue'  },
       { id: 'B15', type: 'formula', formula: '=ASSET.VALUE("ETH")',  format: 'currency' },
-      { id: 'A16', type: 'value',   value: 'TSLA value' },
+      { id: 'A16', type: 'value',   value: '@i18n:wsTplTslaValue' },
       { id: 'B16', type: 'formula', formula: '=ASSET.VALUE("TSLA")', format: 'currency' },
     ],
   },
@@ -14235,33 +14418,35 @@ const _WP4_TEMPLATES = [
     id:          'position-analyzer',
     name:        'Position Analyzer',
     description: 'Inspect any holding (asks for ticker; defaults to TSLA)',
+    nameKey:     'ws_tpl_position_name',
+    descKey:     'ws_tpl_position_desc',
     needsTicker: true,
     build: (ticker) => {
       // ASSET.* requires a literal string arg today (see PR-8C registry — no
       // engine relaxation in WP-4). Templates bake the ticker into each
       // formula at apply time; users re-apply the template to switch ticker.
-      const t = String(ticker || 'TSLA').trim().toUpperCase() || 'TSLA';
+      const tk = String(ticker || 'TSLA').trim().toUpperCase() || 'TSLA';
       return [
         { id: 'A1', type: 'value',   value: '@i18n:wsCardPortfolioValue' },
         { id: 'A2', type: 'value',   value: '@i18n:wsCardAssetCount' },
         { id: 'A3', type: 'value',   value: '@i18n:wsCardTopAlloc' },
-        { id: 'A5', type: 'value',   value: 'Position Analyzer' },
-        { id: 'A6', type: 'value',   value: 'Ticker' },
-        { id: 'B6', type: 'value',   value: t },
-        { id: 'A7', type: 'value',   value: 'Quantity' },
-        { id: 'B7', type: 'formula', formula: `=ASSET.QTY("${t}")`,        format: 'number'   },
-        { id: 'A8', type: 'value',   value: 'Price' },
-        { id: 'B8', type: 'formula', formula: `=ASSET.PRICE("${t}")`,      format: 'currency' },
-        { id: 'A9', type: 'value',   value: 'Value' },
-        { id: 'B9', type: 'formula', formula: `=ASSET.VALUE("${t}")`,      format: 'currency' },
-        { id: 'A10', type: 'value',  value: 'Cost Basis' },
-        { id: 'B10', type: 'formula', formula: `=ASSET.COST("${t}")`,      format: 'currency' },
-        { id: 'A11', type: 'value',  value: 'PnL' },
-        { id: 'B11', type: 'formula', formula: `=ASSET.PNL("${t}")`,       format: 'currency' },
-        { id: 'A12', type: 'value',  value: 'PnL %' },
-        { id: 'B12', type: 'formula', formula: `=ASSET.PNL_PCT("${t}")`,   format: 'number'   },
-        { id: 'A13', type: 'value',  value: '24h Change %' },
-        { id: 'B13', type: 'formula', formula: `=PRICE.CHANGE24H("${t}")`, format: 'number'   },
+        { id: 'A5', type: 'value',   value: '@i18n:wsTplPositionAnalyzer' },
+        { id: 'A6', type: 'value',   value: '@i18n:wsTplTicker' },
+        { id: 'B6', type: 'value',   value: tk },
+        { id: 'A7', type: 'value',   value: '@i18n:wsTplQuantity' },
+        { id: 'B7', type: 'formula', formula: `=ASSET.QTY("${tk}")`,        format: 'number'   },
+        { id: 'A8', type: 'value',   value: '@i18n:wsTplPrice' },
+        { id: 'B8', type: 'formula', formula: `=ASSET.PRICE("${tk}")`,      format: 'currency' },
+        { id: 'A9', type: 'value',   value: '@i18n:wsTplValue' },
+        { id: 'B9', type: 'formula', formula: `=ASSET.VALUE("${tk}")`,      format: 'currency' },
+        { id: 'A10', type: 'value',  value: '@i18n:wsTplCostBasis' },
+        { id: 'B10', type: 'formula', formula: `=ASSET.COST("${tk}")`,      format: 'currency' },
+        { id: 'A11', type: 'value',  value: '@i18n:wsTplPnl' },
+        { id: 'B11', type: 'formula', formula: `=ASSET.PNL("${tk}")`,       format: 'currency' },
+        { id: 'A12', type: 'value',  value: '@i18n:wsTplPnlPct' },
+        { id: 'B12', type: 'formula', formula: `=ASSET.PNL_PCT("${tk}")`,   format: 'number'   },
+        { id: 'A13', type: 'value',  value: '@i18n:wsTpl24hChange' },
+        { id: 'B13', type: 'formula', formula: `=PRICE.CHANGE24H("${tk}")`, format: 'number'   },
       ];
     },
   },
@@ -14269,15 +14454,17 @@ const _WP4_TEMPLATES = [
     id:          'market-watch',
     name:        'Market Watch',
     description: 'Live prices and 24h change for BTC, ETH, TSLA, AAPL, SPY, S&P 500',
+    nameKey:     'ws_tpl_market_name',
+    descKey:     'ws_tpl_market_desc',
     build: () => {
       const rows = [
         { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
         { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
         { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
-        { id: 'A5', type: 'value', value: 'Market Watch' },
-        { id: 'A6', type: 'value', value: 'Symbol' },
-        { id: 'B6', type: 'value', value: 'Price' },
-        { id: 'C6', type: 'value', value: '24h %' },
+        { id: 'A5', type: 'value', value: '@i18n:wsTplMarketWatch' },
+        { id: 'A6', type: 'value', value: '@i18n:wsTplSymbol' },
+        { id: 'B6', type: 'value', value: '@i18n:wsTplPrice' },
+        { id: 'C6', type: 'value', value: '@i18n:wsTpl24hPct' },
       ];
       // S&P 500 uses the canonical ^GSPC symbol. PRICE() resolves via the
       // alias map; PRICE.CHANGE24H does a direct MARKET_DATA lookup, so the
@@ -14300,6 +14487,26 @@ const _WP4_TEMPLATES = [
     },
   },
 ];
+
+// PR-WP6D: localized display helpers for the template selector + confirm
+// dialog. Falls back to the embedded English name/desc if a key is missing
+// (or if t() isn't ready, e.g. during early boot).
+function _wp4TemplateName(tpl) {
+  if (!tpl) return '';
+  if (tpl.nameKey && typeof t === 'function') {
+    const tr = t(tpl.nameKey);
+    if (tr) return tr;
+  }
+  return tpl.name || '';
+}
+function _wp4TemplateDescription(tpl) {
+  if (!tpl) return '';
+  if (tpl.descKey && typeof t === 'function') {
+    const tr = t(tpl.descKey);
+    if (tr) return tr;
+  }
+  return tpl.description || '';
+}
 
 function _wp4ApplyTemplate(template, ticker) {
   const sheet = WORKSPACE_RUNTIME.sheets.get('main');
@@ -14330,6 +14537,9 @@ function _wp4ApplyTemplate(template, ticker) {
   // render so the user sees computed values on the first frame.
   _rebuildAndRecomputeAll(sheet);
   saveWorkspacePersistence();
+  // PR-WP6D: template apply resets userTouched. Subsequent template applies
+  // skip confirmation as long as the user hasn't edited / pasted / cleared.
+  WORKSPACE_RUNTIME.userTouched = false;
   if (typeof renderWorkspace === 'function') renderWorkspace();
   return true;
 }
@@ -14346,18 +14556,24 @@ function _wp4CloseSelector() {
 }
 
 function _wp4ConfirmAndApply(template) {
-  const sheet = WORKSPACE_RUNTIME.sheets.get('main');
-  const hasUserData = sheet && [...sheet.cells.values()].some(c => c && !c.readonly);
   let ticker = null;
   if (template.needsTicker) {
+    const promptMsg = (typeof t === 'function' && t('ws_prompt_ticker')) || 'Ticker symbol for Position Analyzer:';
     const raw = (typeof window !== 'undefined' && window.prompt)
-      ? window.prompt('Ticker symbol for Position Analyzer:', 'TSLA')
+      ? window.prompt(promptMsg, 'TSLA')
       : 'TSLA';
     if (raw == null) return;       // user cancelled the prompt
     ticker = String(raw).trim().toUpperCase() || 'TSLA';
   }
-  if (hasUserData && typeof window !== 'undefined' && window.confirm) {
-    const ok = window.confirm(`Apply "${template.name}"? This replaces current workspace cells (system seeds preserved).`);
+  // PR-WP6D: only confirm when the user has actually touched the workspace
+  // since the last template apply. Fresh / template-only sheets skip the
+  // dialog so applying one template after another is friction-free.
+  if (_wp6dShouldConfirmOverwrite() && typeof window !== 'undefined' && window.confirm) {
+    const fn = (typeof t === 'function') ? t('ws_confirm_apply') : null;
+    const msg = (typeof fn === 'function')
+      ? fn(_wp4TemplateName(template))
+      : `Apply "${_wp4TemplateName(template)}"? This replaces current workspace cells (system seeds preserved).`;
+    const ok = window.confirm(msg);
     if (!ok) return;
   }
   _wp4ApplyTemplate(template, ticker);
@@ -14389,7 +14605,7 @@ function _wp4OpenSelector(anchor) {
   ].join(';');
 
   const title = document.createElement('div');
-  title.textContent = 'Workspace Assistant';
+  title.textContent = (typeof t === 'function' && t('ws_assistant_title')) || 'Workspace Assistant';
   title.style.cssText = 'padding:6px 16px 8px;color:#a3a3a9;text-transform:uppercase;letter-spacing:0.08em;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px';
   menu.appendChild(title);
 
@@ -14397,7 +14613,7 @@ function _wp4OpenSelector(anchor) {
   try { _wp6cInjectAssistant(menu); } catch (_) { /* assistant best-effort */ }
 
   const tplsTitle = document.createElement('div');
-  tplsTitle.textContent = 'Templates';
+  tplsTitle.textContent = (typeof t === 'function' && t('ws_templates_section')) || 'Templates';
   tplsTitle.style.cssText = 'padding:8px 16px 6px;color:#a3a3a9;text-transform:uppercase;letter-spacing:0.08em;font-size:10.5px;margin-top:4px';
   menu.appendChild(tplsTitle);
 
@@ -14407,10 +14623,10 @@ function _wp4OpenSelector(anchor) {
     row.style.cssText = 'padding:10px 16px;cursor:pointer';
     const name = document.createElement('div');
     name.style.cssText = 'font-weight:600';
-    name.textContent = tpl.name;
+    name.textContent = _wp4TemplateName(tpl);
     const desc = document.createElement('div');
     desc.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px;line-height:1.4';
-    desc.textContent = tpl.description;
+    desc.textContent = _wp4TemplateDescription(tpl);
     row.appendChild(name);
     row.appendChild(desc);
     row.addEventListener('mouseenter', () => { row.style.background = 'rgba(255,255,255,0.06)'; });
@@ -14585,16 +14801,16 @@ function _wp6LookupWP4(id) {
 const _WP6_INTENT_HANDLERS = {
   portfolio_summary: () => {
     const tpl = _wp6LookupWP4('portfolio-overview');
-    return { title: 'Portfolio Summary', description: tpl.description, cells: tpl.build() };
+    return { title: 'Portfolio Summary', titleKey: 'ws_tpl_overview_name', description: tpl.description, cells: tpl.build() };
   },
   risk_dashboard: () => {
     const tpl = _wp6LookupWP4('risk-monitor');
-    return { title: 'Risk Dashboard', description: tpl.description, cells: tpl.build() };
+    return { title: 'Risk Dashboard', titleKey: 'ws_tpl_risk_name', description: tpl.description, cells: tpl.build() };
   },
   position_analysis: (params) => {
     const tpl = _wp6LookupWP4('position-analyzer');
     const ticker = String((params && params.ticker) || 'TSLA').trim().toUpperCase() || 'TSLA';
-    return { title: 'Position Analysis', description: tpl.description, cells: tpl.build(ticker) };
+    return { title: 'Position Analysis', titleKey: 'ws_tpl_position_name', description: tpl.description, cells: tpl.build(ticker) };
   },
   market_watch: (params) => {
     // params.symbols: optional list of tickers; sanitized to non-empty
@@ -14605,7 +14821,7 @@ const _WP6_INTENT_HANDLERS = {
     const requested = (params && Array.isArray(params.symbols)) ? params.symbols : null;
     if (!requested || requested.length === 0) {
       const tpl = _wp6LookupWP4('market-watch');
-      return { title: 'Market Watch', description: tpl.description, cells: tpl.build() };
+      return { title: 'Market Watch', titleKey: 'ws_tpl_market_name', description: tpl.description, cells: tpl.build() };
     }
     const seen = new Set();
     const symbols = [];
@@ -14619,16 +14835,16 @@ const _WP6_INTENT_HANDLERS = {
     }
     if (symbols.length === 0) {
       const tpl = _wp6LookupWP4('market-watch');
-      return { title: 'Market Watch', description: tpl.description, cells: tpl.build() };
+      return { title: 'Market Watch', titleKey: 'ws_tpl_market_name', description: tpl.description, cells: tpl.build() };
     }
     const cells = [
       { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
       { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
       { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
-      { id: 'A5', type: 'value', value: 'Market Watch' },
-      { id: 'A6', type: 'value', value: 'Symbol' },
-      { id: 'B6', type: 'value', value: 'Price' },
-      { id: 'C6', type: 'value', value: '24h %' },
+      { id: 'A5', type: 'value', value: '@i18n:wsTplMarketWatch' },
+      { id: 'A6', type: 'value', value: '@i18n:wsTplSymbol' },
+      { id: 'B6', type: 'value', value: '@i18n:wsTplPrice' },
+      { id: 'C6', type: 'value', value: '@i18n:wsTpl24hPct' },
     ];
     symbols.forEach((sym, i) => {
       const r = 7 + i;
@@ -14638,6 +14854,7 @@ const _WP6_INTENT_HANDLERS = {
     });
     return {
       title: 'Market Watch',
+      titleKey: 'ws_tpl_market_name',
       description: `Live prices and 24h change for ${symbols.length} ticker${symbols.length === 1 ? '' : 's'}`,
       cells,
     };
@@ -14650,11 +14867,11 @@ const _WP6_INTENT_HANDLERS = {
       { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
       { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
       { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
-      { id: 'A5', type: 'value', value: 'Dividend Tracker' },
-      { id: 'A6', type: 'value', value: 'Symbol' },
-      { id: 'B6', type: 'value', value: 'Qty' },
-      { id: 'C6', type: 'value', value: 'Div/Share' },
-      { id: 'D6', type: 'value', value: 'Annual' },
+      { id: 'A5', type: 'value', value: '@i18n:wsTplDividendTracker' },
+      { id: 'A6', type: 'value', value: '@i18n:wsTplSymbol' },
+      { id: 'B6', type: 'value', value: '@i18n:wsTplQty' },
+      { id: 'C6', type: 'value', value: '@i18n:wsTplDivPerShare' },
+      { id: 'D6', type: 'value', value: '@i18n:wsTplAnnual' },
     ];
     tickers.forEach((sym, i) => {
       const r = 7 + i;
@@ -14663,10 +14880,11 @@ const _WP6_INTENT_HANDLERS = {
       cells.push({ id: `C${r}`, type: 'value',   value: 0, format: 'currency' });
       cells.push({ id: `D${r}`, type: 'formula', formula: `=B${r}*C${r}`, format: 'currency' });
     });
-    cells.push({ id: 'A14', type: 'value',   value: 'Total' });
+    cells.push({ id: 'A14', type: 'value',   value: '@i18n:wsTplTotal' });
     cells.push({ id: 'D14', type: 'formula', formula: '=SUM(D7:D12)', format: 'currency' });
     return {
       title: 'Dividend Tracker',
+      titleKey: 'ws_tpl_dividend_name',
       description: 'Enter qty and div/share per ticker — annual income computes automatically',
       cells,
     };
@@ -14681,25 +14899,26 @@ const _WP6_INTENT_HANDLERS = {
     const retPct   = Number.isFinite(+p.expectedReturn) ? +p.expectedReturn : 7;
     return {
       title: 'FIRE Calculator',
+      titleKey: 'ws_tpl_fire_name',
       description: 'Edit B6-B11 to model your scenario; B12 projects future value via compounding',
       cells: [
         { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
         { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
         { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
-        { id: 'A5',  type: 'value',   value: 'FIRE Calculator' },
-        { id: 'A6',  type: 'value',   value: 'Current Age' },
+        { id: 'A5',  type: 'value',   value: '@i18n:wsTplFireCalc' },
+        { id: 'A6',  type: 'value',   value: '@i18n:wsTplCurrentAge' },
         { id: 'B6',  type: 'value',   value: ageNow,  format: 'integer' },
-        { id: 'A7',  type: 'value',   value: 'Target Age' },
+        { id: 'A7',  type: 'value',   value: '@i18n:wsTplTargetAge' },
         { id: 'B7',  type: 'value',   value: ageGoal, format: 'integer' },
-        { id: 'A8',  type: 'value',   value: 'Years' },
+        { id: 'A8',  type: 'value',   value: '@i18n:wsTplYears' },
         { id: 'B8',  type: 'formula', formula: '=B7-B6', format: 'integer' },
-        { id: 'A9',  type: 'value',   value: 'Current Savings' },
+        { id: 'A9',  type: 'value',   value: '@i18n:wsTplCurrentSavings' },
         { id: 'B9',  type: 'value',   value: savings, format: 'currency' },
-        { id: 'A10', type: 'value',   value: 'Annual Contribution' },
+        { id: 'A10', type: 'value',   value: '@i18n:wsTplAnnualContrib' },
         { id: 'B10', type: 'value',   value: contrib, format: 'currency' },
-        { id: 'A11', type: 'value',   value: 'Expected Return %' },
+        { id: 'A11', type: 'value',   value: '@i18n:wsTplExpectedReturn' },
         { id: 'B11', type: 'value',   value: retPct,  format: 'number' },
-        { id: 'A12', type: 'value',   value: 'Future Value' },
+        { id: 'A12', type: 'value',   value: '@i18n:wsTplFutureValue' },
         { id: 'B12', type: 'formula',
           formula: '=B9*POW(1+B11/100,B8)+B10*(POW(1+B11/100,B8)-1)/(B11/100)',
           format: 'currency' },
@@ -14724,11 +14943,14 @@ function _wp6ApplyIntent(intent, params) {
   if (template.error) return { ok: false, errors: [template.error] };
   const v = validateAITemplate(template);
   if (!v.ok) return v;
-  // Reuse WP-4 confirmation if the user has non-readonly data on the sheet.
-  const sheet = WORKSPACE_RUNTIME.sheets.get('main');
-  const hasUserData = sheet && [...sheet.cells.values()].some(c => c && !c.readonly);
-  if (hasUserData && typeof window !== 'undefined' && window.confirm) {
-    const ok = window.confirm(`Apply "${template.title}"? This replaces current workspace cells.`);
+  // PR-WP6D: same userTouched gate as the WP-4 flow.
+  if (_wp6dShouldConfirmOverwrite() && typeof window !== 'undefined' && window.confirm) {
+    const title = (template.titleKey && typeof t === 'function' && t(template.titleKey)) || template.title;
+    const fn = (typeof t === 'function') ? t('ws_confirm_apply') : null;
+    const msg = (typeof fn === 'function')
+      ? fn(title)
+      : `Apply "${title}"? This replaces current workspace cells.`;
+    const ok = window.confirm(msg);
     if (!ok) return { ok: false, errors: ['user cancelled'] };
   }
   // Adapter: _wp4ApplyTemplate expects a {build:(ticker)=>cells} shape.
@@ -14804,11 +15026,23 @@ function _wp6cExtractTickers(prompt) {
   return out;
 }
 
+// PR-WP6D: tiny localization helper for parser errors. Falls back to the
+// English literal when t() is unavailable (e.g. node harness) or the entry
+// is missing. Function-typed entries (ws_err_too_long) get called with arg.
+function _wp6cTr(key, arg) {
+  if (typeof t !== 'function') return null;
+  try {
+    const val = t(key);
+    if (typeof val === 'function') return val(arg);
+    return val || null;
+  } catch (_) { return null; }
+}
+
 function _wp6cParseIntent(rawPrompt) {
   const prompt = String(rawPrompt || '').trim();
-  if (!prompt) return { error: 'empty prompt' };
+  if (!prompt) return { error: _wp6cTr('ws_err_empty') || 'empty prompt' };
   if (prompt.length > _WP6C_MAX_PROMPT) {
-    return { error: `prompt too long (max ${_WP6C_MAX_PROMPT} chars)` };
+    return { error: _wp6cTr('ws_err_too_long', _WP6C_MAX_PROMPT) || `prompt too long (max ${_WP6C_MAX_PROMPT} chars)` };
   }
   const lower = prompt.toLowerCase();
   const tickers = _wp6cExtractTickers(prompt);
@@ -14836,14 +15070,14 @@ function _wp6cParseIntent(rawPrompt) {
   // position_analysis: requires a ticker (otherwise ambiguous).
   if (/\b(analy[sz]e|analy[sz]is|position)\b/.test(lower)) {
     if (tickers.length === 0) {
-      return { error: 'please include a ticker (e.g. "analyze TSLA")' };
+      return { error: _wp6cTr('ws_err_no_ticker') || 'please include a ticker (e.g. "analyze TSLA")' };
     }
     return { intent: 'position_analysis', params: { ticker: tickers[0] } };
   }
   if (/\b(portfolio|summary|overview)\b/.test(lower)) {
     return { intent: 'portfolio_summary', params: {} };
   }
-  return { error: 'unsupported prompt — try "portfolio summary", "risk dashboard", "analyze TSLA", "watch BTC TSLA", "dividend tracker", or "FIRE calculator"' };
+  return { error: _wp6cTr('ws_err_unsupported') || 'unsupported prompt — try "portfolio summary", "risk dashboard", "analyze TSLA", "watch BTC TSLA", "dividend tracker", or "FIRE calculator"' };
 }
 
 // Routes a free-text prompt through parse → build → validate → apply. The
@@ -14868,13 +15102,13 @@ function _wp6cInjectAssistant(menu) {
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = _WP6C_MAX_PROMPT;
-  input.placeholder = 'Ask Aurix to build a workspace...';
+  input.placeholder = (typeof t === 'function' && t('ws_assistant_placeholder')) || 'Ask Aurix to build a workspace...';
   input.setAttribute('aria-label', 'Workspace assistant prompt');
   input.style.cssText = 'flex:1;padding:7px 10px;border:1px solid rgba(255,255,255,0.14);border-radius:6px;background:rgba(255,255,255,0.04);color:#e8e8ea;font-family:inherit;font-size:12.5px;outline:none';
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = 'Build';
+  btn.textContent = (typeof t === 'function' && t('ws_assistant_build')) || 'Build';
   btn.style.cssText = 'padding:7px 12px;border:1px solid rgba(255,255,255,0.16);border-radius:6px;background:rgba(138,166,255,0.18);color:#e8e8ea;font-family:inherit;font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;font-weight:600';
 
   const err = document.createElement('div');
@@ -14895,13 +15129,18 @@ function _wp6cInjectAssistant(menu) {
   const submit = () => {
     err.style.display = 'none';
     const val = String(input.value || '').trim();
-    if (!val) { err.textContent = 'enter a prompt'; err.style.display = 'block'; return; }
+    if (!val) {
+      err.textContent = (typeof t === 'function' && t('ws_err_empty')) || 'enter a prompt';
+      err.style.display = 'block'; return;
+    }
     const r = _wp6cAssistantSubmit(val);
     if (r && r.ok) {
       _wp4CloseSelector();
       return;
     }
-    err.textContent = (r && r.errors && r.errors[0]) || 'could not build template';
+    err.textContent = (r && r.errors && r.errors[0])
+      || (typeof t === 'function' && t('ws_err_build_failed'))
+      || 'could not build template';
     err.style.display = 'block';
   };
 
