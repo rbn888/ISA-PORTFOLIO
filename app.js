@@ -1852,6 +1852,12 @@ function toBase(amount, fromCurrency) {
 
 // Gold-aware value in assetCurrency: applies karat purity for XAU assets
 function assetNativeValue(asset) {
+  // LIQ-1: cash is just an amount of its own currency. Multiplying by a
+  // stored "price" (USD-per-EUR for legacy entries) double-counts the
+  // FX rate when assetValueUSD later converts native→USD, which made
+  // 20,000 EUR show as 21,739.13 EUR. For cash, qty IS the value in
+  // assetCurrency by definition; price has no meaning beyond unity.
+  if (asset.type === 'cash') return Number(asset.qty || 0);
   if (asset.ticker === 'XAU' && asset.karat) {
     const grams = asset.goldUnit === 'oz' ? asset.qty * 31.1035 : asset.qty;
     return grams * (asset.karat / 24) * (asset.price / 31.1035);
@@ -14569,12 +14575,16 @@ liquidityForm.addEventListener('submit', e => {
   const qty  = parseLocalFloat(liquidityQtyInput.value);
   if (isNaN(qty) || qty <= 0) { liquidityQtyInput.focus(); return; }
 
-  const priceInUSD = curr === 'EUR' ? 1 / usdToEur : 1;
-
+  // LIQ-1: cash storage uses price = 1. The value of a cash position is
+  // qty in its assetCurrency — there is no unit price to attach. The
+  // legacy storage stamped EUR cash with price = 1/usdToEur, which the
+  // valuation path then mis-converted. New entries store price:1 so
+  // qty * price reads cleanly in any consumer; assetNativeValue
+  // additionally short-circuits cash to qty, covering legacy rows.
   const existingCash = assets.find(a => a.type === 'cash' && a.assetCurrency === curr);
   if (existingCash) {
     existingCash.qty   = +(existingCash.qty + qty).toFixed(2);
-    existingCash.price = priceInUSD;
+    existingCash.price = 1;
   } else {
     assets.push({
       id:            Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -14582,7 +14592,7 @@ liquidityForm.addEventListener('submit', e => {
       ticker:        curr === 'EUR' ? '€' : '$',
       type:          'cash',
       qty,
-      price:         priceInUSD,
+      price:         1,
       coinId:        null,
       marketSymbol:  null,
       assetCurrency: curr,
