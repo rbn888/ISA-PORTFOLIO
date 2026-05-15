@@ -5095,6 +5095,120 @@ function _wp6dShouldConfirmOverwrite() {
   return WORKSPACE_RUNTIME.userTouched === true;
 }
 
+// PR-WP6D.3: collect every MARKET:<sym> dep referenced by formula cells in
+// the given sheet. PRICE / PRICE.CHANGE24H both tag MARKET:<sym> via
+// _extractFormulaDependencies, so this catches both call sites without
+// reparsing argument lists ourselves.
+function _wp6dCollectMarketSymbolsFromSheet(sheet) {
+  const out = new Set();
+  if (!sheet || !sheet.cells) return [];
+  for (const cell of sheet.cells.values()) {
+    if (!cell || cell.type !== 'formula' || !cell.formula) continue;
+    const parsed = parseWorkspaceFormula(cell.formula);
+    if (!parsed) continue;
+    const deps = _extractFormulaDependencies(parsed);
+    for (const d of deps) {
+      if (typeof d === 'string' && d.startsWith('MARKET:')) out.add(d.slice('MARKET:'.length));
+    }
+  }
+  return [...out];
+}
+
+// PR-WP6D.3: workspace-side market hydration. Browser QA confirmed MARKET_DATA
+// is empty (length=0, version=0) when the user applies a template directly
+// from the Workspace tab — the per-tab Market hydrators never fired. This
+// helper fetches /snapshot for the symbols the workspace actually needs and
+// commits them through the canonical commitMarketData path. That bumps
+// MARKET_DATA_VERSION and emits market:update, which the workspace reactive
+// subscriber already listens to (see app.js:13868), so template cells
+// re-evaluate automatically once data lands. No provider routing changes,
+// no PRICE() body changes, no asset.price fallback.
+async function _wp6dHydrateMarketDataFor(symbols) {
+  if (!Array.isArray(symbols) || symbols.length === 0) return;
+  // Skip anything already resolvable.
+  const need = [];
+  for (const sym of symbols) {
+    let item = null;
+    try { item = (typeof getMarketAsset === 'function') ? getMarketAsset(sym) : null; } catch (_) {}
+    const price = item ? (item.current_price ?? item.price) : null;
+    if (!(typeof price === 'number' && Number.isFinite(price) && price > 0)) need.push(sym);
+  }
+  if (need.length === 0) return;
+  if (typeof PRICES_PROXY === 'undefined' || typeof fetch !== 'function') return;
+
+  let json = null;
+  try {
+    const url = `${PRICES_PROXY}/snapshot?symbols=${encodeURIComponent(need.join(','))}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      console.warn('[workspace-hydrate] snapshot HTTP', res.status);
+      return;
+    }
+    json = await res.json();
+  } catch (e) {
+    console.warn('[workspace-hydrate] snapshot fetch failed:', e?.message);
+    return;
+  }
+  const snapshot = (json && Array.isArray(json.snapshot)) ? json.snapshot : [];
+  if (snapshot.length === 0) return;
+
+  // Build canonical mdItems, classify by type via resolveAsset so the
+  // existing commitMarketData per-type replacement contract holds.
+  const byType = new Map();
+  for (const item of snapshot) {
+    if (!item || !item.symbol) continue;
+    const price = Number(item.price);
+    if (!Number.isFinite(price) || price <= 0) continue;
+    const canonical = (typeof resolveAsset === 'function') ? resolveAsset(item.symbol) : null;
+    const type      = canonical?.type || 'stock';
+    const norm      = (typeof normalizeSymbol === 'function') ? normalizeSymbol(item.symbol) : String(item.symbol);
+    const change    = (item.change24h != null) ? item.change24h
+                    : (item.price_change_percentage_24h != null ? item.price_change_percentage_24h : null);
+    const mdItem = {
+      symbol:                       norm,
+      canonicalSymbol:              canonical?.symbol || norm,
+      name:                         canonical?.displayName || item.symbol,
+      price,
+      current_price:                price,
+      change:                       change,
+      change24h:                    change,
+      price_change_percentage_24h:  change,
+      type,
+      provider:                     'workspace-snapshot',
+      confidence:                   0.7,
+      timestamp:                    Date.now(),
+      fallback:                     false,
+    };
+    if (!byType.has(type)) byType.set(type, []);
+    byType.get(type).push(mdItem);
+  }
+
+  // For each type group, preserve any existing MARKET_DATA items of that
+  // type that we are NOT refreshing (e.g. other stocks the Market tab
+  // already loaded), then commit the merged set. commitMarketData bumps
+  // MARKET_DATA_VERSION and emits market:update → workspace recalculates.
+  for (const [type, fresh] of byType) {
+    const freshKeys = new Set(fresh.map(d => normalizeSymbol(d.symbol)));
+    const preserved = MARKET_DATA.filter(d => d.type === type && !freshKeys.has(normalizeSymbol(d.symbol)));
+    const merged    = [...preserved, ...fresh];
+    if (typeof commitMarketData === 'function') commitMarketData(type, merged);
+  }
+}
+
+// Convenience: fire hydration for whatever a sheet currently references.
+// Fire-and-forget; failures are logged, never thrown. Cells may flash
+// #ERROR briefly before commitMarketData lands, then heal via the
+// existing workspace reactive subscriber.
+function _wp6dEnsureMarketDataForSheet(sheet) {
+  try {
+    const symbols = _wp6dCollectMarketSymbolsFromSheet(sheet);
+    if (symbols.length === 0) return;
+    _wp6dHydrateMarketDataFor(symbols).catch(e => console.warn('[workspace-hydrate]', e?.message));
+  } catch (e) {
+    console.warn('[workspace-hydrate] error:', e?.message);
+  }
+}
+
 function beginWorkspaceCellEdit(cellId, initialValue) {
   if (!_isCellInGridBounds(cellId)) return false;
   const sheet = WORKSPACE_RUNTIME.sheets.get(WORKSPACE_RUNTIME.activeSheetId);
@@ -5415,6 +5529,13 @@ function _hydrateWorkspaceFromPersistence() {
   // apply, so any non-default content after hydrate gates the confirm prompt.
   if (typeof _wp6dHasNonDefaultCells === 'function' && _wp6dHasNonDefaultCells(sheet)) {
     WORKSPACE_RUNTIME.userTouched = true;
+  }
+  // PR-WP6D.3: hydrate MARKET_DATA for symbols referenced by any persisted
+  // formulas. Reload of a saved Market Watch / Position Analyzer template
+  // would otherwise show #ERROR until the user happens to visit a Market
+  // tab that loads the right type.
+  if (typeof _wp6dEnsureMarketDataForSheet === 'function') {
+    _wp6dEnsureMarketDataForSheet(sheet);
   }
   console.log('[workspace-persist] hydrated', { applied });
   return applied;
@@ -14547,6 +14668,11 @@ function _wp4ApplyTemplate(template, ticker) {
   // PR-WP6D: template apply resets userTouched. Subsequent template applies
   // skip confirmation as long as the user hasn't edited / pasted / cleared.
   WORKSPACE_RUNTIME.userTouched = false;
+  // PR-WP6D.3: kick off market hydration for any PRICE / PRICE.CHANGE24H
+  // symbols referenced by this template. Fire-and-forget — cells show
+  // #ERROR briefly, then heal via the existing market:update subscriber
+  // once commitMarketData lands.
+  _wp6dEnsureMarketDataForSheet(sheet);
   if (typeof renderWorkspace === 'function') renderWorkspace();
   return true;
 }
@@ -14971,87 +15097,6 @@ if (typeof window !== 'undefined') {
     validate: validateAITemplate,
     build:    _wp6BuildIntent,
     apply:    _wp6ApplyIntent,
-  };
-
-  // PR-WP6D.2: temporary runtime trace for browser QA. Dumps both the
-  // workspace PRICE() lookup path and the dashboard reactive lookup path
-  // side-by-side so we can see exactly where TSLA/BTC fall through.
-  // Usage in browser console:
-  //   window.__aurixPriceDiag('TSLA')
-  //   window.__aurixPriceDiag('BTC')
-  // Remove this helper after the trace is captured.
-  window.__aurixPriceDiag = function(symbol) {
-    const md = (typeof MARKET_DATA !== 'undefined' && Array.isArray(MARKET_DATA))
-      ? MARKET_DATA : [];
-    const sym = String(symbol || '').trim();
-    const symUpper = sym.toUpperCase();
-    let reactivePath = null;
-    try { reactivePath = (typeof getReactiveMarketPrice === 'function') ? getReactiveMarketPrice(sym) : 'getReactiveMarketPrice missing'; } catch (e) { reactivePath = 'THREW: ' + e.message; }
-    let workspacePath = null;
-    try { workspacePath = (typeof getMarketPrice === 'function') ? getMarketPrice(sym) : 'getMarketPrice missing'; } catch (e) { workspacePath = 'THREW: ' + e.message; }
-    let getMarketAssetResult = null;
-    try {
-      const item = (typeof getMarketAsset === 'function') ? getMarketAsset(sym) : null;
-      getMarketAssetResult = item ? {
-        symbol: item.symbol,
-        canonicalSymbol: item.canonicalSymbol ?? null,
-        price: item.price ?? null,
-        current_price: item.current_price ?? null,
-        type: item.type ?? null,
-        fallback: !!item.fallback,
-      } : null;
-    } catch (e) { getMarketAssetResult = 'THREW: ' + e.message; }
-    let resolved = null;
-    try {
-      const r = (typeof resolveAsset === 'function') ? resolveAsset(sym) : null;
-      resolved = r ? { id: r.id, symbol: r.symbol, aliases: r.aliases } : null;
-    } catch (e) { resolved = 'THREW: ' + e.message; }
-    const aliasHit = (typeof MARKET_SYMBOL_ALIASES !== 'undefined')
-      ? (MARKET_SYMBOL_ALIASES[symUpper] || null) : null;
-    const normalized = (typeof normalizeSymbol === 'function') ? normalizeSymbol(sym) : null;
-    // Find items whose normalized symbol or canonicalSymbol matches the
-    // first 3 chars of the requested symbol (helps spot near-misses).
-    const probe = String(normalized || '').slice(0, 3);
-    const candidates = md
-      .map(d => ({
-        symbol: d.symbol,
-        canonicalSymbol: d.canonicalSymbol ?? null,
-        type: d.type ?? null,
-        price: d.price ?? null,
-        current_price: d.current_price ?? null,
-        normSym: (typeof normalizeSymbol === 'function') ? normalizeSymbol(d.symbol) : null,
-        normCanonical: (d.canonicalSymbol && typeof normalizeSymbol === 'function')
-          ? normalizeSymbol(d.canonicalSymbol) : null,
-      }))
-      .filter(d => (d.normSym && d.normSym.includes(probe))
-                || (d.normCanonical && d.normCanonical.includes(probe)));
-    const sample = md.slice(0, 8).map(d => ({
-      symbol: d.symbol,
-      canonicalSymbol: d.canonicalSymbol ?? null,
-      type: d.type ?? null,
-      price: d.price ?? d.current_price,
-    }));
-    const report = {
-      input: symbol,
-      normalized,
-      resolveAsset: resolved,
-      MARKET_SYMBOL_ALIASES_hit: aliasHit,
-      MARKET_DATA_length: md.length,
-      MARKET_DATA_VERSION: (typeof MARKET_DATA_VERSION === 'number') ? MARKET_DATA_VERSION : null,
-      MARKET_DATA_first8: sample,
-      candidates_with_probe: candidates,
-      reactivePath_price: reactivePath,
-      workspacePath_price: workspacePath,
-      getMarketAsset_item: getMarketAssetResult,
-      __notes: [
-        'reactivePath_price: getReactiveMarketPrice — dashboard path',
-        'workspacePath_price: getMarketPrice → getMarketAsset — workspace PRICE() path',
-        'mismatch (one numeric, the other null/error) is the bug we are hunting',
-      ],
-    };
-    try { console.log('[aurix-price-diag]', JSON.stringify(report, null, 2)); }
-    catch (_) { console.log('[aurix-price-diag]', report); }
-    return report;
   };
 }
 
