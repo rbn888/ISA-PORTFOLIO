@@ -10635,76 +10635,83 @@ const _TAB_TO_TYPE = { crypto: 'crypto', stocks: 'stock', etfs: 'etfs', indices:
 // OR generic Yahoo passthrough handles all of them via MC-3 / MC-6 /
 // MC-7B). manager carried for the UI grouping only — never collapsed
 // across managers (Fidelity ≠ iShares ≠ Vanguard, each its own asset).
+// MC-10: each catalog entry can carry optional metadata used only by the
+// card renderer — never read by the pricing or persistence paths.
+//   ucits:  true if EU-domiciled UCITS wrapper (drives the "UCITS" badge)
+//   share:  'Acc' | 'Dist' (drives the share-class badge; omit if N/A)
+//   currency: ISO-4217 listing currency the user pays in (drives the
+//             currency badge; omit when uncertain so we never lie)
+// Identity is preserved — different managers stay separate entries.
 const _FUNDS_CATALOG = [
   { id:'msci_world',       items: [
-    { ticker:'IWDA.AS', name:'iShares Core MSCI World UCITS (Acc)',  manager:'iShares',   type:'etf', marketSymbol:'IWDA.AS' },
-    { ticker:'SWDA.L',  name:'iShares Core MSCI World UCITS (LSE)',  manager:'iShares',   type:'etf', marketSymbol:'SWDA.L'  },
-    { ticker:'EUNL.DE', name:'iShares Core MSCI World UCITS (Xetra)', manager:'iShares',  type:'etf', marketSymbol:'EUNL.DE' },
-    { ticker:'URTH',    name:'iShares MSCI World ETF',                manager:'iShares',  type:'etf', marketSymbol:'URTH'    },
-    { ticker:'CW8.PA',  name:'Amundi MSCI World UCITS',               manager:'Amundi',   type:'etf', marketSymbol:'CW8.PA'  },
-    { ticker:'LCWD.DE', name:'Amundi MSCI World UCITS (Xetra)',       manager:'Amundi',   type:'etf', marketSymbol:'LCWD.DE' },
-    { ticker:'XDWD.DE', name:'Xtrackers MSCI World UCITS',            manager:'Xtrackers',type:'etf', marketSymbol:'XDWD.DE' },
-    { ticker:'SWLD.L',  name:'SPDR MSCI World UCITS',                 manager:'SPDR',     type:'etf', marketSymbol:'SWLD.L'  },
+    { ticker:'IWDA.AS', name:'iShares Core MSCI World UCITS (Acc)',  manager:'iShares',   type:'etf', marketSymbol:'IWDA.AS', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'SWDA.L',  name:'iShares Core MSCI World UCITS (LSE)',  manager:'iShares',   type:'etf', marketSymbol:'SWDA.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'EUNL.DE', name:'iShares Core MSCI World UCITS (Xetra)', manager:'iShares',  type:'etf', marketSymbol:'EUNL.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'URTH',    name:'iShares MSCI World ETF',                manager:'iShares',  type:'etf', marketSymbol:'URTH',                                  currency:'USD' },
+    { ticker:'CW8.PA',  name:'Amundi MSCI World UCITS',               manager:'Amundi',   type:'etf', marketSymbol:'CW8.PA',  ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'LCWD.DE', name:'Amundi MSCI World UCITS (Xetra)',       manager:'Amundi',   type:'etf', marketSymbol:'LCWD.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'XDWD.DE', name:'Xtrackers MSCI World UCITS',            manager:'Xtrackers',type:'etf', marketSymbol:'XDWD.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'SWLD.L',  name:'SPDR MSCI World UCITS',                 manager:'SPDR',     type:'etf', marketSymbol:'SWLD.L',  ucits:true,  share:'Acc' },
   ]},
   { id:'sp_500',           items: [
-    { ticker:'VOO',     name:'Vanguard S&P 500 ETF',                  manager:'Vanguard', type:'etf', marketSymbol:'VOO'     },
-    { ticker:'SPY',     name:'SPDR S&P 500 ETF',                      manager:'SPDR',     type:'etf', marketSymbol:'SPY'     },
-    { ticker:'CSPX.L',  name:'iShares Core S&P 500 UCITS',            manager:'iShares',  type:'etf', marketSymbol:'CSPX.L'  },
-    { ticker:'SXR8.DE', name:'iShares Core S&P 500 (Xetra)',          manager:'iShares',  type:'etf', marketSymbol:'SXR8.DE' },
-    { ticker:'VUSA.L',  name:'Vanguard S&P 500 (Dist)',               manager:'Vanguard', type:'etf', marketSymbol:'VUSA.L'  },
-    { ticker:'VUAA.L',  name:'Vanguard S&P 500 (Acc)',                manager:'Vanguard', type:'etf', marketSymbol:'VUAA.L'  },
-    { ticker:'VFIAX',   name:'Vanguard 500 Index Admiral',            manager:'Vanguard', type:'fund',marketSymbol:'VFIAX'   },
-    { ticker:'FXAIX',   name:'Fidelity 500 Index',                    manager:'Fidelity', type:'fund',marketSymbol:'FXAIX'   },
+    { ticker:'VOO',     name:'Vanguard S&P 500 ETF',                  manager:'Vanguard', type:'etf', marketSymbol:'VOO',                                   currency:'USD' },
+    { ticker:'SPY',     name:'SPDR S&P 500 ETF',                      manager:'SPDR',     type:'etf', marketSymbol:'SPY',                                   currency:'USD' },
+    { ticker:'CSPX.L',  name:'iShares Core S&P 500 UCITS',            manager:'iShares',  type:'etf', marketSymbol:'CSPX.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'SXR8.DE', name:'iShares Core S&P 500 (Xetra)',          manager:'iShares',  type:'etf', marketSymbol:'SXR8.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'VUSA.L',  name:'Vanguard S&P 500 (Dist)',               manager:'Vanguard', type:'etf', marketSymbol:'VUSA.L',  ucits:true,  share:'Dist', currency:'USD' },
+    { ticker:'VUAA.L',  name:'Vanguard S&P 500 (Acc)',                manager:'Vanguard', type:'etf', marketSymbol:'VUAA.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'VFIAX',   name:'Vanguard 500 Index Admiral',            manager:'Vanguard', type:'fund',marketSymbol:'VFIAX',                share:'Dist', currency:'USD' },
+    { ticker:'FXAIX',   name:'Fidelity 500 Index',                    manager:'Fidelity', type:'fund',marketSymbol:'FXAIX',                share:'Dist', currency:'USD' },
   ]},
   { id:'emerging_markets', items: [
-    { ticker:'EIMI.L',  name:'iShares Core MSCI EM IMI UCITS',        manager:'iShares',  type:'etf', marketSymbol:'EIMI.L'  },
-    { ticker:'VFEM.L',  name:'Vanguard FTSE Emerging Markets',        manager:'Vanguard', type:'etf', marketSymbol:'VFEM.L'  },
-    { ticker:'EMIM.L',  name:'iShares Core MSCI EM (Dist)',           manager:'iShares',  type:'etf', marketSymbol:'EMIM.L'  },
-    { ticker:'XMME.DE', name:'Xtrackers MSCI Emerging Markets',       manager:'Xtrackers',type:'etf', marketSymbol:'XMME.DE' },
-    { ticker:'AEME.DE', name:'Amundi MSCI Emerging Markets',          manager:'Amundi',   type:'etf', marketSymbol:'AEME.DE' },
-    { ticker:'VWO',     name:'Vanguard FTSE Emerging Markets ETF',    manager:'Vanguard', type:'etf', marketSymbol:'VWO'     },
+    { ticker:'EIMI.L',  name:'iShares Core MSCI EM IMI UCITS',        manager:'iShares',  type:'etf', marketSymbol:'EIMI.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'VFEM.L',  name:'Vanguard FTSE Emerging Markets',        manager:'Vanguard', type:'etf', marketSymbol:'VFEM.L',  ucits:true,  share:'Dist', currency:'USD' },
+    { ticker:'EMIM.L',  name:'iShares Core MSCI EM (Dist)',           manager:'iShares',  type:'etf', marketSymbol:'EMIM.L',  ucits:true,  share:'Dist', currency:'USD' },
+    { ticker:'XMME.DE', name:'Xtrackers MSCI Emerging Markets',       manager:'Xtrackers',type:'etf', marketSymbol:'XMME.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'AEME.DE', name:'Amundi MSCI Emerging Markets',          manager:'Amundi',   type:'etf', marketSymbol:'AEME.DE', ucits:true,  share:'Dist', currency:'EUR' },
+    { ticker:'VWO',     name:'Vanguard FTSE Emerging Markets ETF',    manager:'Vanguard', type:'etf', marketSymbol:'VWO',                                   currency:'USD' },
   ]},
   { id:'nasdaq_100',       items: [
-    { ticker:'QQQ',     name:'Invesco QQQ Trust',                     manager:'Invesco',  type:'etf', marketSymbol:'QQQ'     },
-    { ticker:'EQQQ.L',  name:'Invesco EQQQ NASDAQ-100 UCITS',         manager:'Invesco',  type:'etf', marketSymbol:'EQQQ.L'  },
-    { ticker:'CNDX.L',  name:'Invesco NASDAQ-100 (Acc)',              manager:'Invesco',  type:'etf', marketSymbol:'CNDX.L'  },
-    { ticker:'SXRV.DE', name:'iShares NASDAQ 100 UCITS (Xetra)',      manager:'iShares',  type:'etf', marketSymbol:'SXRV.DE' },
-    { ticker:'XNAQ.DE', name:'Xtrackers NASDAQ 100 UCITS',            manager:'Xtrackers',type:'etf', marketSymbol:'XNAQ.DE' },
+    { ticker:'QQQ',     name:'Invesco QQQ Trust',                     manager:'Invesco',  type:'etf', marketSymbol:'QQQ',                                   currency:'USD' },
+    { ticker:'EQQQ.L',  name:'Invesco EQQQ NASDAQ-100 UCITS',         manager:'Invesco',  type:'etf', marketSymbol:'EQQQ.L',  ucits:true,  share:'Dist', currency:'USD' },
+    { ticker:'CNDX.L',  name:'Invesco NASDAQ-100 (Acc)',              manager:'Invesco',  type:'etf', marketSymbol:'CNDX.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'SXRV.DE', name:'iShares NASDAQ 100 UCITS (Xetra)',      manager:'iShares',  type:'etf', marketSymbol:'SXRV.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'XNAQ.DE', name:'Xtrackers NASDAQ 100 UCITS',            manager:'Xtrackers',type:'etf', marketSymbol:'XNAQ.DE', ucits:true,  share:'Acc',  currency:'EUR' },
   ]},
   { id:'bonds',            items: [
-    { ticker:'AGGH.L',  name:'iShares Core Global Agg Bond Hedged',   manager:'iShares',  type:'etf', marketSymbol:'AGGH.L'  },
-    { ticker:'VAGF.L',  name:'Vanguard Global Aggregate Bond',        manager:'Vanguard', type:'etf', marketSymbol:'VAGF.L'  },
-    { ticker:'AGG',     name:'iShares Core US Aggregate Bond ETF',    manager:'iShares',  type:'etf', marketSymbol:'AGG'     },
-    { ticker:'BND',     name:'Vanguard Total Bond Market ETF',        manager:'Vanguard', type:'etf', marketSymbol:'BND'     },
-    { ticker:'IEAG.L',  name:'iShares Core € Govt Bond UCITS',        manager:'iShares',  type:'etf', marketSymbol:'IEAG.L'  },
+    { ticker:'AGGH.L',  name:'iShares Core Global Agg Bond Hedged',   manager:'iShares',  type:'etf', marketSymbol:'AGGH.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'VAGF.L',  name:'Vanguard Global Aggregate Bond',        manager:'Vanguard', type:'etf', marketSymbol:'VAGF.L',  ucits:true,  share:'Dist' },
+    { ticker:'AGG',     name:'iShares Core US Aggregate Bond ETF',    manager:'iShares',  type:'etf', marketSymbol:'AGG',                                   currency:'USD' },
+    { ticker:'BND',     name:'Vanguard Total Bond Market ETF',        manager:'Vanguard', type:'etf', marketSymbol:'BND',                                   currency:'USD' },
+    { ticker:'IEAG.L',  name:'iShares Core € Govt Bond UCITS',        manager:'iShares',  type:'etf', marketSymbol:'IEAG.L',  ucits:true,  share:'Acc',  currency:'EUR' },
   ]},
   { id:'gold',             items: [
-    { ticker:'SGLN.L',  name:'iShares Physical Gold ETC',             manager:'iShares',   type:'etf', marketSymbol:'SGLN.L'  },
-    { ticker:'PHAU.L',  name:'WisdomTree Physical Gold',              manager:'WisdomTree',type:'etf', marketSymbol:'PHAU.L'  },
-    { ticker:'GLD',     name:'SPDR Gold Shares',                      manager:'SPDR',      type:'etf', marketSymbol:'GLD'     },
-    { ticker:'IAU',     name:'iShares Gold Trust',                    manager:'iShares',   type:'etf', marketSymbol:'IAU'     },
-    { ticker:'4GLD.DE', name:'Xetra-Gold ETC',                        manager:'Deka',      type:'etf', marketSymbol:'4GLD.DE' },
+    { ticker:'SGLN.L',  name:'iShares Physical Gold ETC',             manager:'iShares',   type:'etf', marketSymbol:'SGLN.L',  ucits:true,                currency:'USD' },
+    { ticker:'PHAU.L',  name:'WisdomTree Physical Gold',              manager:'WisdomTree',type:'etf', marketSymbol:'PHAU.L',  ucits:true,                currency:'USD' },
+    { ticker:'GLD',     name:'SPDR Gold Shares',                      manager:'SPDR',      type:'etf', marketSymbol:'GLD',                                  currency:'USD' },
+    { ticker:'IAU',     name:'iShares Gold Trust',                    manager:'iShares',   type:'etf', marketSymbol:'IAU',                                  currency:'USD' },
+    { ticker:'4GLD.DE', name:'Xetra-Gold ETC',                        manager:'Deka',      type:'etf', marketSymbol:'4GLD.DE',                              currency:'EUR' },
   ]},
   { id:'europe',           items: [
-    { ticker:'VEUR.L',  name:'Vanguard FTSE Developed Europe',        manager:'Vanguard', type:'etf', marketSymbol:'VEUR.L'  },
-    { ticker:'SXR7.DE', name:'iShares Core MSCI Europe (Xetra)',      manager:'iShares',  type:'etf', marketSymbol:'SXR7.DE' },
-    { ticker:'IMEU.L',  name:'iShares Core MSCI Europe UCITS',        manager:'iShares',  type:'etf', marketSymbol:'IMEU.L'  },
-    { ticker:'CEUS.PA', name:'Amundi MSCI Europe UCITS',              manager:'Amundi',   type:'etf', marketSymbol:'CEUS.PA' },
-    { ticker:'EXSA.DE', name:'iShares STOXX Europe 600',              manager:'iShares',  type:'etf', marketSymbol:'EXSA.DE' },
+    { ticker:'VEUR.L',  name:'Vanguard FTSE Developed Europe',        manager:'Vanguard', type:'etf', marketSymbol:'VEUR.L',  ucits:true,  share:'Dist', currency:'GBP' },
+    { ticker:'SXR7.DE', name:'iShares Core MSCI Europe (Xetra)',      manager:'iShares',  type:'etf', marketSymbol:'SXR7.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'IMEU.L',  name:'iShares Core MSCI Europe UCITS',        manager:'iShares',  type:'etf', marketSymbol:'IMEU.L',  ucits:true,  share:'Dist', currency:'EUR' },
+    { ticker:'CEUS.PA', name:'Amundi MSCI Europe UCITS',              manager:'Amundi',   type:'etf', marketSymbol:'CEUS.PA', ucits:true,  share:'Dist', currency:'EUR' },
+    { ticker:'EXSA.DE', name:'iShares STOXX Europe 600',              manager:'iShares',  type:'etf', marketSymbol:'EXSA.DE', ucits:true,  share:'Dist', currency:'EUR' },
   ]},
   { id:'dividend',         items: [
-    { ticker:'VYM',     name:'Vanguard High Dividend Yield ETF',      manager:'Vanguard', type:'etf', marketSymbol:'VYM'     },
-    { ticker:'SCHD',    name:'Schwab US Dividend Equity',             manager:'Schwab',   type:'etf', marketSymbol:'SCHD'    },
-    { ticker:'VHYL.L',  name:'Vanguard FTSE All-World High Div Yld',  manager:'Vanguard', type:'etf', marketSymbol:'VHYL.L'  },
-    { ticker:'IUSA.AS', name:'iShares Core S&P 500 (Dist)',           manager:'iShares',  type:'etf', marketSymbol:'IUSA.AS' },
-    { ticker:'EXX5.DE', name:'iShares STOXX Global Select Dividend',  manager:'iShares',  type:'etf', marketSymbol:'EXX5.DE' },
+    { ticker:'VYM',     name:'Vanguard High Dividend Yield ETF',      manager:'Vanguard', type:'etf', marketSymbol:'VYM',                  share:'Dist', currency:'USD' },
+    { ticker:'SCHD',    name:'Schwab US Dividend Equity',             manager:'Schwab',   type:'etf', marketSymbol:'SCHD',                 share:'Dist', currency:'USD' },
+    { ticker:'VHYL.L',  name:'Vanguard FTSE All-World High Div Yld',  manager:'Vanguard', type:'etf', marketSymbol:'VHYL.L',  ucits:true,  share:'Dist', currency:'USD' },
+    { ticker:'IUSA.AS', name:'iShares Core S&P 500 (Dist)',           manager:'iShares',  type:'etf', marketSymbol:'IUSA.AS', ucits:true,  share:'Dist', currency:'USD' },
+    { ticker:'EXX5.DE', name:'iShares STOXX Global Select Dividend',  manager:'iShares',  type:'etf', marketSymbol:'EXX5.DE', ucits:true,  share:'Dist', currency:'EUR' },
   ]},
   { id:'small_cap',        items: [
-    { ticker:'IUSN.DE', name:'iShares MSCI World Small Cap UCITS',    manager:'iShares',  type:'etf', marketSymbol:'IUSN.DE' },
-    { ticker:'WSML.L',  name:'iShares MSCI World Small Cap UCITS',    manager:'iShares',  type:'etf', marketSymbol:'WSML.L'  },
-    { ticker:'VBR',     name:'Vanguard Small-Cap Value ETF',          manager:'Vanguard', type:'etf', marketSymbol:'VBR'     },
-    { ticker:'IJR',     name:'iShares Core S&P Small-Cap ETF',        manager:'iShares',  type:'etf', marketSymbol:'IJR'     },
-    { ticker:'VBK',     name:'Vanguard Small-Cap Growth ETF',         manager:'Vanguard', type:'etf', marketSymbol:'VBK'     },
+    { ticker:'IUSN.DE', name:'iShares MSCI World Small Cap UCITS',    manager:'iShares',  type:'etf', marketSymbol:'IUSN.DE', ucits:true,  share:'Acc',  currency:'EUR' },
+    { ticker:'WSML.L',  name:'iShares MSCI World Small Cap UCITS',    manager:'iShares',  type:'etf', marketSymbol:'WSML.L',  ucits:true,  share:'Acc',  currency:'USD' },
+    { ticker:'VBR',     name:'Vanguard Small-Cap Value ETF',          manager:'Vanguard', type:'etf', marketSymbol:'VBR',                                  currency:'USD' },
+    { ticker:'IJR',     name:'iShares Core S&P Small-Cap ETF',        manager:'iShares',  type:'etf', marketSymbol:'IJR',                                  currency:'USD' },
+    { ticker:'VBK',     name:'Vanguard Small-Cap Growth ETF',         manager:'Vanguard', type:'etf', marketSymbol:'VBK',                                  currency:'USD' },
   ]},
 ];
 
@@ -10714,6 +10721,28 @@ function _escFunds(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// MC-10: build the inline metadata badges. Order: kind (ETF/FUND), UCITS,
+// share class (Acc/Dist), listing currency. Every badge is optional and
+// rendered only when the field is present in the catalog entry, so we
+// never invent data we don't actually know.
+function _fundCardBadges(it) {
+  const out = [];
+  const kind = (it.type || '').toUpperCase();
+  if (kind === 'ETF' || kind === 'FUND') {
+    out.push(`<span class="funds-card-pill is-kind">${_escFunds(kind)}</span>`);
+  }
+  if (it.ucits) {
+    out.push(`<span class="funds-card-pill is-ucits">UCITS</span>`);
+  }
+  if (it.share === 'Acc' || it.share === 'Dist') {
+    out.push(`<span class="funds-card-pill is-share">${_escFunds(it.share)}</span>`);
+  }
+  if (typeof it.currency === 'string' && /^[A-Z]{3}$/.test(it.currency)) {
+    out.push(`<span class="funds-card-pill is-curr">${_escFunds(it.currency)}</span>`);
+  }
+  return out.join('');
 }
 
 function _renderFundsCatalog() {
@@ -10730,8 +10759,8 @@ function _renderFundsCatalog() {
         <span class="funds-card-mgr">${_escFunds(it.manager)}</span>
       </div>
       <div class="funds-card-name">${_escFunds(it.name)}</div>
+      <div class="funds-card-badges">${_fundCardBadges(it)}</div>
       <div class="funds-card-foot">
-        <span class="funds-card-type">${_escFunds((it.type || '').toUpperCase())}</span>
         <span class="funds-card-cta">+ Add</span>
       </div>
     </button>

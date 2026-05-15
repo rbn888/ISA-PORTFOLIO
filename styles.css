@@ -6044,9 +6044,42 @@ main { padding-bottom: 72px; }
 .funds-card-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;   /* MC-10: badges row moved out of foot */
   margin-top: 2px;
 }
+/* MC-10: metadata badges. Pills sit on a dedicated row between the
+   product name and the Add CTA so they don't fight for space with the
+   ticker / manager line. Hidden cleanly when no badges apply (the
+   builder returns an empty string). */
+.funds-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  min-height: 0;
+}
+.funds-card-badges:empty { display: none; }
+.funds-card-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.78);
+}
+.funds-card-pill.is-kind  { color: rgba(138,166,255,0.95); border-color: rgba(138,166,255,0.30); }
+.funds-card-pill.is-ucits { color: rgba(160,220,170,0.95); border-color: rgba(160,220,170,0.30); }
+.funds-card-pill.is-share { color: rgba(255,205,150,0.95); border-color: rgba(255,205,150,0.30); }
+.funds-card-pill.is-curr  { color: rgba(255,255,255,0.92); border-color: rgba(255,255,255,0.18); }
+/* MC-10: deprecated single .funds-card-type kept as a no-op fallback in
+   case any external CSS still targets it; new render path doesn't emit
+   the class at all. */
 .funds-card-type {
   font-size: 10px;
   font-weight: 700;
