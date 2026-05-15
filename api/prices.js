@@ -54,6 +54,7 @@ const TTL = {
   etf:       60  * 1000,   // intraday tick
   index:     60  * 1000,   // intraday tick
   commodity: 300 * 1000,   // slower-moving (XAU/USD, WTI)
+  fund:      6 * 60 * 60 * 1000, // mutual funds: daily NAV, refresh every 6h
   fx:        300 * 1000,   // not used today, reserved
 };
 

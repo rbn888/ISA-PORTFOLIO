@@ -4,12 +4,17 @@
 //
 // Response shape matches what the frontend caller already expects:
 //   { results: [{ ticker, name, type, marketSymbol }, ...] }
-// where type is 'stock' | 'etf' | 'index'.
+// where type is 'stock' | 'etf' | 'index' | 'fund'.
 //
 // MC-2B: indices (^GSPC, ^GDAXI, ^IBEX, ^N225, ^FTSE, …) are surfaced with
 // type:'index' so search returns "S&P 500", "DAX", "IBEX 35", "Nikkei",
 // "FTSE 100", etc. Pricing for indices outside the snapshot REGISTRY
 // (^GSPC / ^IXIC / ^DJI today) is out of scope for this change.
+//
+// MC-6: mutual funds (Yahoo quoteType 'MUTUALFUND') are surfaced with
+// type:'fund'. Yahoo serves the NAV under opaque Morningstar codes
+// (0P*) — the symbol is passed through verbatim; the snapshot router
+// recognises the 0P* shape and routes to Yahoo with daily-NAV TTL.
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://rbn888.github.io';
 const MAX_RESULTS    = 7;
@@ -38,12 +43,14 @@ export default async function handler(req, res) {
     const json    = await upstream.json();
     const quotes  = Array.isArray(json?.quotes) ? json.quotes : [];
     const results = quotes
-      .filter(qt => qt.quoteType === 'EQUITY' || qt.quoteType === 'ETF' || qt.quoteType === 'INDEX')
+      .filter(qt => qt.quoteType === 'EQUITY' || qt.quoteType === 'ETF'
+                 || qt.quoteType === 'INDEX'  || qt.quoteType === 'MUTUALFUND')
       .slice(0, MAX_RESULTS)
       .map(qt => {
-        const type = qt.quoteType === 'ETF'   ? 'etf'
-                   : qt.quoteType === 'INDEX' ? 'index'
-                                              : 'stock';
+        const type = qt.quoteType === 'ETF'        ? 'etf'
+                   : qt.quoteType === 'INDEX'      ? 'index'
+                   : qt.quoteType === 'MUTUALFUND' ? 'fund'
+                                                   : 'stock';
         return {
           ticker:       qt.symbol,
           name:         qt.longname || qt.shortname || qt.symbol,

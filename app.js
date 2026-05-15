@@ -7577,15 +7577,21 @@ function _toTitleCase(str) {
 }
 
 function _figiToAssetType(secType, secType2) {
-  // MC-4 note: mutual funds (secType "Mutual Fund") currently map to 'etf'
-  // via the t1.includes('fund') branch. This is intentional for now —
-  // the rest of the codebase only knows {stock, etf, crypto, metal,
-  // commodity, index}, and pricing for non-ETF funds is unreliable
-  // via the existing provider chain. A dedicated 'fund' type with NAV-
-  // daily pricing is deferred to a follow-up PR.
   const t1 = (secType  || '').toLowerCase();
   const t2 = (secType2 || '').toLowerCase();
-  if (t1 === 'etp' || t2.includes('etf') || t1.includes('fund') || t2.includes('fund')) return 'etf';
+  // MC-6: detect mutual funds / open-end funds explicitly and return
+  // 'fund' so they route through the snapshot Yahoo-passthrough for
+  // 0P* Morningstar codes with daily-NAV TTL. Order matters: this
+  // branch must run BEFORE the 'fund'-substring ETF fallback below,
+  // because the secType "Mutual Fund" contains the substring "fund".
+  if (t1.includes('mutual') || t1.includes('open-end') ||
+      t2.includes('mutual') || t2.includes('open-end')) return 'fund';
+  // ETFs / ETPs.
+  if (t1 === 'etp' || t2.includes('etf')) return 'etf';
+  // Any other fund-classed instrument (closed-end fund, fund of funds,
+  // …) still falls back to 'etf' — preserves prior behavior for those
+  // shapes; only the mutual-fund branch was misclassified before.
+  if (t1.includes('fund') || t2.includes('fund')) return 'etf';
   if (t1 === 'common stock' || t1 === 'equity' || t1.includes('share')) return 'stock';
   return 'other';
 }
@@ -7917,7 +7923,11 @@ async function refreshPrices() {
 
   const cryptos      = assets.filter(a => a.type === 'crypto' && a.coinId);
   const marketAssets = assets.filter(a =>
-    (a.type === 'stock' || a.type === 'etf' || a.type === 'metal' || a.type === 'other') && a.marketSymbol
+    // MC-6: 'fund' included so persisted mutual funds get refreshed through
+    // the same legacy batch path. Their marketSymbol is a 0P* Morningstar
+    // code; the snapshot router (MC-6) recognises the shape and routes
+    // to Yahoo with daily-NAV TTL.
+    (a.type === 'stock' || a.type === 'etf' || a.type === 'metal' || a.type === 'fund' || a.type === 'other') && a.marketSymbol
   );
   if (!cryptos.length && !marketAssets.length) return;
 
