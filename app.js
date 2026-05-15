@@ -14446,6 +14446,255 @@ document.addEventListener('keydown', (e) => {
   if (_WP4.menuEl) { _wp4CloseSelector(); }
 });
 
+// ── PR-WP6B: safe AI template foundation ───────────────────────────────────
+// Deterministic intent handlers + a pure validator that gates every spec
+// before it touches the runtime. A future WP-6C LLM layer should only
+// produce {intent, params} JSON — never formulas or cell shapes — so
+// hallucinated functions or out-of-bounds writes die here, not in eval.
+//
+// No backend, no model call, no fake data. window.__wp6 exposes the three
+// methods to the console for end-to-end testing.
+
+const _WP6_ALLOWED_FORMATS  = new Set(['currency','percent','number','integer','date']);
+const _WP6_BLOCKED_FUNCTIONS = new Set(['PORTFOLIO.CAGR']);
+
+function _wp6CollectCalledNames(ast) {
+  const names = new Set();
+  const walk = (n) => {
+    if (!n) return;
+    switch (n.type) {
+      case 'call':
+        names.add(String(n.name || '').toUpperCase());
+        for (const a of n.args || []) walk(a);
+        return;
+      case 'unary':  walk(n.operand); return;
+      case 'binary': walk(n.lhs); walk(n.rhs); return;
+      default: return;
+    }
+  };
+  walk(ast);
+  return names;
+}
+
+// Intra-template cycle check. Only catches cycles formed *between* template
+// cells; refs to existing-sheet cells are not traced because _wp4ApplyTemplate
+// wipes non-readonly cells before write, so prior user formulas can't close
+// a cycle with template cells.
+function _wp6CheckIntraTemplateCycles(template) {
+  const depGraph = new Map();
+  for (const spec of template.cells) {
+    if (!spec || spec.type !== 'formula') continue;
+    const parsed = parseWorkspaceFormula(spec.formula);
+    if (!parsed) continue;
+    const deps = _extractFormulaDependencies(parsed);
+    const cellDeps = new Set();
+    for (const d of deps) if (/^[A-Z]+\d+$/.test(d)) cellDeps.add(d);
+    depGraph.set(spec.id, cellDeps);
+  }
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map();
+  for (const id of depGraph.keys()) color.set(id, WHITE);
+  const visit = (id) => {
+    color.set(id, GRAY);
+    for (const dep of depGraph.get(id) || []) {
+      const c = color.get(dep);
+      if (c === GRAY) return true;
+      if (c === WHITE && visit(dep)) return true;
+    }
+    color.set(id, BLACK);
+    return false;
+  };
+  for (const id of depGraph.keys()) {
+    if (color.get(id) === WHITE && visit(id)) return true;
+  }
+  return false;
+}
+
+function validateAITemplate(template) {
+  const errors = [];
+  if (!template || typeof template !== 'object') {
+    return { ok: false, errors: ['template must be an object'] };
+  }
+  if (!Array.isArray(template.cells)) {
+    return { ok: false, errors: ['template.cells must be an array'] };
+  }
+  for (let i = 0; i < template.cells.length; i++) {
+    const spec = template.cells[i];
+    const tag = `cell[${i}]${spec && spec.id ? ' '+spec.id : ''}`;
+    if (!spec || typeof spec !== 'object') { errors.push(`${tag}: not an object`); continue; }
+    if (typeof spec.id !== 'string' || !_isCellInGridBounds(spec.id)) {
+      errors.push(`${tag}: id "${spec.id}" out of grid bounds`); continue;
+    }
+    if (spec.type !== 'value' && spec.type !== 'formula') {
+      errors.push(`${tag}: type must be 'value' or 'formula'`); continue;
+    }
+    if (spec.format != null && !_WP6_ALLOWED_FORMATS.has(spec.format)) {
+      errors.push(`${tag}: format "${spec.format}" not allowed`);
+    }
+    if (spec.type === 'value') {
+      const t = typeof spec.value;
+      if (t !== 'string' && t !== 'number') {
+        errors.push(`${tag}: value must be string or number, got ${t}`);
+      }
+    } else { // formula
+      if (typeof spec.formula !== 'string') {
+        errors.push(`${tag}: formula must be a string`); continue;
+      }
+      if (!spec.formula.startsWith('=')) {
+        errors.push(`${tag}: formula must start with '='`); continue;
+      }
+      const parsed = parseWorkspaceFormula(spec.formula);
+      if (!parsed) {
+        errors.push(`${tag}: formula does not parse: ${spec.formula}`); continue;
+      }
+      const calledNames = _wp6CollectCalledNames(parsed);
+      for (const name of calledNames) {
+        if (_WP6_BLOCKED_FUNCTIONS.has(name)) {
+          errors.push(`${tag}: uses blocked function ${name}`);
+        } else if (!Object.prototype.hasOwnProperty.call(_AW8_WORKSPACE_FUNCTIONS, name)
+                && !Object.prototype.hasOwnProperty.call(_AW8_FINANCIAL_FUNCTIONS, name)) {
+          errors.push(`${tag}: unknown function ${name}`);
+        }
+      }
+    }
+  }
+  if (errors.length === 0 && _wp6CheckIntraTemplateCycles(template)) {
+    errors.push('template contains intra-template circular cell references');
+  }
+  return errors.length === 0 ? { ok: true } : { ok: false, errors };
+}
+
+// ── Deterministic intent handlers ──────────────────────────────────────────
+// Each handler returns a fully-formed AI template object:
+//   { title, description, cells: CellSpec[] }
+// Four reuse the WP-4 templates; two are new (dividend tracker, FIRE calc).
+// No external/fake data — dividend yields and FIRE parameters are seeded
+// with neutral defaults the user fills in.
+function _wp6LookupWP4(id) {
+  return _WP4_TEMPLATES.find(t => t.id === id);
+}
+
+const _WP6_INTENT_HANDLERS = {
+  portfolio_summary: () => {
+    const tpl = _wp6LookupWP4('portfolio-overview');
+    return { title: 'Portfolio Summary', description: tpl.description, cells: tpl.build() };
+  },
+  risk_dashboard: () => {
+    const tpl = _wp6LookupWP4('risk-monitor');
+    return { title: 'Risk Dashboard', description: tpl.description, cells: tpl.build() };
+  },
+  position_analysis: (params) => {
+    const tpl = _wp6LookupWP4('position-analyzer');
+    const ticker = String((params && params.ticker) || 'TSLA').trim().toUpperCase() || 'TSLA';
+    return { title: 'Position Analysis', description: tpl.description, cells: tpl.build(ticker) };
+  },
+  market_watch: () => {
+    const tpl = _wp6LookupWP4('market-watch');
+    return { title: 'Market Watch', description: tpl.description, cells: tpl.build() };
+  },
+  dividend_tracker: () => {
+    // No external dividend feed. User fills B (qty) and C (div/share) per
+    // row; D computes annual dividend, and D14 totals across six rows.
+    const tickers = ['AAPL', 'KO', 'MCD', 'JNJ', 'SPY', 'VOO'];
+    const cells = [
+      { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
+      { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
+      { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
+      { id: 'A5', type: 'value', value: 'Dividend Tracker' },
+      { id: 'A6', type: 'value', value: 'Symbol' },
+      { id: 'B6', type: 'value', value: 'Qty' },
+      { id: 'C6', type: 'value', value: 'Div/Share' },
+      { id: 'D6', type: 'value', value: 'Annual' },
+    ];
+    tickers.forEach((sym, i) => {
+      const r = 7 + i;
+      cells.push({ id: `A${r}`, type: 'value',   value: sym });
+      cells.push({ id: `B${r}`, type: 'value',   value: 0 });
+      cells.push({ id: `C${r}`, type: 'value',   value: 0, format: 'currency' });
+      cells.push({ id: `D${r}`, type: 'formula', formula: `=B${r}*C${r}`, format: 'currency' });
+    });
+    cells.push({ id: 'A14', type: 'value',   value: 'Total' });
+    cells.push({ id: 'D14', type: 'formula', formula: '=SUM(D7:D12)', format: 'currency' });
+    return {
+      title: 'Dividend Tracker',
+      description: 'Enter qty and div/share per ticker — annual income computes automatically',
+      cells,
+    };
+  },
+  fire_calculator: (params) => {
+    // Pure compounding math: FV = P*(1+r)^n + C*((1+r)^n - 1)/r
+    const p = params || {};
+    const ageNow   = Number.isFinite(+p.currentAge)     ? +p.currentAge     : 30;
+    const ageGoal  = Number.isFinite(+p.targetAge)      ? +p.targetAge      : 50;
+    const savings  = Number.isFinite(+p.currentSavings) ? +p.currentSavings : 50000;
+    const contrib  = Number.isFinite(+p.annualContrib)  ? +p.annualContrib  : 30000;
+    const retPct   = Number.isFinite(+p.expectedReturn) ? +p.expectedReturn : 7;
+    return {
+      title: 'FIRE Calculator',
+      description: 'Edit B6-B11 to model your scenario; B12 projects future value via compounding',
+      cells: [
+        { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
+        { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
+        { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
+        { id: 'A5',  type: 'value',   value: 'FIRE Calculator' },
+        { id: 'A6',  type: 'value',   value: 'Current Age' },
+        { id: 'B6',  type: 'value',   value: ageNow,  format: 'integer' },
+        { id: 'A7',  type: 'value',   value: 'Target Age' },
+        { id: 'B7',  type: 'value',   value: ageGoal, format: 'integer' },
+        { id: 'A8',  type: 'value',   value: 'Years' },
+        { id: 'B8',  type: 'formula', formula: '=B7-B6', format: 'integer' },
+        { id: 'A9',  type: 'value',   value: 'Current Savings' },
+        { id: 'B9',  type: 'value',   value: savings, format: 'currency' },
+        { id: 'A10', type: 'value',   value: 'Annual Contribution' },
+        { id: 'B10', type: 'value',   value: contrib, format: 'currency' },
+        { id: 'A11', type: 'value',   value: 'Expected Return %' },
+        { id: 'B11', type: 'value',   value: retPct,  format: 'number' },
+        { id: 'A12', type: 'value',   value: 'Future Value' },
+        { id: 'B12', type: 'formula',
+          formula: '=B9*POW(1+B11/100,B8)+B10*(POW(1+B11/100,B8)-1)/(B11/100)',
+          format: 'currency' },
+      ],
+    };
+  },
+};
+
+// ── Dev entry point: window.__wp6 ──────────────────────────────────────────
+// Exposed so future WP-6C (LLM layer) can be smoke-tested from the console,
+// and so the validator can be exercised against adversarial inputs without
+// any backend. NEVER call this from production code paths — the templates
+// UI / future AI surface go through their own confirmation flow.
+function _wp6BuildIntent(intent, params) {
+  const handler = _WP6_INTENT_HANDLERS[intent];
+  if (!handler) return { error: `unknown intent: ${intent}` };
+  return handler(params || {});
+}
+
+function _wp6ApplyIntent(intent, params) {
+  const template = _wp6BuildIntent(intent, params);
+  if (template.error) return { ok: false, errors: [template.error] };
+  const v = validateAITemplate(template);
+  if (!v.ok) return v;
+  // Reuse WP-4 confirmation if the user has non-readonly data on the sheet.
+  const sheet = WORKSPACE_RUNTIME.sheets.get('main');
+  const hasUserData = sheet && [...sheet.cells.values()].some(c => c && !c.readonly);
+  if (hasUserData && typeof window !== 'undefined' && window.confirm) {
+    const ok = window.confirm(`Apply "${template.title}"? This replaces current workspace cells.`);
+    if (!ok) return { ok: false, errors: ['user cancelled'] };
+  }
+  // Adapter: _wp4ApplyTemplate expects a {build:(ticker)=>cells} shape.
+  _wp4ApplyTemplate({ build: () => template.cells });
+  return { ok: true };
+}
+
+if (typeof window !== 'undefined') {
+  window.__wp6 = {
+    intents:  Object.keys(_WP6_INTENT_HANDLERS),
+    validate: validateAITemplate,
+    build:    _wp6BuildIntent,
+    apply:    _wp6ApplyIntent,
+  };
+}
+
 // FC-10: register base financial formulas (pure consumers of derived snapshot).
 registerFinancialFormula(
   'portfolio.totalValue',
