@@ -5062,14 +5062,24 @@ function saveWorkspacePersistence() {
   const sheet = WORKSPACE_RUNTIME.sheets.get('main');
   if (!sheet) return false;
 
+  // PR-WP3: include layout (per-column widths + per-row heights) when
+  // available. Wrapped in try so a TDZ moment during very early boot
+  // (before _WP3 is declared) can never break a save.
+  let layout = null;
+  try { layout = _wp3SerializeLayout(); } catch (_) { layout = null; }
+
+  const mainSheet = {
+    userCells: serializeWorkspaceUserCells(sheet),
+  };
+  if (layout && (Object.keys(layout.colWidths || {}).length > 0
+              || Object.keys(layout.rowHeights || {}).length > 0)) {
+    mainSheet.layout = layout;
+  }
+
   const payload = {
     version:   _AW73_SCHEMA_VERSION,
     updatedAt: Date.now(),
-    sheets: {
-      main: {
-        userCells: serializeWorkspaceUserCells(sheet),
-      },
-    },
+    sheets: { main: mainSheet },
   };
 
   try {
@@ -5155,6 +5165,10 @@ function _hydrateWorkspaceFromPersistence() {
   if (applied > 0) {
     _rebuildAndRecomputeAll(sheet);
   }
+  // PR-WP3: hydrate layout (col widths + row heights). Additive — older
+  // payloads without `layout` simply leave the maps empty so default
+  // grid-template-* fall back to the CSS defaults.
+  try { _wp3DeserializeLayout(payload.sheets.main.layout); } catch (_) {}
   console.log('[workspace-persist] hydrated', { applied });
   return applied;
 }
@@ -13756,6 +13770,327 @@ document.addEventListener('mouseup', () => {
 
 // Seed history with the initial state once persistence has loaded.
 try { _aw8dRecordHistory(); } catch (_) { /* boot-time history seed is best-effort */ }
+
+// ── PR-WP3: professional spreadsheet interaction polish ─────────────────────
+// Column / row resize (drag handles on headers, persisted), right-click
+// context menu, Delete/Backspace clears the selection, Cmd/Ctrl+A selects
+// the visible grid, Esc closes the menu. All gated on the workspace tab
+// and the edit-input focus check. No parser / engine changes.
+const _WP3 = {
+  colWidths:  new Map(),         // col letter → px
+  rowHeights: new Map(),         // row number → px
+  resize: { mode: null, key: null, startCoord: 0, startSize: 0 },
+  menuEl: null,
+  outsideHandler: null,
+};
+const _WP3_COL_DEFAULT = 128;
+const _WP3_ROW_DEFAULT = 44;
+const _WP3_COL_MIN     = 60;
+const _WP3_COL_MAX     = 400;
+const _WP3_ROW_MIN     = 24;
+const _WP3_ROW_MAX     = 200;
+const _WP3_EDGE_PX     = 6;
+const _WP3_CORNER_W    = 52;
+const _WP3_HEADER_H    = 38;
+
+function _wp3SerializeLayout() {
+  const colWidths  = {};
+  const rowHeights = {};
+  for (const [k, v] of _WP3.colWidths)  colWidths[k]  = v;
+  for (const [k, v] of _WP3.rowHeights) rowHeights[k] = v;
+  return { colWidths, rowHeights };
+}
+
+function _wp3DeserializeLayout(layout) {
+  _WP3.colWidths.clear();
+  _WP3.rowHeights.clear();
+  if (!layout || typeof layout !== 'object') return;
+  if (layout.colWidths && typeof layout.colWidths === 'object') {
+    for (const k of Object.keys(layout.colWidths)) {
+      const v = Number(layout.colWidths[k]);
+      if (Number.isFinite(v) && v >= _WP3_COL_MIN && v <= _WP3_COL_MAX) {
+        _WP3.colWidths.set(k, v);
+      }
+    }
+  }
+  if (layout.rowHeights && typeof layout.rowHeights === 'object') {
+    for (const k of Object.keys(layout.rowHeights)) {
+      const rk = Number(k);
+      const v  = Number(layout.rowHeights[k]);
+      if (Number.isFinite(rk) && Number.isFinite(v)
+          && v >= _WP3_ROW_MIN && v <= _WP3_ROW_MAX) {
+        _WP3.rowHeights.set(rk, v);
+      }
+    }
+  }
+}
+
+// Re-applies grid-template-columns / grid-template-rows after every render
+// so resize state survives recompute / language toggle / undo cycles.
+function _wp3ApplyLayout() {
+  const matrix = document.querySelector('.aurix-grid-matrix');
+  if (!matrix) return;
+  const cols = WORKSPACE_RUNTIME.gridColumns;
+  const rows = WORKSPACE_RUNTIME.gridRows;
+  const colTpl = [_WP3_CORNER_W + 'px'].concat(cols.map(c => {
+    const w = _WP3.colWidths.get(c);
+    return (Number.isFinite(w)) ? `${w}px` : 'minmax(128px, 1fr)';
+  })).join(' ');
+  const rowTpl = [_WP3_HEADER_H + 'px'].concat(rows.map(r => {
+    const h = _WP3.rowHeights.get(r);
+    return (Number.isFinite(h)) ? `${h}px` : 'minmax(44px, auto)';
+  })).join(' ');
+  matrix.style.gridTemplateColumns = colTpl;
+  matrix.style.gridTemplateRows    = rowTpl;
+}
+
+// Wrap renderWorkspace so layout is re-applied on every render.
+const _wp3OriginalRender = renderWorkspace;
+renderWorkspace = function() {
+  const r = _wp3OriginalRender.apply(this, arguments);
+  try { _wp3ApplyLayout(); } catch (_) { /* layout best-effort */ }
+  return r;
+};
+
+// Locate a resize edge under the pointer; returns the affected col letter
+// or row number plus the current rendered size. Returns null when the
+// pointer is on a header but not on its edge (so plain header clicks fall
+// through to existing handlers).
+function _wp3FindResizeEdge(target, clientX, clientY) {
+  if (!target || !target.closest) return null;
+  const colHeader = target.closest('.aurix-grid-col-header');
+  if (colHeader) {
+    const rect = colHeader.getBoundingClientRect();
+    if (clientX >= rect.right - _WP3_EDGE_PX && clientX <= rect.right + _WP3_EDGE_PX) {
+      const col = colHeader.textContent.trim();
+      if (WORKSPACE_RUNTIME.gridColumns.indexOf(col) >= 0) {
+        return { type: 'col', key: col, size: rect.width };
+      }
+    }
+    return null;
+  }
+  const rowHeader = target.closest('.aurix-grid-row-header');
+  if (rowHeader) {
+    const rect = rowHeader.getBoundingClientRect();
+    if (clientY >= rect.bottom - _WP3_EDGE_PX && clientY <= rect.bottom + _WP3_EDGE_PX) {
+      const row = parseInt(rowHeader.textContent.trim(), 10);
+      if (Number.isFinite(row)) {
+        return { type: 'row', key: row, size: rect.height };
+      }
+    }
+    return null;
+  }
+  return null;
+}
+
+// Mousedown — capture phase, before PR-8D's drag-selection sees the event.
+// PR-8D's listener only fires for `[data-cell-id]` elements, so headers
+// don't conflict — but using capture ensures resize wins if the DOM ever
+// changes.
+document.addEventListener('mousedown', (e) => {
+  if (typeof currentTab !== 'string' || currentTab !== 'workspace') return;
+  if (_aw8dIsInEditInput(e.target)) return;
+  if (e.button !== 0) return;       // left-click only
+  const edge = _wp3FindResizeEdge(e.target, e.clientX, e.clientY);
+  if (!edge) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _WP3.resize.mode       = edge.type;
+  _WP3.resize.key        = edge.key;
+  _WP3.resize.startCoord = (edge.type === 'col') ? e.clientX : e.clientY;
+  _WP3.resize.startSize  = edge.size;
+  document.body.style.cursor = (edge.type === 'col') ? 'col-resize' : 'row-resize';
+}, true);
+
+// Mousemove: live cursor hint on hover + actual resize while dragging.
+document.addEventListener('mousemove', (e) => {
+  if (_WP3.resize.mode) {
+    const r = _WP3.resize;
+    const delta = (r.mode === 'col' ? e.clientX : e.clientY) - r.startCoord;
+    if (r.mode === 'col') {
+      const next = Math.max(_WP3_COL_MIN, Math.min(_WP3_COL_MAX, r.startSize + delta));
+      _WP3.colWidths.set(r.key, next);
+    } else {
+      const next = Math.max(_WP3_ROW_MIN, Math.min(_WP3_ROW_MAX, r.startSize + delta));
+      _WP3.rowHeights.set(r.key, next);
+    }
+    _wp3ApplyLayout();
+    return;
+  }
+  if (typeof currentTab !== 'string' || currentTab !== 'workspace') return;
+  const edge = _wp3FindResizeEdge(e.target, e.clientX, e.clientY);
+  const want = edge ? (edge.type === 'col' ? 'col-resize' : 'row-resize') : '';
+  const cur  = document.body.style.cursor;
+  if (cur !== want && (cur === '' || cur === 'col-resize' || cur === 'row-resize')) {
+    document.body.style.cursor = want;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (!_WP3.resize.mode) return;
+  _WP3.resize.mode = null;
+  _WP3.resize.key  = null;
+  document.body.style.cursor = '';
+  // Persist sizes (history wrapper de-dups since userCells didn't change).
+  try { saveWorkspacePersistence(); } catch (_) {}
+});
+
+// ── Context menu ────────────────────────────────────────────────────────────
+function _wp3CloseContextMenu() {
+  if (_WP3.menuEl && _WP3.menuEl.parentNode) {
+    _WP3.menuEl.parentNode.removeChild(_WP3.menuEl);
+  }
+  _WP3.menuEl = null;
+  if (_WP3.outsideHandler) {
+    document.removeEventListener('mousedown', _WP3.outsideHandler, true);
+    _WP3.outsideHandler = null;
+  }
+}
+
+function _wp3ClearSelection(fallbackId) {
+  let ids = _aw8dCurrentSelection();
+  if ((!ids || ids.length === 0) && fallbackId) ids = [fallbackId];
+  const sheet = WORKSPACE_RUNTIME.sheets.get('main');
+  if (!sheet || !ids || ids.length === 0) return;
+  let changed = 0;
+  for (const id of ids) {
+    const cell = sheet.cells.get(id);
+    if (!cell) continue;
+    if (cell.readonly) continue;
+    sheet.cells.delete(id);
+    if (typeof _setCellDependencies === 'function') _setCellDependencies(id, []);
+    changed++;
+  }
+  if (!changed) return;
+  saveWorkspacePersistence();
+  recalculateWorkspaceSheet(WORKSPACE_RUNTIME.activeSheetId);
+  renderWorkspace();
+}
+
+function _wp3OpenContextMenu(clientX, clientY, anchorCellId) {
+  _wp3CloseContextMenu();
+  const target = anchorCellId || WORKSPACE_RUNTIME.activeCellId;
+  const items = [
+    { label: 'Clear',            act: () => _wp3ClearSelection(target) },
+    { label: 'Copy',             act: () => _aw8dCopySelection() },
+    { label: 'Paste',            act: () => _aw8dPasteAt(target) },
+    null,
+    { label: 'Undo',             act: () => _aw8dUndo() },
+    { label: 'Redo',             act: () => _aw8dRedo() },
+    null,
+    { label: 'Format: Currency', act: () => _aw8dApplyFormatToSelection('currency') },
+    { label: 'Format: Percent',  act: () => _aw8dApplyFormatToSelection('percent')  },
+    { label: 'Format: Number',   act: () => _aw8dApplyFormatToSelection('number')   },
+    { label: 'Format: Integer',  act: () => _aw8dApplyFormatToSelection('integer')  },
+  ];
+  const menu = document.createElement('div');
+  menu.setAttribute('role', 'menu');
+  menu.style.cssText = [
+    'position:fixed',
+    `left:${clientX}px`,
+    `top:${clientY}px`,
+    'background:#1c1c20',
+    'color:#e8e8ea',
+    'border:1px solid rgba(255,255,255,0.10)',
+    'border-radius:6px',
+    'box-shadow:0 10px 30px rgba(0,0,0,0.45)',
+    'padding:4px 0',
+    'min-width:180px',
+    'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
+    'font-size:13px',
+    'z-index:10000',
+    'user-select:none',
+  ].join(';');
+  for (const item of items) {
+    if (item == null) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px;background:rgba(255,255,255,0.08);margin:4px 0';
+      menu.appendChild(sep);
+      continue;
+    }
+    const row = document.createElement('div');
+    row.setAttribute('role', 'menuitem');
+    row.style.cssText = 'padding:6px 14px;cursor:pointer';
+    row.textContent = item.label;
+    row.addEventListener('mouseenter', () => { row.style.background = 'rgba(255,255,255,0.06)'; });
+    row.addEventListener('mouseleave', () => { row.style.background = 'transparent'; });
+    row.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      _wp3CloseContextMenu();
+      try { item.act(); } catch (_) {}
+    });
+    menu.appendChild(row);
+  }
+  document.body.appendChild(menu);
+  _WP3.menuEl = menu;
+  _WP3.outsideHandler = (ev) => {
+    if (_WP3.menuEl && !_WP3.menuEl.contains(ev.target)) _wp3CloseContextMenu();
+  };
+  // Defer attach so the contextmenu's own mousedown doesn't immediately close.
+  setTimeout(() => {
+    if (_WP3.outsideHandler) {
+      document.addEventListener('mousedown', _WP3.outsideHandler, true);
+    }
+  }, 0);
+}
+
+document.addEventListener('contextmenu', (e) => {
+  if (typeof currentTab !== 'string' || currentTab !== 'workspace') return;
+  if (_aw8dIsInEditInput(e.target)) return;     // native menu in inputs
+  const cellEl = e.target.closest && e.target.closest('[data-cell-id]');
+  if (!cellEl) return;
+  e.preventDefault();
+  const id = cellEl.dataset.cellId;
+  if (id) {
+    const inSel = _AW8D.selection.startId
+               && _aw8dCellsInRect(_AW8D.selection.startId, _AW8D.selection.endId).includes(id);
+    if (!inSel) {
+      _AW8D.selection.startId = id;
+      _AW8D.selection.endId   = id;
+      WORKSPACE_RUNTIME.activeCellId = id;
+      _aw8dUpdateSelectionStyle();
+    }
+  }
+  _wp3OpenContextMenu(e.clientX, e.clientY, id);
+});
+
+// ── Keyboard polish ─────────────────────────────────────────────────────────
+// PR-8D's keydown listener already handles Cmd/Ctrl-based shortcuts; this
+// supplementary listener covers Delete / Backspace / Cmd+A / Esc without
+// interfering with cell-edit / formula-bar typing.
+document.addEventListener('keydown', (e) => {
+  if (typeof currentTab !== 'string' || currentTab !== 'workspace') return;
+
+  if (e.key === 'Escape') {
+    if (_WP3.menuEl) { _wp3CloseContextMenu(); return; }
+    // Edit-input Escape is already handled by _onWorkspaceEditInputKeyDown.
+  }
+
+  if (_aw8dIsInEditInput(e.target)) return;   // don't hijack typing
+
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    _wp3ClearSelection(WORKSPACE_RUNTIME.activeCellId);
+    return;
+  }
+
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && !e.shiftKey && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    const cols = WORKSPACE_RUNTIME.gridColumns;
+    const rows = WORKSPACE_RUNTIME.gridRows;
+    if (cols.length && rows.length) {
+      _AW8D.selection.startId = cols[0] + rows[0];
+      _AW8D.selection.endId   = cols[cols.length - 1] + rows[rows.length - 1];
+      _aw8dUpdateSelectionStyle();
+    }
+    return;
+  }
+});
+
+// Apply layout once on boot too (covers the initial render that happened
+// before this block evaluated).
+try { _wp3ApplyLayout(); } catch (_) {}
 
 // FC-10: register base financial formulas (pure consumers of derived snapshot).
 registerFinancialFormula(
