@@ -471,6 +471,26 @@ const T = {
     fundCat_europe:            'Europa',
     fundCat_dividend:          'Dividendo',
     fundCat_small_cap:         'Small Cap',
+    // MC-11B: per-asset-class discovery category labels (tab-prefixed)
+    discCat_stocks_magnificent_7:     'Magnificent 7',
+    discCat_stocks_ai_leaders:        'Líderes IA',
+    discCat_stocks_dividend_stocks:   'Dividendo',
+    discCat_stocks_financials:        'Financieras',
+    discCat_stocks_healthcare:        'Salud',
+    discCat_stocks_energy:            'Energía',
+    discCat_crypto_layer_1:           'Layer 1',
+    discCat_crypto_defi:              'DeFi',
+    discCat_crypto_ai_crypto:         'IA',
+    discCat_crypto_infrastructure:    'Infraestructura',
+    discCat_crypto_stablecoins:       'Stablecoins',
+    discCat_indices_us:               'EE.UU.',
+    discCat_indices_europe:           'Europa',
+    discCat_indices_asia:             'Asia',
+    discCat_indices_global:           'Global',
+    discCat_indices_volatility:       'Volatilidad',
+    discCat_commodities_precious_metals:    'Metales preciosos',
+    discCat_commodities_energy_commodities: 'Energía',
+    discCat_commodities_industrial_metals:  'Metales industriales',
     empty_watchlist:   'Añade activos ⭐ para seguirlos aquí',
     market_no_results: 'Sin resultados',
     stale:             'sin actualizar',
@@ -874,6 +894,26 @@ const T = {
     fundCat_europe:            'Europe',
     fundCat_dividend:          'Dividend',
     fundCat_small_cap:         'Small Cap',
+    // MC-11B: per-asset-class discovery category labels (tab-prefixed)
+    discCat_stocks_magnificent_7:     'Magnificent 7',
+    discCat_stocks_ai_leaders:        'AI Leaders',
+    discCat_stocks_dividend_stocks:   'Dividend',
+    discCat_stocks_financials:        'Financials',
+    discCat_stocks_healthcare:        'Healthcare',
+    discCat_stocks_energy:            'Energy',
+    discCat_crypto_layer_1:           'Layer 1',
+    discCat_crypto_defi:              'DeFi',
+    discCat_crypto_ai_crypto:         'AI',
+    discCat_crypto_infrastructure:    'Infrastructure',
+    discCat_crypto_stablecoins:       'Stablecoins',
+    discCat_indices_us:               'US',
+    discCat_indices_europe:           'Europe',
+    discCat_indices_asia:             'Asia',
+    discCat_indices_global:           'Global',
+    discCat_indices_volatility:       'Volatility',
+    discCat_commodities_precious_metals:    'Precious Metals',
+    discCat_commodities_energy_commodities: 'Energy',
+    discCat_commodities_industrial_metals:  'Industrial Metals',
     empty_watchlist:   'Add assets ⭐ to track them here',
     market_no_results: 'No results',
     stale:             'stale data',
@@ -10576,11 +10616,16 @@ function renderCurrentMarketView() {
     // accessible per spec. Clicks on discovery cards reuse openModal +
     // selectAsset; clicks on live rows keep their existing behavior.
     const live = renderFromCache('etfs', data);
-    html = _renderFundsCatalog() + live;
+    html = _renderDiscoveryCatalog('etfs') + live;
   } else {
     const activeType = _TAB_TO_TYPE[currentMarketTab];
     if (!activeType) return;
-    html = renderFromCache(activeType, data);
+    // MC-11B: prepend the per-asset-class discovery section above the
+    // live monitoring table for every supported tab. The registry guard
+    // means tabs without a catalog (none today) still render the table
+    // alone, with no empty discovery shell.
+    const disc = _DISCOVERY_CATALOGS[currentMarketTab] ? _renderDiscoveryCatalog(currentMarketTab) : '';
+    html = disc + renderFromCache(activeType, data);
   }
 
   const renderKey = `${currentMarketTab}|${_marketSearchQuery}|${html.length}`;
@@ -10715,7 +10760,193 @@ const _FUNDS_CATALOG = [
   ]},
 ];
 
-let _fundsActiveCategoryId = 'msci_world';
+// MC-11B: curated discovery catalogs for every asset class. Each shares
+// the same shape as _FUNDS_CATALOG so the renderer + click delegation
+// are generic. Identity preserved — different products (e.g. iShares vs
+// Vanguard MSCI World) stay separate entries; no provider routing, no
+// snapshot router, no pricing code changes. Items use the same shape
+// search results / selectAsset already consume: ticker, name, type,
+// marketSymbol, optional manager / currency / coinId etc.
+
+// Stocks
+const _STOCKS_CATALOG = [
+  { id:'magnificent_7', items:[
+    { ticker:'AAPL',  name:'Apple Inc.',          manager:'Tech',   type:'stock', marketSymbol:'AAPL',  currency:'USD' },
+    { ticker:'MSFT',  name:'Microsoft Corp.',     manager:'Tech',   type:'stock', marketSymbol:'MSFT',  currency:'USD' },
+    { ticker:'GOOGL', name:'Alphabet Inc.',       manager:'Tech',   type:'stock', marketSymbol:'GOOGL', currency:'USD' },
+    { ticker:'AMZN',  name:'Amazon.com Inc.',     manager:'Retail', type:'stock', marketSymbol:'AMZN',  currency:'USD' },
+    { ticker:'META',  name:'Meta Platforms',      manager:'Tech',   type:'stock', marketSymbol:'META',  currency:'USD' },
+    { ticker:'NVDA',  name:'NVIDIA Corp.',        manager:'Tech',   type:'stock', marketSymbol:'NVDA',  currency:'USD' },
+    { ticker:'TSLA',  name:'Tesla Inc.',          manager:'Auto',   type:'stock', marketSymbol:'TSLA',  currency:'USD' },
+  ]},
+  { id:'ai_leaders', items:[
+    { ticker:'NVDA',  name:'NVIDIA Corp.',                manager:'GPU',   type:'stock', marketSymbol:'NVDA', currency:'USD' },
+    { ticker:'MSFT',  name:'Microsoft Corp.',             manager:'Cloud', type:'stock', marketSymbol:'MSFT', currency:'USD' },
+    { ticker:'GOOGL', name:'Alphabet Inc.',               manager:'AI',    type:'stock', marketSymbol:'GOOGL',currency:'USD' },
+    { ticker:'AVGO',  name:'Broadcom Inc.',               manager:'Chips', type:'stock', marketSymbol:'AVGO', currency:'USD' },
+    { ticker:'AMD',   name:'Advanced Micro Devices',      manager:'Chips', type:'stock', marketSymbol:'AMD',  currency:'USD' },
+    { ticker:'PLTR',  name:'Palantir Technologies',       manager:'AI',    type:'stock', marketSymbol:'PLTR', currency:'USD' },
+    { ticker:'TSM',   name:'Taiwan Semiconductor',        manager:'Fabs',  type:'stock', marketSymbol:'TSM',  currency:'USD' },
+  ]},
+  { id:'dividend_stocks', items:[
+    { ticker:'JNJ',   name:'Johnson & Johnson',   manager:'Health',   type:'stock', marketSymbol:'JNJ', currency:'USD' },
+    { ticker:'PG',    name:'Procter & Gamble',    manager:'Cons',     type:'stock', marketSymbol:'PG',  currency:'USD' },
+    { ticker:'KO',    name:'Coca-Cola Co.',       manager:'Cons',     type:'stock', marketSymbol:'KO',  currency:'USD' },
+    { ticker:'PEP',   name:'PepsiCo Inc.',        manager:'Cons',     type:'stock', marketSymbol:'PEP', currency:'USD' },
+    { ticker:'MCD',   name:"McDonald's Corp.",    manager:'Cons',     type:'stock', marketSymbol:'MCD', currency:'USD' },
+    { ticker:'MO',    name:'Altria Group',        manager:'Tobacco',  type:'stock', marketSymbol:'MO',  currency:'USD' },
+    { ticker:'VZ',    name:'Verizon Comm.',       manager:'Telecom',  type:'stock', marketSymbol:'VZ',  currency:'USD' },
+  ]},
+  { id:'financials', items:[
+    { ticker:'JPM',  name:'JPMorgan Chase',  manager:'Bank',     type:'stock', marketSymbol:'JPM', currency:'USD' },
+    { ticker:'BAC',  name:'Bank of America', manager:'Bank',     type:'stock', marketSymbol:'BAC', currency:'USD' },
+    { ticker:'V',    name:'Visa Inc.',       manager:'Payments', type:'stock', marketSymbol:'V',   currency:'USD' },
+    { ticker:'MA',   name:'Mastercard',      manager:'Payments', type:'stock', marketSymbol:'MA',  currency:'USD' },
+    { ticker:'WFC',  name:'Wells Fargo',     manager:'Bank',     type:'stock', marketSymbol:'WFC', currency:'USD' },
+    { ticker:'GS',   name:'Goldman Sachs',   manager:'IB',       type:'stock', marketSymbol:'GS',  currency:'USD' },
+    { ticker:'MS',   name:'Morgan Stanley',  manager:'IB',       type:'stock', marketSymbol:'MS',  currency:'USD' },
+  ]},
+  { id:'healthcare', items:[
+    { ticker:'LLY',  name:'Eli Lilly',         manager:'Pharma', type:'stock', marketSymbol:'LLY',  currency:'USD' },
+    { ticker:'JNJ',  name:'Johnson & Johnson', manager:'Pharma', type:'stock', marketSymbol:'JNJ',  currency:'USD' },
+    { ticker:'UNH',  name:'UnitedHealth',      manager:'Insure', type:'stock', marketSymbol:'UNH',  currency:'USD' },
+    { ticker:'PFE',  name:'Pfizer Inc.',       manager:'Pharma', type:'stock', marketSymbol:'PFE',  currency:'USD' },
+    { ticker:'MRK',  name:'Merck & Co.',       manager:'Pharma', type:'stock', marketSymbol:'MRK',  currency:'USD' },
+    { ticker:'ABBV', name:'AbbVie Inc.',       manager:'Pharma', type:'stock', marketSymbol:'ABBV', currency:'USD' },
+  ]},
+  { id:'energy', items:[
+    { ticker:'XOM',  name:'Exxon Mobil',     manager:'Oil',  type:'stock', marketSymbol:'XOM',  currency:'USD' },
+    { ticker:'CVX',  name:'Chevron Corp.',   manager:'Oil',  type:'stock', marketSymbol:'CVX',  currency:'USD' },
+    { ticker:'COP',  name:'ConocoPhillips',  manager:'Oil',  type:'stock', marketSymbol:'COP',  currency:'USD' },
+    { ticker:'SHEL', name:'Shell plc',       manager:'Oil',  type:'stock', marketSymbol:'SHEL', currency:'USD' },
+    { ticker:'BP',   name:'BP plc',          manager:'Oil',  type:'stock', marketSymbol:'BP',   currency:'USD' },
+    { ticker:'TTE',  name:'TotalEnergies',   manager:'Oil',  type:'stock', marketSymbol:'TTE',  currency:'USD' },
+    { ticker:'NEE',  name:'NextEra Energy',  manager:'Util', type:'stock', marketSymbol:'NEE',  currency:'USD' },
+  ]},
+];
+
+// Crypto — coinId carried so selectAsset can use the existing
+// fetchLivePrices(coinId) crypto-pricing branch directly. CoinGecko IDs
+// match _ASSET_REGISTRY (lines 5966+) where available.
+const _CRYPTO_CATALOG = [
+  { id:'layer_1', items:[
+    { ticker:'BTC',  name:'Bitcoin',       manager:'L1', type:'crypto', marketSymbol:'BTC',  coinId:'bitcoin',      currency:'USD' },
+    { ticker:'ETH',  name:'Ethereum',      manager:'L1', type:'crypto', marketSymbol:'ETH',  coinId:'ethereum',     currency:'USD' },
+    { ticker:'SOL',  name:'Solana',        manager:'L1', type:'crypto', marketSymbol:'SOL',  coinId:'solana',       currency:'USD' },
+    { ticker:'ADA',  name:'Cardano',       manager:'L1', type:'crypto', marketSymbol:'ADA',  coinId:'cardano',      currency:'USD' },
+    { ticker:'AVAX', name:'Avalanche',     manager:'L1', type:'crypto', marketSymbol:'AVAX', coinId:'avalanche-2',  currency:'USD' },
+    { ticker:'DOT',  name:'Polkadot',      manager:'L1', type:'crypto', marketSymbol:'DOT',  coinId:'polkadot',     currency:'USD' },
+    { ticker:'NEAR', name:'NEAR Protocol', manager:'L1', type:'crypto', marketSymbol:'NEAR', coinId:'near',         currency:'USD' },
+    { ticker:'APT',  name:'Aptos',         manager:'L1', type:'crypto', marketSymbol:'APT',  coinId:'aptos',        currency:'USD' },
+  ]},
+  { id:'defi', items:[
+    { ticker:'UNI',  name:'Uniswap',  manager:'DEX',     type:'crypto', marketSymbol:'UNI',  coinId:'uniswap',                  currency:'USD' },
+    { ticker:'AAVE', name:'Aave',     manager:'Lending', type:'crypto', marketSymbol:'AAVE', coinId:'aave',                     currency:'USD' },
+    { ticker:'MKR',  name:'Maker',    manager:'Stable',  type:'crypto', marketSymbol:'MKR',  coinId:'maker',                    currency:'USD' },
+    { ticker:'LDO',  name:'Lido DAO', manager:'LSD',     type:'crypto', marketSymbol:'LDO',  coinId:'lido-dao',                 currency:'USD' },
+    { ticker:'CRV',  name:'Curve',    manager:'DEX',     type:'crypto', marketSymbol:'CRV',  coinId:'curve-dao-token',          currency:'USD' },
+    { ticker:'COMP', name:'Compound', manager:'Lending', type:'crypto', marketSymbol:'COMP', coinId:'compound-governance-token',currency:'USD' },
+  ]},
+  { id:'ai_crypto', items:[
+    { ticker:'FET',   name:'Fetch.ai',          manager:'AI', type:'crypto', marketSymbol:'FET',   coinId:'fetch-ai',       currency:'USD' },
+    { ticker:'RNDR',  name:'Render',            manager:'AI', type:'crypto', marketSymbol:'RNDR',  coinId:'render-token',   currency:'USD' },
+    { ticker:'TAO',   name:'Bittensor',         manager:'AI', type:'crypto', marketSymbol:'TAO',   coinId:'bittensor',      currency:'USD' },
+    { ticker:'AGIX',  name:'SingularityNET',    manager:'AI', type:'crypto', marketSymbol:'AGIX',  coinId:'singularitynet', currency:'USD' },
+    { ticker:'OCEAN', name:'Ocean Protocol',    manager:'AI', type:'crypto', marketSymbol:'OCEAN', coinId:'ocean-protocol', currency:'USD' },
+  ]},
+  { id:'infrastructure', items:[
+    { ticker:'LINK',  name:'Chainlink', manager:'Oracle',  type:'crypto', marketSymbol:'LINK',  coinId:'chainlink',     currency:'USD' },
+    { ticker:'MATIC', name:'Polygon',   manager:'L2',      type:'crypto', marketSymbol:'MATIC', coinId:'matic-network', currency:'USD' },
+    { ticker:'ARB',   name:'Arbitrum',  manager:'L2',      type:'crypto', marketSymbol:'ARB',   coinId:'arbitrum',      currency:'USD' },
+    { ticker:'OP',    name:'Optimism',  manager:'L2',      type:'crypto', marketSymbol:'OP',    coinId:'optimism',      currency:'USD' },
+    { ticker:'GRT',   name:'The Graph', manager:'Data',    type:'crypto', marketSymbol:'GRT',   coinId:'the-graph',     currency:'USD' },
+    { ticker:'FIL',   name:'Filecoin',  manager:'Storage', type:'crypto', marketSymbol:'FIL',   coinId:'filecoin',      currency:'USD' },
+  ]},
+  { id:'stablecoins', items:[
+    { ticker:'USDT', name:'Tether',      manager:'Stable', type:'crypto', marketSymbol:'USDT', coinId:'tether',      currency:'USD' },
+    { ticker:'USDC', name:'USD Coin',    manager:'Stable', type:'crypto', marketSymbol:'USDC', coinId:'usd-coin',    currency:'USD' },
+    { ticker:'DAI',  name:'Dai',         manager:'Stable', type:'crypto', marketSymbol:'DAI',  coinId:'dai',         currency:'USD' },
+    { ticker:'USDE', name:'Ethena USDe', manager:'Stable', type:'crypto', marketSymbol:'USDE', coinId:'ethena-usde', currency:'USD' },
+  ]},
+];
+
+// Indices
+const _INDICES_CATALOG = [
+  { id:'us', items:[
+    { ticker:'^GSPC', name:'S&P 500',          manager:'US', type:'index', marketSymbol:'^GSPC', currency:'USD' },
+    { ticker:'^IXIC', name:'NASDAQ Composite', manager:'US', type:'index', marketSymbol:'^IXIC', currency:'USD' },
+    { ticker:'^DJI',  name:'Dow Jones',        manager:'US', type:'index', marketSymbol:'^DJI',  currency:'USD' },
+    { ticker:'^RUT',  name:'Russell 2000',     manager:'US', type:'index', marketSymbol:'^RUT',  currency:'USD' },
+  ]},
+  { id:'europe', items:[
+    { ticker:'^GDAXI',    name:'DAX 40',        manager:'DE', type:'index', marketSymbol:'^GDAXI',    currency:'EUR' },
+    { ticker:'^IBEX',     name:'IBEX 35',       manager:'ES', type:'index', marketSymbol:'^IBEX',     currency:'EUR' },
+    { ticker:'^FCHI',     name:'CAC 40',        manager:'FR', type:'index', marketSymbol:'^FCHI',     currency:'EUR' },
+    { ticker:'^FTSE',     name:'FTSE 100',      manager:'UK', type:'index', marketSymbol:'^FTSE',     currency:'GBP' },
+    { ticker:'^STOXX50E', name:'Euro Stoxx 50', manager:'EU', type:'index', marketSymbol:'^STOXX50E', currency:'EUR' },
+  ]},
+  { id:'asia', items:[
+    { ticker:'^N225',  name:'Nikkei 225', manager:'JP', type:'index', marketSymbol:'^N225',  currency:'JPY' },
+    { ticker:'^HSI',   name:'Hang Seng',  manager:'HK', type:'index', marketSymbol:'^HSI',   currency:'HKD' },
+    { ticker:'^KS11',  name:'KOSPI',      manager:'KR', type:'index', marketSymbol:'^KS11',  currency:'KRW' },
+    { ticker:'^BSESN', name:'BSE Sensex', manager:'IN', type:'index', marketSymbol:'^BSESN', currency:'INR' },
+  ]},
+  { id:'global', items:[
+    { ticker:'URTH',    name:'MSCI World ETF',           manager:'Global', type:'etf', marketSymbol:'URTH',    currency:'USD' },
+    { ticker:'IWDA.AS', name:'iShares Core MSCI World',  manager:'Global', type:'etf', marketSymbol:'IWDA.AS', currency:'EUR' },
+    { ticker:'VWCE.DE', name:'Vanguard FTSE All-World',  manager:'Global', type:'etf', marketSymbol:'VWCE.DE', currency:'EUR' },
+    { ticker:'EIMI.L',  name:'iShares MSCI EM IMI',      manager:'EM',     type:'etf', marketSymbol:'EIMI.L',  currency:'USD' },
+  ]},
+  { id:'volatility', items:[
+    { ticker:'^VIX', name:'CBOE Volatility Index', manager:'Vol', type:'index', marketSymbol:'^VIX', currency:'USD' },
+    { ticker:'^VXN', name:'Nasdaq Volatility',     manager:'Vol', type:'index', marketSymbol:'^VXN', currency:'USD' },
+  ]},
+];
+
+// Commodities — Yahoo futures form (=F) hits the snapshot router's
+// generic Yahoo passthrough (MC-7B). XAU/USD / XAG/USD / WTI hit the
+// existing canonical REGISTRY entries.
+const _COMMODITIES_CATALOG = [
+  { id:'precious_metals', items:[
+    { ticker:'XAU/USD', name:'Gold (spot)',       manager:'Spot',    type:'commodity', marketSymbol:'XAU/USD', currency:'USD' },
+    { ticker:'XAG/USD', name:'Silver (spot)',     manager:'Spot',    type:'commodity', marketSymbol:'XAG/USD', currency:'USD' },
+    { ticker:'GC=F',    name:'Gold Futures',      manager:'Futures', type:'commodity', marketSymbol:'GC=F',    currency:'USD' },
+    { ticker:'SI=F',    name:'Silver Futures',    manager:'Futures', type:'commodity', marketSymbol:'SI=F',    currency:'USD' },
+    { ticker:'PL=F',    name:'Platinum Futures',  manager:'Futures', type:'commodity', marketSymbol:'PL=F',    currency:'USD' },
+    { ticker:'PA=F',    name:'Palladium Futures', manager:'Futures', type:'commodity', marketSymbol:'PA=F',    currency:'USD' },
+  ]},
+  { id:'energy_commodities', items:[
+    { ticker:'WTI',  name:'WTI Crude Oil',  manager:'Spot',    type:'commodity', marketSymbol:'WTI',  currency:'USD' },
+    { ticker:'CL=F', name:'WTI Futures',    manager:'Futures', type:'commodity', marketSymbol:'CL=F', currency:'USD' },
+    { ticker:'BZ=F', name:'Brent Futures',  manager:'Futures', type:'commodity', marketSymbol:'BZ=F', currency:'USD' },
+    { ticker:'NG=F', name:'Natural Gas',    manager:'Futures', type:'commodity', marketSymbol:'NG=F', currency:'USD' },
+    { ticker:'HO=F', name:'Heating Oil',    manager:'Futures', type:'commodity', marketSymbol:'HO=F', currency:'USD' },
+  ]},
+  { id:'industrial_metals', items:[
+    { ticker:'HG=F', name:'Copper Futures',                  manager:'Futures', type:'commodity', marketSymbol:'HG=F', currency:'USD' },
+    { ticker:'DBB',  name:'Invesco DB Base Metals ETF',      manager:'ETF',     type:'etf',       marketSymbol:'DBB',  currency:'USD' },
+    { ticker:'COPX', name:'Global X Copper Miners ETF',      manager:'ETF',     type:'etf',       marketSymbol:'COPX', currency:'USD' },
+  ]},
+];
+
+// Per-tab active-category state. One stateful pointer per asset class.
+let _fundsActiveCategoryId       = 'msci_world';
+let _stocksActiveCategoryId      = 'magnificent_7';
+let _cryptoActiveCategoryId      = 'layer_1';
+let _indicesActiveCategoryId     = 'us';
+let _commoditiesActiveCategoryId = 'precious_metals';
+
+// MC-11B: discovery catalog registry — maps market tab id → { catalog
+// reference, state getter, state setter, i18n key prefix }. 'etfs' and
+// 'funds' point to the same funds state for back-compat with MC-9A.1.
+const _DISCOVERY_CATALOGS = {
+  etfs:        { catalog: _FUNDS_CATALOG,       labelPrefix: 'fundCat_',                get: () => _fundsActiveCategoryId,       set: id => { _fundsActiveCategoryId       = id; } },
+  funds:       { catalog: _FUNDS_CATALOG,       labelPrefix: 'fundCat_',                get: () => _fundsActiveCategoryId,       set: id => { _fundsActiveCategoryId       = id; } },
+  stocks:      { catalog: _STOCKS_CATALOG,      labelPrefix: 'discCat_stocks_',         get: () => _stocksActiveCategoryId,      set: id => { _stocksActiveCategoryId      = id; } },
+  crypto:      { catalog: _CRYPTO_CATALOG,      labelPrefix: 'discCat_crypto_',         get: () => _cryptoActiveCategoryId,      set: id => { _cryptoActiveCategoryId      = id; } },
+  indices:     { catalog: _INDICES_CATALOG,     labelPrefix: 'discCat_indices_',        get: () => _indicesActiveCategoryId,     set: id => { _indicesActiveCategoryId     = id; } },
+  commodities: { catalog: _COMMODITIES_CATALOG, labelPrefix: 'discCat_commodities_',    get: () => _commoditiesActiveCategoryId, set: id => { _commoditiesActiveCategoryId = id; } },
+};
 
 function _escFunds(s) {
   return String(s == null ? '' : s)
@@ -10723,15 +10954,17 @@ function _escFunds(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// MC-10: build the inline metadata badges. Order: kind (ETF/FUND), UCITS,
-// share class (Acc/Dist), listing currency. Every badge is optional and
-// rendered only when the field is present in the catalog entry, so we
-// never invent data we don't actually know.
+// MC-10: build the inline metadata badges. Order: kind, UCITS, share,
+// currency. Every badge is optional — never invents data we don't have.
+// MC-11B: extended kind set to include STOCK / CRYPTO / INDEX / COMM /
+// METAL so the same pill row reads consistently across asset classes.
 function _fundCardBadges(it) {
   const out = [];
   const kind = (it.type || '').toUpperCase();
-  if (kind === 'ETF' || kind === 'FUND') {
-    out.push(`<span class="funds-card-pill is-kind">${_escFunds(kind)}</span>`);
+  const KIND_LABELS = { ETF:'ETF', FUND:'FUND', STOCK:'STOCK', CRYPTO:'CRYPTO', INDEX:'INDEX', COMMODITY:'COMM', METAL:'METAL' };
+  const kindLabel = KIND_LABELS[kind];
+  if (kindLabel) {
+    out.push(`<span class="funds-card-pill is-kind is-${kind.toLowerCase()}">${_escFunds(kindLabel)}</span>`);
   }
   if (it.ucits) {
     out.push(`<span class="funds-card-pill is-ucits">UCITS</span>`);
@@ -10745,18 +10978,25 @@ function _fundCardBadges(it) {
   return out.join('');
 }
 
-function _renderFundsCatalog() {
-  const cat = _FUNDS_CATALOG.find(c => c.id === _fundsActiveCategoryId) || _FUNDS_CATALOG[0];
-  const chips = _FUNDS_CATALOG.map(c => {
-    const label = t('fundCat_' + c.id) || c.id;
+// MC-11B: generic discovery renderer used by every asset-class tab.
+// Reads the catalog + active state from _DISCOVERY_CATALOGS so each tab
+// shares the same DOM/styling and the same click delegation. data-disc-
+// attributes carry the tab key so the delegation can route correctly.
+function _renderDiscoveryCatalog(tabKey) {
+  const reg = _DISCOVERY_CATALOGS[tabKey];
+  if (!reg || !Array.isArray(reg.catalog) || reg.catalog.length === 0) return '';
+  const activeId = reg.get();
+  const cat = reg.catalog.find(c => c.id === activeId) || reg.catalog[0];
+  const chips = reg.catalog.map(c => {
+    const label = t(reg.labelPrefix + c.id) || c.id;
     const active = c.id === cat.id ? ' active' : '';
-    return `<button class="funds-cat${active}" data-funds-cat="${_escFunds(c.id)}">${_escFunds(label)}</button>`;
+    return `<button class="funds-cat${active}" data-disc-cat="${_escFunds(c.id)}" data-disc-tab="${_escFunds(tabKey)}">${_escFunds(label)}</button>`;
   }).join('');
   const cards = cat.items.map(it => `
-    <button class="funds-card" data-funds-pick="${_escFunds(it.ticker)}" type="button">
+    <button class="funds-card" data-disc-pick="${_escFunds(it.ticker)}" data-disc-tab="${_escFunds(tabKey)}" type="button">
       <div class="funds-card-head">
         <span class="funds-card-ticker">${_escFunds(it.ticker)}</span>
-        <span class="funds-card-mgr">${_escFunds(it.manager)}</span>
+        ${it.manager ? `<span class="funds-card-mgr">${_escFunds(it.manager)}</span>` : ''}
       </div>
       <div class="funds-card-name">${_escFunds(it.name)}</div>
       <div class="funds-card-badges">${_fundCardBadges(it)}</div>
@@ -10773,32 +11013,36 @@ function _renderFundsCatalog() {
   `;
 }
 
-// MC-9A: click delegation registered once at boot so it survives every
-// renderMarket() re-render. Both the category chips and the cards are
-// inside #marketList, so we hook there.
+// Back-compat alias — MC-9A.1 still calls this name in one spot.
+function _renderFundsCatalog() { return _renderDiscoveryCatalog('etfs'); }
+
+// MC-11B: single delegation handler covers every discovery tab. Both
+// the chips and the cards carry data-disc-tab so the handler picks the
+// right catalog + state slot without per-tab listeners.
 function _initFundsCatalogDelegation() {
   document.addEventListener('click', (e) => {
-    // MC-9A.1: catalog now lives inside the merged Funds & ETFs tab.
-    // Accept 'etfs' (the current/canonical tab) and 'funds' (legacy
-    // persisted state) so existing users with old state still work.
-    if (currentMarketTab !== 'etfs' && currentMarketTab !== 'funds') return;
-    const chip = e.target.closest && e.target.closest('[data-funds-cat]');
+    if (typeof currentMarketTab !== 'string') return;
+    if (!_DISCOVERY_CATALOGS[currentMarketTab]) return;
+    const chip = e.target.closest && e.target.closest('[data-disc-cat]');
     if (chip) {
-      const next = chip.dataset.fundsCat;
-      if (next && next !== _fundsActiveCategoryId) {
-        _fundsActiveCategoryId = next;
+      const tabKey = chip.dataset.discTab;
+      const reg = _DISCOVERY_CATALOGS[tabKey];
+      if (!reg) return;
+      const next = chip.dataset.discCat;
+      if (next && next !== reg.get()) {
+        reg.set(next);
         const el = document.getElementById('marketList');
-        if (el) {
-          el._lastKey = null;  // force re-render even if html length matches
-          renderCurrentMarketView();
-        }
+        if (el) { el._lastKey = null; renderCurrentMarketView(); }
       }
       return;
     }
-    const card = e.target.closest && e.target.closest('[data-funds-pick]');
+    const card = e.target.closest && e.target.closest('[data-disc-pick]');
     if (card) {
-      const ticker = card.dataset.fundsPick;
-      const cat = _FUNDS_CATALOG.find(c => c.id === _fundsActiveCategoryId) || _FUNDS_CATALOG[0];
+      const tabKey = card.dataset.discTab;
+      const ticker = card.dataset.discPick;
+      const reg = _DISCOVERY_CATALOGS[tabKey];
+      if (!reg) return;
+      const cat = reg.catalog.find(c => c.id === reg.get()) || reg.catalog[0];
       const item = cat.items.find(i => i.ticker === ticker);
       if (item) _openAddAssetWithFund(item);
     }
