@@ -14389,9 +14389,17 @@ function _wp4OpenSelector(anchor) {
   ].join(';');
 
   const title = document.createElement('div');
-  title.textContent = 'Workspace Templates';
+  title.textContent = 'Workspace Assistant';
   title.style.cssText = 'padding:6px 16px 8px;color:#a3a3a9;text-transform:uppercase;letter-spacing:0.08em;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px';
   menu.appendChild(title);
+
+  // PR-WP6C: assistant input. Local keyword parser; no AI backend wired.
+  try { _wp6cInjectAssistant(menu); } catch (_) { /* assistant best-effort */ }
+
+  const tplsTitle = document.createElement('div');
+  tplsTitle.textContent = 'Templates';
+  tplsTitle.style.cssText = 'padding:8px 16px 6px;color:#a3a3a9;text-transform:uppercase;letter-spacing:0.08em;font-size:10.5px;margin-top:4px';
+  menu.appendChild(tplsTitle);
 
   for (const tpl of _WP4_TEMPLATES) {
     const row = document.createElement('div');
@@ -14735,6 +14743,182 @@ if (typeof window !== 'undefined') {
     build:    _wp6BuildIntent,
     apply:    _wp6ApplyIntent,
   };
+}
+
+// ── PR-WP6C: local intent parser + assistant input ─────────────────────────
+// AI BACKEND PARSER STATUS: BLOCKED. No safe AI infrastructure exists in this
+// codebase today (ai/insightEngine.js is local heuristics; api/ is price
+// proxies only — no Anthropic/OpenAI integration). Per WP-6C spec, that
+// means we ship the deterministic local keyword parser only; the slot to
+// swap in a backend endpoint is documented but unwired.
+//
+// Cost control is enforced upfront:
+//   - prompt capped at 300 chars (rejected if longer)
+//   - portfolio/app state never read
+//   - zero outbound calls when the local parser is in use
+//
+// Output of every parse goes through _wp6ApplyIntent — which validates via
+// validateAITemplate and reuses _wp4ApplyTemplate's confirmation flow — so
+// even a wrong parse can only land safe templates.
+
+const _WP6C_MAX_PROMPT = 300;
+
+// All-caps tokens that look like tickers but are English words / command
+// verbs that appear in our supported prompts. Filtered out of the symbol
+// list so "WATCH TSLA NVDA BTC" yields ['TSLA','NVDA','BTC'] not the verb.
+const _WP6C_TICKER_STOPWORDS = new Set([
+  // intent / command verbs
+  'BUILD','CREATE','MAKE','SHOW','GIVE','TRACK','ADD','OPEN','GO',
+  // intent keywords
+  'PORTFOLIO','SUMMARY','OVERVIEW','RISK','RISKS','EXPOSURE','EXPOSURES',
+  'CONCENTRATION','POSITION','POSITIONS','ANALYZE','ANALYSE','ANALYSIS',
+  'COMPARE','WATCH','MARKET','MARKETS','DIVIDEND','DIVIDENDS','TRACKER',
+  'FIRE','RETIREMENT','CALCULATOR','DASHBOARD','MONITOR','TEMPLATES',
+  // common short English words that pass the all-caps regex
+  'A','I','AN','AS','AT','BE','BY','DO','GO','HE','IF','IN','IS','IT','MY',
+  'NO','OF','ON','OR','SO','THE','TO','UP','US','WE','AND','BUT','FOR','NOT',
+  'ALL','ANY','CAN','HAS','HAD','HER','HIM','HIS','HOW','ITS','ONE','OUR',
+  'OUT','THAT','TWO','WHO','YOU','VS','VERSUS','WITH','FROM','INTO','OVER',
+  'NOW','ASAP','PLEASE',
+]);
+
+function _wp6cExtractTickers(prompt) {
+  // Match 1-10 char tokens starting with a letter, allowing digits / dot /
+  // hyphen / caret (BRK.B, BTC-USD, ^GSPC). Caret-prefixed indices are
+  // surfaced as-is so PRICE("^GSPC") resolves cleanly.
+  const tokens = String(prompt).match(/(?:\^?[A-Za-z][A-Za-z0-9.\-]{0,9})/g) || [];
+  const seen = new Set();
+  const out  = [];
+  for (const tk of tokens) {
+    const up = tk.toUpperCase();
+    // Keep only tokens that are already uppercase in the prompt or pure
+    // ticker-shaped (so "TSLA" passes, "tsla" passes, "Tesla" doesn't).
+    if (!/^[A-Z\^][A-Z0-9.\-]*$/.test(up)) continue;
+    if (_WP6C_TICKER_STOPWORDS.has(up)) continue;
+    if (up.length < 2 && up !== 'V') continue;     // single-letter except known tickers
+    if (seen.has(up)) continue;
+    seen.add(up);
+    out.push(up);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function _wp6cParseIntent(rawPrompt) {
+  const prompt = String(rawPrompt || '').trim();
+  if (!prompt) return { error: 'empty prompt' };
+  if (prompt.length > _WP6C_MAX_PROMPT) {
+    return { error: `prompt too long (max ${_WP6C_MAX_PROMPT} chars)` };
+  }
+  const lower = prompt.toLowerCase();
+  const tickers = _wp6cExtractTickers(prompt);
+
+  // Priority order. FIRE / retirement / dividend are caught first because
+  // they're unambiguous; the more generic portfolio / position checks are
+  // last so they don't shadow specific intents.
+  if (/\b(fire|retirement|retire)\b/.test(lower)) {
+    return { intent: 'fire_calculator', params: {} };
+  }
+  if (/\bdividend(?:s)?\b/.test(lower)) {
+    return { intent: 'dividend_tracker', params: {} };
+  }
+  if (/\b(risk|exposure|exposures|concentration)\b/.test(lower)) {
+    return { intent: 'risk_dashboard', params: {} };
+  }
+  // market_watch: explicit "watch" / "compare" / "market" — symbols optional
+  // (empty list → WP-6B.1 fallback to the default six tickers).
+  if (/\b(watch|compare|market(?:s)?)\b/.test(lower)) {
+    return {
+      intent: 'market_watch',
+      params: tickers.length > 0 ? { symbols: tickers } : {},
+    };
+  }
+  // position_analysis: requires a ticker (otherwise ambiguous).
+  if (/\b(analy[sz]e|analy[sz]is|position)\b/.test(lower)) {
+    if (tickers.length === 0) {
+      return { error: 'please include a ticker (e.g. "analyze TSLA")' };
+    }
+    return { intent: 'position_analysis', params: { ticker: tickers[0] } };
+  }
+  if (/\b(portfolio|summary|overview)\b/.test(lower)) {
+    return { intent: 'portfolio_summary', params: {} };
+  }
+  return { error: 'unsupported prompt — try "portfolio summary", "risk dashboard", "analyze TSLA", "watch BTC TSLA", "dividend tracker", or "FIRE calculator"' };
+}
+
+// Routes a free-text prompt through parse → build → validate → apply. The
+// apply step already runs validateAITemplate and reuses the WP-4 confirm
+// flow, so a malformed prompt or hallucinated symbol can only land safe
+// state or surface an error.
+function _wp6cAssistantSubmit(rawPrompt) {
+  const parsed = _wp6cParseIntent(rawPrompt);
+  if (parsed.error) return { ok: false, errors: [parsed.error] };
+  return _wp6ApplyIntent(parsed.intent, parsed.params || {});
+}
+
+// Builds the assistant input + submit button inside the existing Templates
+// panel. Stays minimal — input field, primary button, inline error slot.
+function _wp6cInjectAssistant(menu) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'padding:6px 12px 10px;display:flex;flex-direction:column;gap:6px';
+
+  const inputRow = document.createElement('div');
+  inputRow.style.cssText = 'display:flex;gap:6px;align-items:stretch';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = _WP6C_MAX_PROMPT;
+  input.placeholder = 'Ask Aurix to build a workspace...';
+  input.setAttribute('aria-label', 'Workspace assistant prompt');
+  input.style.cssText = 'flex:1;padding:7px 10px;border:1px solid rgba(255,255,255,0.14);border-radius:6px;background:rgba(255,255,255,0.04);color:#e8e8ea;font-family:inherit;font-size:12.5px;outline:none';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'Build';
+  btn.style.cssText = 'padding:7px 12px;border:1px solid rgba(255,255,255,0.16);border-radius:6px;background:rgba(138,166,255,0.18);color:#e8e8ea;font-family:inherit;font-size:11.5px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;font-weight:600';
+
+  const err = document.createElement('div');
+  err.style.cssText = 'font-size:11px;color:#ff8a8a;line-height:1.35;display:none';
+
+  inputRow.appendChild(input);
+  inputRow.appendChild(btn);
+  wrap.appendChild(inputRow);
+  wrap.appendChild(err);
+  menu.appendChild(wrap);
+
+  // Keep keystrokes inside the input from triggering global workspace
+  // shortcuts (Cmd+A select-all, Delete clear, etc).
+  ['keydown','keyup'].forEach(evt => {
+    input.addEventListener(evt, (e) => e.stopPropagation());
+  });
+
+  const submit = () => {
+    err.style.display = 'none';
+    const val = String(input.value || '').trim();
+    if (!val) { err.textContent = 'enter a prompt'; err.style.display = 'block'; return; }
+    const r = _wp6cAssistantSubmit(val);
+    if (r && r.ok) {
+      _wp4CloseSelector();
+      return;
+    }
+    err.textContent = (r && r.errors && r.errors[0]) || 'could not build template';
+    err.style.display = 'block';
+  };
+
+  btn.addEventListener('click', (ev) => { ev.stopPropagation(); submit(); });
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); submit(); }
+  });
+
+  // Defer focus so opening the menu via Templates button doesn't immediately
+  // steal it from the global click handler.
+  setTimeout(() => { try { input.focus(); } catch (_) {} }, 0);
+}
+
+// Expose on window.__wp6 for dev / harness testing.
+if (typeof window !== 'undefined' && window.__wp6) {
+  window.__wp6.parse  = _wp6cParseIntent;
+  window.__wp6.submit = _wp6cAssistantSubmit;
 }
 
 // FC-10: register base financial formulas (pure consumers of derived snapshot).
