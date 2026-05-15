@@ -8746,3 +8746,57 @@ body.workspace-active .header {
   .funds-grid     { gap: 6px; }
   .market-section-header { padding: 6px 0 2px; }
 }
+
+/* ── MC-11C.4: mobile chip hierarchy + clipping fix ──────────────────────
+   Mobile-only. Two goals:
+   • Vertical clipping — the secondary chip row had only 4px bottom
+     padding, so the active chip's 1px border was cut off when its
+     bottom edge met the container's overflow boundary. Restore enough
+     padding above and below the chips that no border ever touches.
+   • Visual hierarchy — primary market tabs (section nav) and secondary
+     discovery chips (category filter inside a section) currently read
+     as peers. Re-tier them: primary stays bold pill, secondary becomes
+     smaller, lighter, less saturated, thinner-bordered, and uses a
+     softer 8px radius so the eye separates "what page am I on" from
+     "what slice of this page am I filtering". */
+@media (max-width: 560px) {
+  /* Primary section-nav tabs: keep them the loudest pill on the screen */
+  .market-tabs { padding-top: 8px; padding-bottom: 6px; }
+  .market-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 999px;
+    line-height: 1.2;
+  }
+  .market-tab.active { font-weight: 700; }
+
+  /* Secondary discovery chip container: enough vertical air so the
+     active border never clips against the scroll-area edge. Horizontal
+     scrolling preserved (overflow-x: auto inherited from the base). */
+  .funds-cats {
+    padding: 6px 18px 8px 4px;
+    margin: -2px -2px 0;
+    overflow-y: visible;
+  }
+  /* Secondary discovery chips: demoted — smaller, lighter, softer
+     radius, thinner border. Active state still readable but clearly
+     less assertive than .market-tab.active. */
+  .funds-cat {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.015em;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.025);
+    color: rgba(255,255,255,0.62);
+    line-height: 1.35;
+  }
+  .funds-cat.active {
+    border-color: rgba(138,166,255,0.30);
+    background: rgba(138,166,255,0.10);
+    color: rgba(225,232,255,0.95);
+    font-weight: 600;
+  }
+}
