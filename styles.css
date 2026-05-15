@@ -8997,8 +8997,77 @@ body.gs-open { overflow: hidden; }
   display: flex;
   flex-direction: column;
 }
-.gs-results:empty + .gs-hint { display: block; }
-.gs-results:not(:empty) + .gs-hint { display: none; }
+.gs-results[hidden] { display: none; }
+
+/* ── GLOBAL-SEARCH-2: empty state + quick chips + loading state ── */
+.gs-empty {
+  padding: 22px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+.gs-empty[hidden] { display: none; }
+.gs-empty-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(245, 250, 255, 0.96);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.gs-empty-sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: rgba(220, 230, 250, 0.55);
+  line-height: 1.45;
+  letter-spacing: 0.005em;
+}
+.gs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.gs-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: rgba(220, 230, 250, 0.78);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+.gs-chip:hover  { background: rgba(255,255,255,0.08); color: #fff; border-color: rgba(255,255,255,0.18); }
+.gs-chip:active { transform: scale(0.96); }
+
+.gs-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px 16px;
+  font-size: 13px;
+  color: rgba(220, 230, 250, 0.62);
+}
+.gs-loading[hidden] { display: none; }
+.gs-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(138, 166, 255, 0.85);
+  animation: gsLoadingPulse 1.0s ease-in-out infinite;
+}
+@keyframes gsLoadingPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  50%      { opacity: 1;    transform: scale(1.1); }
+}
 
 .gs-row {
   display: grid;
@@ -9080,18 +9149,24 @@ body.gs-open { overflow: hidden; }
 }
 
 .gs-hint {
-  display: none;
-  padding: 18px 16px;
+  padding: 24px 24px 28px;
   margin: 0;
   text-align: center;
   font-size: 13px;
+  line-height: 1.55;
   color: rgba(220, 230, 250, 0.55);
 }
+.gs-hint[hidden] { display: none; }
 
 @media (max-width: 560px) {
+  /* GLOBAL-SEARCH-2: full-screen, premium native-app feel. The header
+     gets real vertical breathing (safe-area top + ~20px), the input
+     sits visually lower instead of glued to the notch, the close
+     button stays cleanly aligned. */
   .gs-overlay {
     padding: 0;
     align-items: stretch;
+    background: rgba(4, 8, 16, 0.78);
   }
   .gs-shell {
     max-width: none;
@@ -9099,12 +9174,56 @@ body.gs-open { overflow: hidden; }
     max-height: 100%;
     border-radius: 0;
     border: 0;
+    background: rgba(10, 14, 24, 0.98);
     padding-bottom: env(safe-area-inset-bottom);
   }
   .gs-header {
-    padding-top: calc(12px + env(safe-area-inset-top));
+    gap: 12px;
+    padding: calc(env(safe-area-inset-top) + 18px) 16px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
-  .gs-row { padding: 14px; }
-  .gs-row-actions { gap: 5px; }
-  .gs-row-btn { padding: 0 9px; font-size: 11.5px; }
+  #globalSearchInput {
+    font-size: 16px;             /* iOS no-zoom threshold */
+    height: 32px;
+  }
+  .gs-icon  { width: 19px; height: 19px; }
+  .gs-close { width: 32px; height: 32px; font-size: 15px; }
+
+  /* Body breathing — empty state centred, chips compacted. */
+  .gs-body { padding: 4px 0 16px; }
+  .gs-empty {
+    padding: 28px 18px 18px;
+    gap: 12px;
+  }
+  .gs-empty-title { font-size: 19px; letter-spacing: -0.015em; }
+  .gs-empty-sub   { font-size: 12.5px; }
+  .gs-chips       { gap: 7px; margin-top: 8px; }
+  .gs-chip        { padding: 8px 13px; font-size: 12.5px; }
+
+  /* Loading + no-results blocks gain a bit more vertical room. */
+  .gs-loading { padding: 26px 16px; }
+  .gs-hint    { padding: 28px 24px; }
+
+  /* Result rows as card-like rounded blocks with breathing — matches
+     the Workspace summary / discovery card language. No badge ever
+     sits beside price (price lives in the meta line below). */
+  .gs-results { padding: 4px 12px 18px; gap: 8px; }
+  .gs-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .gs-row + .gs-row { margin-top: 0; }
+  .gs-row-line { flex-wrap: wrap; gap: 6px 8px; }
+  .gs-row-name { max-width: 100%; }
+  .gs-row-meta { font-size: 11.5px; }
+  .gs-row-actions { gap: 6px; }
+  .gs-row-btn { padding: 0 10px; font-size: 12px; height: 32px; }
+  .gs-row-btn.is-primary {
+    border-color: rgba(138,166,255,0.45);
+    background: rgba(138,166,255,0.14);
+  }
 }

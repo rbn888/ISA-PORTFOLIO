@@ -647,10 +647,18 @@
       <button class="gs-close" id="globalSearchClose" type="button" aria-label="Cerrar">✕</button>
     </header>
     <div class="gs-body">
+      <!-- Premium empty state: shown until the user types something. -->
+      <div class="gs-empty" id="globalSearchEmpty">
+        <h3 class="gs-empty-title" data-i18n="globalSearchEmptyTitle">Busca cualquier activo</h3>
+        <p class="gs-empty-sub"   data-i18n="globalSearchEmptySub">Acciones, cripto, ETFs, fondos, índices y materias primas</p>
+        <div class="gs-chips" id="globalSearchChips" role="list"></div>
+      </div>
+      <div class="gs-loading" id="globalSearchLoading" hidden>
+        <span class="gs-loading-dot" aria-hidden="true"></span>
+        <span data-i18n="globalSearchLoading">Buscando…</span>
+      </div>
       <ul class="gs-results" id="globalSearchResults"></ul>
-      <p class="gs-hint" id="globalSearchHint" data-i18n="globalSearchHintEmpty">
-        Escribe para buscar cualquier activo.
-      </p>
+      <p class="gs-hint" id="globalSearchHint" hidden data-i18n="globalSearchNoResults">Sin resultados</p>
     </div>
   </div>
 </div>

@@ -658,11 +658,15 @@ const T = {
     wsSyncLive:              'Mercado al día',
     wsSyncOffline:           'Sin sincronización reciente',
     ws_mobile_note:          'La edición tipo hoja está disponible en escritorio. En móvil se muestran los indicadores clave.',
-    globalSearchPH:          'Buscar activo...',
-    globalSearchHintEmpty:   'Escribe para buscar cualquier activo.',
-    globalSearchNoResults:   'Sin resultados',
-    gs_view_details:         'Ver',
-    gs_add_to_portfolio:     '+ Añadir',
+    globalSearchPH:           'Buscar activo...',
+    globalSearchHintEmpty:    'Escribe para buscar cualquier activo.',
+    globalSearchNoResults:    'Sin resultados',
+    globalSearchEmptyTitle:   'Busca cualquier activo',
+    globalSearchEmptySub:     'Acciones, cripto, ETFs, fondos, índices y materias primas',
+    globalSearchLoading:      'Buscando…',
+    globalSearchNoResultsHint:'No encontramos coincidencias. Prueba con otro nombre o ticker.',
+    gs_view_details:          'Ver',
+    gs_add_to_portfolio:      '+ Añadir',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Plantillas',
     ws_assistant_title:      'Asistente de Workspace',
@@ -1096,11 +1100,15 @@ const T = {
     wsSyncLive:              'Market live',
     wsSyncOffline:           'No recent sync',
     ws_mobile_note:          'Spreadsheet editing is available on desktop. Mobile shows key workspace insights.',
-    globalSearchPH:          'Search any asset...',
-    globalSearchHintEmpty:   'Type to search any asset.',
-    globalSearchNoResults:   'No results',
-    gs_view_details:         'View',
-    gs_add_to_portfolio:     '+ Add',
+    globalSearchPH:           'Search any asset...',
+    globalSearchHintEmpty:    'Type to search any asset.',
+    globalSearchNoResults:    'No results',
+    globalSearchEmptyTitle:   'Search any asset',
+    globalSearchEmptySub:     'Stocks, crypto, ETFs, funds, indices and commodities',
+    globalSearchLoading:      'Searching…',
+    globalSearchNoResultsHint:"We couldn't find a match. Try another name or ticker.",
+    gs_view_details:          'View',
+    gs_add_to_portfolio:      '+ Add',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Templates',
     ws_assistant_title:      'Workspace Assistant',
@@ -12798,10 +12806,26 @@ const _GLOBAL_SEARCH = {
   input:     null,
   results:   null,
   hint:      null,
+  empty:     null,
+  loading:   null,
+  chips:     null,
   inflight:  null,           // current AbortController
   lastQuery: '',
   debounce:  null,
 };
+
+// GLOBAL-SEARCH-2: handful of well-known assets surfaced as quick-tap
+// chips below the empty state. Each entry is just a search query string
+// piped into the existing searchAllAssets pipeline — no new providers,
+// no hardcoded data flowing into the portfolio.
+const _GS_QUICK_CHIPS = [
+  { label: 'BTC',     q: 'BTC' },
+  { label: 'TSLA',    q: 'TSLA' },
+  { label: 'S&P 500', q: 'S&P 500' },
+  { label: 'IWDA',    q: 'IWDA' },
+  { label: 'Fidelity',q: 'Fidelity' },
+  { label: 'Gold',    q: 'Gold' },
+];
 
 function _gsInit() {
   if (_GLOBAL_SEARCH.el) return _GLOBAL_SEARCH.el;
@@ -12811,6 +12835,24 @@ function _gsInit() {
   _GLOBAL_SEARCH.input   = document.getElementById('globalSearchInput');
   _GLOBAL_SEARCH.results = document.getElementById('globalSearchResults');
   _GLOBAL_SEARCH.hint    = document.getElementById('globalSearchHint');
+  _GLOBAL_SEARCH.empty   = document.getElementById('globalSearchEmpty');
+  _GLOBAL_SEARCH.loading = document.getElementById('globalSearchLoading');
+  _GLOBAL_SEARCH.chips   = document.getElementById('globalSearchChips');
+
+  // Render quick-search chips once at init. Click delegation lives on
+  // the container so chip text/i18n changes don't require rewiring.
+  if (_GLOBAL_SEARCH.chips) {
+    _GLOBAL_SEARCH.chips.innerHTML = _GS_QUICK_CHIPS.map(c =>
+      `<button type="button" class="gs-chip" data-gs-chip="${_gsEscape(c.q)}">${_gsEscape(c.label)}</button>`
+    ).join('');
+    _GLOBAL_SEARCH.chips.addEventListener('click', e => {
+      const chip = e.target.closest('[data-gs-chip]');
+      if (!chip || !_GLOBAL_SEARCH.input) return;
+      _GLOBAL_SEARCH.input.value = chip.dataset.gsChip;
+      _GLOBAL_SEARCH.input.focus();
+      _gsRunSearch();
+    });
+  }
 
   // Input → debounced search via the existing searchAllAssets pipeline.
   _GLOBAL_SEARCH.input?.addEventListener('input', () => {
@@ -12847,19 +12889,46 @@ function _gsInit() {
   return el;
 }
 
+// GLOBAL-SEARCH-2: explicit state machine — empty / loading / results /
+// noresults — toggles visibility of the four body blocks. Single
+// source of truth so transitions never leave two blocks visible at
+// once.
+function _gsSetState(state) {
+  const map = {
+    empty:    [_GLOBAL_SEARCH.empty],
+    loading:  [_GLOBAL_SEARCH.loading],
+    results:  [_GLOBAL_SEARCH.results],
+    noresults:[_GLOBAL_SEARCH.hint],
+  };
+  for (const k of Object.keys(map)) {
+    for (const node of map[k]) {
+      if (!node) continue;
+      node.hidden = (k !== state);
+    }
+  }
+  // Results UL is hidden via .hidden — also clear it in non-results
+  // states so a stale render doesn't flash on the next open.
+  if (state !== 'results' && _GLOBAL_SEARCH.results) {
+    _GLOBAL_SEARCH.results.innerHTML = '';
+  }
+  if (state === 'noresults' && _GLOBAL_SEARCH.hint) {
+    _GLOBAL_SEARCH.hint.textContent = t('globalSearchNoResultsHint') || t('globalSearchNoResults') || 'No results';
+  }
+}
+
 function openGlobalSearch() {
   const el = _gsInit();
   if (!el) return;
   el.hidden = false;
   document.body.classList.add('gs-open');
-  // Reset state — fresh focus, no stale results.
+  // Reset state — fresh focus, no stale results, empty state visible.
   if (_GLOBAL_SEARCH.input) {
     _GLOBAL_SEARCH.input.value = '';
     setTimeout(() => _GLOBAL_SEARCH.input.focus(), 30);
   }
-  if (_GLOBAL_SEARCH.results) _GLOBAL_SEARCH.results.innerHTML = '';
   _GLOBAL_SEARCH.lastQuery = '';
   _GLOBAL_SEARCH._lastItems = [];
+  _gsSetState('empty');
 }
 
 function closeGlobalSearch() {
@@ -12878,14 +12947,15 @@ async function _gsRunSearch() {
   _GLOBAL_SEARCH.lastQuery = q;
 
   if (!q) {
-    if (_GLOBAL_SEARCH.results) _GLOBAL_SEARCH.results.innerHTML = '';
     _GLOBAL_SEARCH._lastItems = [];
+    _gsSetState('empty');
     return;
   }
 
   if (_GLOBAL_SEARCH.inflight) { try { _GLOBAL_SEARCH.inflight.abort(); } catch (_) {} }
   const ctrl = new AbortController();
   _GLOBAL_SEARCH.inflight = ctrl;
+  _gsSetState('loading');
 
   let items = [];
   try {
@@ -12896,6 +12966,11 @@ async function _gsRunSearch() {
   }
   if (ctrl.signal.aborted) return;
   _GLOBAL_SEARCH._lastItems = items;
+  if (!items.length) {
+    _gsSetState('noresults');
+    return;
+  }
+  _gsSetState('results');
   _gsRenderResults(items);
 
   // Hydrate prices for the visible rows in parallel via the canonical
@@ -12929,16 +13004,7 @@ function _gsEscape(s) {
 }
 
 function _gsRenderResults(items) {
-  if (!_GLOBAL_SEARCH.results) return;
-  if (!items.length) {
-    _GLOBAL_SEARCH.results.innerHTML = '';
-    if (_GLOBAL_SEARCH.hint) {
-      _GLOBAL_SEARCH.hint.textContent = t('globalSearchNoResults') || 'Sin resultados';
-      _GLOBAL_SEARCH.hint.style.display = 'block';
-    }
-    return;
-  }
-  if (_GLOBAL_SEARCH.hint) _GLOBAL_SEARCH.hint.style.display = 'none';
+  if (!_GLOBAL_SEARCH.results || !items.length) return;
   const addLabel  = t('gs_add_to_portfolio') || '+ Añadir';
   const viewLabel = t('gs_view_details')     || 'Ver';
   _GLOBAL_SEARCH.results.innerHTML = items.map((item, i) => {
