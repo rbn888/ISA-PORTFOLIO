@@ -13205,11 +13205,16 @@ async function selectAsset(entry) {
   // GOLD-1: physical gold section + karat/unit selectors. Section
   // banner header shows the live spot reference so the user grasps
   // the price-per-gram before entering quantity.
+  // GOLD-1B: ISIN input is irrelevant for physical gold (rings, coins,
+  // bars, jewelry) — hide it whenever XAU is selected; restore for
+  // anything else.
   const isGoldEntry = entry.ticker === 'XAU';
   const goldSectionEl = document.getElementById('goldSection');
+  const isinOrWrapEl  = document.getElementById('isinOrWrap');
   if (goldSectionEl)   goldSectionEl.style.display   = isGoldEntry ? '' : 'none';
   if (karatGroupEl)    karatGroupEl.style.display    = isGoldEntry ? '' : 'none';
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = isGoldEntry ? '' : 'none';
+  if (isinOrWrapEl)    isinOrWrapEl.style.display    = isGoldEntry ? 'none' : '';
   if (qtyLabelEl)      qtyLabelEl.textContent        = isGoldEntry ? t('qtyGold')(pendingGoldUnit) : t('qty');
   if (!isGoldEntry) _renderGoldSpotLine(null);
 
@@ -13292,6 +13297,10 @@ function clearSelectedAsset() {
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = 'none';
   const _gsEl = document.getElementById('goldSection');
   if (_gsEl) _gsEl.style.display = 'none';
+  // GOLD-1B: restore the ISIN entry when leaving a physical-gold
+  // selection so the user can switch to ETF/fund/manual input again.
+  const _isinEl = document.getElementById('isinOrWrap');
+  if (_isinEl) _isinEl.style.display = '';
   _renderGoldSpotLine(null);
   if (qtyLabelEl)      qtyLabelEl.textContent        = t('qty');
   setLookupStatus('');
