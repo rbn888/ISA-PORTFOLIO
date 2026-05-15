@@ -8900,3 +8900,211 @@ body.workspace-active .header {
   .assets-section { margin-top: var(--space-3); }
   .assets-list   { gap: 6px; }
 }
+
+/* ── GLOBAL-SEARCH-1: Global Search overlay ──────────────────────────────
+   A separate, premium command-palette surface for "find any asset and
+   inspect it". Does NOT host the Add Asset / Liquidity flow — that
+   stays inside #modalOverlay. Desktop: centered card; mobile: near
+   full-screen. Backdrop is dim + blur so the active screen stays
+   contextually visible. */
+.gs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(4, 8, 16, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(8vh, 24px) 16px 24px;
+  animation: gsFadeIn 0.16s ease-out;
+}
+.gs-overlay[hidden] { display: none; }
+body.gs-open { overflow: hidden; }
+
+@keyframes gsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.gs-shell {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(13, 18, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.gs-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.gs-icon {
+  width: 18px; height: 18px;
+  fill: none;
+  stroke: rgba(204, 224, 255, 0.72);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+#globalSearchInput {
+  flex: 1 1 auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(235, 243, 255, 0.95);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  height: 28px;
+}
+#globalSearchInput::placeholder {
+  color: rgba(190, 208, 234, 0.45);
+}
+.gs-close {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(220, 230, 250, 0.55);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.gs-close:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.gs-close:active { transform: scale(0.92); }
+
+.gs-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 0 8px;
+}
+
+.gs-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.gs-results:empty + .gs-hint { display: block; }
+.gs-results:not(:empty) + .gs-hint { display: none; }
+
+.gs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.gs-row:last-child { border-bottom: 0; }
+
+.gs-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.gs-row-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gs-row-ticker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+.gs-row-name {
+  font-size: 12.5px;
+  color: rgba(220, 230, 250, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gs-row-badge {
+  display: inline-flex;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.70);
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+.gs-row-badge.is-crypto    { color: rgba(247,160,90,0.95);  border-color: rgba(247,160,90,0.30); }
+.gs-row-badge.is-stock     { color: rgba(138,166,255,0.95); border-color: rgba(138,166,255,0.30); }
+.gs-row-badge.is-etf       { color: rgba(138,166,255,0.95); border-color: rgba(138,166,255,0.30); }
+.gs-row-badge.is-fund      { color: rgba(255,205,150,0.95); border-color: rgba(255,205,150,0.30); }
+.gs-row-badge.is-index     { color: rgba(160,220,170,0.95); border-color: rgba(160,220,170,0.30); }
+.gs-row-badge.is-commodity { color: rgba(255,180,120,0.95); border-color: rgba(255,180,120,0.30); }
+.gs-row-badge.is-metal     { color: rgba(255,210,100,0.95); border-color: rgba(255,210,100,0.30); }
+
+.gs-row-meta {
+  font-size: 11px;
+  color: rgba(220, 230, 250, 0.42);
+  font-variant-numeric: tabular-nums;
+}
+
+.gs-row-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.gs-row-btn {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  color: rgba(220, 230, 250, 0.85);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.gs-row-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.gs-row-btn:active { transform: scale(0.96); }
+.gs-row-btn.is-primary {
+  border-color: rgba(138,166,255,0.40);
+  background: rgba(138,166,255,0.10);
+  color: rgba(225,232,255,0.96);
+}
+.gs-row-btn.is-primary:hover {
+  background: rgba(138,166,255,0.18);
+}
+
+.gs-hint {
+  display: none;
+  padding: 18px 16px;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(220, 230, 250, 0.55);
+}
+
+@media (max-width: 560px) {
+  .gs-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+  .gs-shell {
+    max-width: none;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    border: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .gs-header {
+    padding-top: calc(12px + env(safe-area-inset-top));
+  }
+  .gs-row { padding: 14px; }
+  .gs-row-actions { gap: 5px; }
+  .gs-row-btn { padding: 0 9px; font-size: 11.5px; }
+}

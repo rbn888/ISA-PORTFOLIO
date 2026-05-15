@@ -658,6 +658,11 @@ const T = {
     wsSyncLive:              'Mercado al día',
     wsSyncOffline:           'Sin sincronización reciente',
     ws_mobile_note:          'La edición tipo hoja está disponible en escritorio. En móvil se muestran los indicadores clave.',
+    globalSearchPH:          'Buscar activo...',
+    globalSearchHintEmpty:   'Escribe para buscar cualquier activo.',
+    globalSearchNoResults:   'Sin resultados',
+    gs_view_details:         'Ver',
+    gs_add_to_portfolio:     '+ Añadir',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Plantillas',
     ws_assistant_title:      'Asistente de Workspace',
@@ -1091,6 +1096,11 @@ const T = {
     wsSyncLive:              'Market live',
     wsSyncOffline:           'No recent sync',
     ws_mobile_note:          'Spreadsheet editing is available on desktop. Mobile shows key workspace insights.',
+    globalSearchPH:          'Search any asset...',
+    globalSearchHintEmpty:   'Type to search any asset.',
+    globalSearchNoResults:   'No results',
+    gs_view_details:         'View',
+    gs_add_to_portfolio:     '+ Add',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Templates',
     ws_assistant_title:      'Workspace Assistant',
@@ -12777,6 +12787,181 @@ async function searchByFilter(query, filter, signal) {
   return searchAllAssets(query, signal);
 }
 
+// ── GLOBAL-SEARCH-1: Global asset search overlay ──────────────────────────
+// A separate, dedicated surface for "find any asset and inspect it". Does
+// not host the Add Asset / Liquidity flow — that stays in #modalOverlay
+// and is reachable from a per-row "Add" button which opens the existing
+// modal pre-populated with the selected asset (same flow used by the
+// discovery cards in Market).
+const _GLOBAL_SEARCH = {
+  el:        null,
+  input:     null,
+  results:   null,
+  hint:      null,
+  inflight:  null,           // current AbortController
+  lastQuery: '',
+  debounce:  null,
+};
+
+function _gsInit() {
+  if (_GLOBAL_SEARCH.el) return _GLOBAL_SEARCH.el;
+  const el = document.getElementById('globalSearchOverlay');
+  if (!el) return null;
+  _GLOBAL_SEARCH.el      = el;
+  _GLOBAL_SEARCH.input   = document.getElementById('globalSearchInput');
+  _GLOBAL_SEARCH.results = document.getElementById('globalSearchResults');
+  _GLOBAL_SEARCH.hint    = document.getElementById('globalSearchHint');
+
+  // Input → debounced search via the existing searchAllAssets pipeline.
+  _GLOBAL_SEARCH.input?.addEventListener('input', () => {
+    clearTimeout(_GLOBAL_SEARCH.debounce);
+    _GLOBAL_SEARCH.debounce = setTimeout(_gsRunSearch, 220);
+  });
+
+  // Close affordances: button, backdrop, Escape key.
+  document.getElementById('globalSearchClose')?.addEventListener('click', closeGlobalSearch);
+  el.addEventListener('click', e => { if (e.target === el) closeGlobalSearch(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !el.hidden) closeGlobalSearch();
+  });
+
+  // Delegated row clicks: "Add" routes through the existing Add Asset
+  // flow (modal + selectAsset); "View" is a placeholder pending the
+  // future detail page.
+  _GLOBAL_SEARCH.results?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-gs-action]');
+    if (!btn) return;
+    const row  = btn.closest('[data-gs-ticker]');
+    if (!row) return;
+    const idx  = Number(row.dataset.gsIndex);
+    const item = _GLOBAL_SEARCH._lastItems?.[idx];
+    if (!item) return;
+    if (btn.dataset.gsAction === 'add') {
+      closeGlobalSearch();
+      _openAddAssetWithFund(item);
+    } else if (btn.dataset.gsAction === 'view') {
+      console.log('[global-search] view details (placeholder):', item.ticker, item.name);
+    }
+  });
+
+  return el;
+}
+
+function openGlobalSearch() {
+  const el = _gsInit();
+  if (!el) return;
+  el.hidden = false;
+  document.body.classList.add('gs-open');
+  // Reset state — fresh focus, no stale results.
+  if (_GLOBAL_SEARCH.input) {
+    _GLOBAL_SEARCH.input.value = '';
+    setTimeout(() => _GLOBAL_SEARCH.input.focus(), 30);
+  }
+  if (_GLOBAL_SEARCH.results) _GLOBAL_SEARCH.results.innerHTML = '';
+  _GLOBAL_SEARCH.lastQuery = '';
+  _GLOBAL_SEARCH._lastItems = [];
+}
+
+function closeGlobalSearch() {
+  const el = _GLOBAL_SEARCH.el || document.getElementById('globalSearchOverlay');
+  if (!el) return;
+  el.hidden = true;
+  document.body.classList.remove('gs-open');
+  if (_GLOBAL_SEARCH.inflight) { try { _GLOBAL_SEARCH.inflight.abort(); } catch (_) {} _GLOBAL_SEARCH.inflight = null; }
+}
+
+async function _gsRunSearch() {
+  const input = _GLOBAL_SEARCH.input;
+  if (!input) return;
+  const q = String(input.value || '').trim();
+  if (q === _GLOBAL_SEARCH.lastQuery) return;
+  _GLOBAL_SEARCH.lastQuery = q;
+
+  if (!q) {
+    if (_GLOBAL_SEARCH.results) _GLOBAL_SEARCH.results.innerHTML = '';
+    _GLOBAL_SEARCH._lastItems = [];
+    return;
+  }
+
+  if (_GLOBAL_SEARCH.inflight) { try { _GLOBAL_SEARCH.inflight.abort(); } catch (_) {} }
+  const ctrl = new AbortController();
+  _GLOBAL_SEARCH.inflight = ctrl;
+
+  let items = [];
+  try {
+    items = await searchAllAssets(q, ctrl.signal) || [];
+  } catch (err) {
+    if (err?.name !== 'AbortError') console.warn('[global-search] error:', err?.message);
+    return;
+  }
+  if (ctrl.signal.aborted) return;
+  _GLOBAL_SEARCH._lastItems = items;
+  _gsRenderResults(items);
+
+  // Hydrate prices for the visible rows in parallel via the canonical
+  // resolveSymbolQuote path — no new provider, no pricing logic added.
+  items.forEach((item, i) => {
+    const sym = item.marketSymbol || item.ticker;
+    if (!sym) return;
+    resolveSymbolQuote(sym).then(q => {
+      if (ctrl.signal.aborted) return;
+      const row = _GLOBAL_SEARCH.results?.querySelector(`[data-gs-index="${i}"] .gs-row-meta`);
+      if (!row) return;
+      if (q && typeof q.price === 'number' && !Number.isNaN(q.price)) {
+        const curr = q.currency || item.currency || 'USD';
+        const provider = q.source || q.provider || '';
+        row.textContent = `${curr} ${q.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}${provider ? ' · ' + provider : ''}`;
+      }
+    }).catch(() => {});
+  });
+}
+
+function _gsBadgeFor(type) {
+  const k = String(type || '').toLowerCase();
+  const map = { crypto:'CRYPTO', stock:'STOCK', etf:'ETF', fund:'FUND', index:'INDEX', commodity:'COMM', metal:'METAL' };
+  return { kind: k, label: map[k] || '' };
+}
+
+function _gsEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function _gsRenderResults(items) {
+  if (!_GLOBAL_SEARCH.results) return;
+  if (!items.length) {
+    _GLOBAL_SEARCH.results.innerHTML = '';
+    if (_GLOBAL_SEARCH.hint) {
+      _GLOBAL_SEARCH.hint.textContent = t('globalSearchNoResults') || 'Sin resultados';
+      _GLOBAL_SEARCH.hint.style.display = 'block';
+    }
+    return;
+  }
+  if (_GLOBAL_SEARCH.hint) _GLOBAL_SEARCH.hint.style.display = 'none';
+  const addLabel  = t('gs_add_to_portfolio') || '+ Añadir';
+  const viewLabel = t('gs_view_details')     || 'Ver';
+  _GLOBAL_SEARCH.results.innerHTML = items.map((item, i) => {
+    const b = _gsBadgeFor(item.type);
+    return `
+      <li class="gs-row" data-gs-ticker="${_gsEscape(item.ticker)}" data-gs-index="${i}">
+        <div class="gs-row-main">
+          <div class="gs-row-line">
+            <span class="gs-row-ticker">${_gsEscape(item.ticker)}</span>
+            ${b.label ? `<span class="gs-row-badge is-${_gsEscape(b.kind)}">${_gsEscape(b.label)}</span>` : ''}
+            <span class="gs-row-name">${_gsEscape(item.name)}</span>
+          </div>
+          <div class="gs-row-meta">—</div>
+        </div>
+        <div class="gs-row-actions">
+          <button class="gs-row-btn" type="button" data-gs-action="view">${_gsEscape(viewLabel)}</button>
+          <button class="gs-row-btn is-primary" type="button" data-gs-action="add">${_gsEscape(addLabel)}</button>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
 // ── Render suggestions ────────────────────────────────────
 // TYPE_LABEL is derived from translations at render time — no static const needed
 
@@ -14583,7 +14768,10 @@ document.querySelector('.header-title')
 document.querySelectorAll('#bottomNav .item[data-tab]').forEach(el => {
   el.addEventListener('click', () => {
     const tab = el.dataset.tab;
-    if (tab === 'search') { openModal(); return; }
+    // GLOBAL-SEARCH-1: bottom-nav search opens the Global Search overlay,
+    // NOT the Add Asset modal. "Add" inside the overlay routes through
+    // openModal + selectAsset (the existing add-asset flow).
+    if (tab === 'search') { openGlobalSearch(); return; }
     document.querySelectorAll('#bottomNav .item').forEach(i => i.classList.remove('active'));
     el.classList.add('active');
     switchTab(tab);
@@ -14595,7 +14783,8 @@ document.querySelectorAll('.header-tab[data-tab]').forEach(el => {
 document.getElementById('assetsBackBtn')
   ?.addEventListener('click', () => setActiveCategory(null));
 btnAdd.addEventListener('click', openModal);
-document.getElementById('headerSearch')?.addEventListener('click', openModal);
+// GLOBAL-SEARCH-1: top-right search icon opens Global Search overlay.
+document.getElementById('headerSearch')?.addEventListener('click', openGlobalSearch);
 document.getElementById('btnAddContext')?.addEventListener('click', () => {
   if (!activeCategory) return;
   if (activeCategory === 'cash') {

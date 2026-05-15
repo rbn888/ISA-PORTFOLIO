@@ -633,6 +633,28 @@
       </div>
     </div>
   </div>
+<!-- GLOBAL-SEARCH-1: Global search overlay — separate from Add Asset.
+     Premium command-palette style: centered card on desktop, near-
+     full-screen on mobile. Reuses existing searchAllAssets pipeline. -->
+<div id="globalSearchOverlay" class="gs-overlay" hidden>
+  <div class="gs-shell" role="dialog" aria-modal="true" aria-labelledby="globalSearchInput">
+    <header class="gs-header">
+      <svg class="gs-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.6-4.6"/>
+      </svg>
+      <input id="globalSearchInput" type="text" autocomplete="off" spellcheck="false"
+             data-i18n-ph="globalSearchPH" placeholder="Buscar activo..." />
+      <button class="gs-close" id="globalSearchClose" type="button" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="gs-body">
+      <ul class="gs-results" id="globalSearchResults"></ul>
+      <p class="gs-hint" id="globalSearchHint" data-i18n="globalSearchHintEmpty">
+        Escribe para buscar cualquier activo.
+      </p>
+    </div>
+  </div>
+</div>
+
 <!-- Global FAB menu — outside card, position: fixed via JS, never clipped -->
 <div id="fabMenuGlobal" class="fab-menu-global">
   <button class="fab-option" data-action="asset" data-i18n="fabAddAsset">Añadir activo</button>
