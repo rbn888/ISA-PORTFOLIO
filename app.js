@@ -5491,7 +5491,7 @@ function _renderWorkspaceDesktop(sheet) {
   // value (1fr) | sheet-name. One divisor sólo, más respiración alrededor.
   return `
     <div class="aurix-workspace-shell is-desktop">
-      <header class="aurix-toolbar">
+      <header class="aurix-toolbar" style="grid-template-columns:auto auto auto 1fr auto auto">
         <div class="aurix-formula-fx" aria-hidden="true">fx</div>
         <div class="aurix-formula-coord ${coordEmpty ? 'is-empty' : ''}">${_escapeWorkspaceText(coordLabel)}</div>
         <div class="aurix-formula-divider" aria-hidden="true"></div>
@@ -5507,6 +5507,9 @@ function _renderWorkspaceDesktop(sheet) {
           aria-label="Formula bar"
         />
         <div class="aurix-sheet-name">${_escapeWorkspaceText(sheet.name)}</div>
+        <button type="button" data-aurix-templates
+          style="padding:7px 14px;border:1px solid rgba(255,255,255,0.14);border-radius:6px;background:rgba(255,255,255,0.05);color:#e8e8ea;font-family:inherit;font-size:11.5px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;font-weight:600;white-space:nowrap"
+          aria-label="Open workspace templates">Templates</button>
       </header>
       <div class="aurix-workspace-body">
         <section class="aurix-grid-panel" role="grid" aria-label="Spreadsheet" tabindex="0">
@@ -14091,6 +14094,284 @@ document.addEventListener('keydown', (e) => {
 // Apply layout once on boot too (covers the initial render that happened
 // before this block evaluated).
 try { _wp3ApplyLayout(); } catch (_) {}
+
+// ── PR-WP4: professional investor starter templates ────────────────────────
+// Prebuilt sheets the user can apply in one click. Each template lists the
+// exact cells to set; all formulas are real (use the existing PR-8/9 registry,
+// no engine changes). Applying a template clears non-readonly cells first,
+// then writes the template — system seeds (B1/B2/B3 readonly) are preserved
+// automatically because the writer skips readonly conflicts.
+const _WP4 = { menuEl: null, outsideHandler: null };
+
+const _WP4_TEMPLATES = [
+  {
+    id:          'portfolio-overview',
+    name:        'Portfolio Overview',
+    description: 'Key portfolio metrics plus live BTC and TSLA prices',
+    build: () => [
+      // A1-A3 carry @i18n: labels so EN/ES toggle keeps working; B1-B3 are
+      // system readonly (Portfolio Value / Asset Count / Top Allocation).
+      { id: 'A1', type: 'value',   value: '@i18n:wsCardPortfolioValue' },
+      { id: 'A2', type: 'value',   value: '@i18n:wsCardAssetCount' },
+      { id: 'A3', type: 'value',   value: '@i18n:wsCardTopAlloc' },
+      { id: 'A4', type: 'value',   value: 'Portfolio PnL' },
+      { id: 'B4', type: 'formula', formula: '=PORTFOLIO.PNL()',     format: 'currency' },
+      { id: 'A5', type: 'value',   value: 'Portfolio PnL %' },
+      { id: 'B5', type: 'formula', formula: '=PORTFOLIO.PNL_PCT()', format: 'number'   },
+      { id: 'A6', type: 'value',   value: 'Crypto Exposure' },
+      { id: 'B6', type: 'formula', formula: '=EXPOSURE("crypto")',  format: 'currency' },
+      { id: 'A7', type: 'value',   value: 'BTC Price' },
+      { id: 'B7', type: 'formula', formula: '=PRICE("BTC")',        format: 'currency' },
+      { id: 'A8', type: 'value',   value: 'TSLA Price' },
+      { id: 'B8', type: 'formula', formula: '=PRICE("TSLA")',       format: 'currency' },
+    ],
+  },
+  {
+    id:          'risk-monitor',
+    name:        'Risk Monitor',
+    description: 'Exposure, concentration watch, and top holdings',
+    build: () => [
+      { id: 'A1', type: 'value',   value: '@i18n:wsCardPortfolioValue' },
+      { id: 'A2', type: 'value',   value: '@i18n:wsCardAssetCount' },
+      { id: 'A3', type: 'value',   value: '@i18n:wsCardTopAlloc' },
+      { id: 'A4', type: 'value',   value: 'Portfolio PnL' },
+      { id: 'B4', type: 'formula', formula: '=PORTFOLIO.PNL()',     format: 'currency' },
+      { id: 'A5', type: 'value',   value: 'Portfolio PnL %' },
+      { id: 'B5', type: 'formula', formula: '=PORTFOLIO.PNL_PCT()', format: 'number'   },
+      { id: 'A6', type: 'value',   value: 'Crypto Exposure' },
+      { id: 'B6', type: 'formula', formula: '=EXPOSURE("crypto")',  format: 'currency' },
+      // Concentration watch
+      { id: 'A8',  type: 'value',   value: 'Concentration Watch' },
+      { id: 'A9',  type: 'value',   value: 'BTC alloc'  },
+      { id: 'B9',  type: 'formula', formula: '=ALLOCATION("BTC")',  format: 'number' },
+      { id: 'A10', type: 'value',   value: 'ETH alloc'  },
+      { id: 'B10', type: 'formula', formula: '=ALLOCATION("ETH")',  format: 'number' },
+      { id: 'A11', type: 'value',   value: 'TSLA alloc' },
+      { id: 'B11', type: 'formula', formula: '=ALLOCATION("TSLA")', format: 'number' },
+      // Top holdings (live)
+      { id: 'A13', type: 'value',   value: 'Top Holdings (live)' },
+      { id: 'A14', type: 'value',   value: 'BTC value'  },
+      { id: 'B14', type: 'formula', formula: '=ASSET.VALUE("BTC")',  format: 'currency' },
+      { id: 'A15', type: 'value',   value: 'ETH value'  },
+      { id: 'B15', type: 'formula', formula: '=ASSET.VALUE("ETH")',  format: 'currency' },
+      { id: 'A16', type: 'value',   value: 'TSLA value' },
+      { id: 'B16', type: 'formula', formula: '=ASSET.VALUE("TSLA")', format: 'currency' },
+    ],
+  },
+  {
+    id:          'position-analyzer',
+    name:        'Position Analyzer',
+    description: 'Inspect any holding (asks for ticker; defaults to TSLA)',
+    needsTicker: true,
+    build: (ticker) => {
+      // ASSET.* requires a literal string arg today (see PR-8C registry — no
+      // engine relaxation in WP-4). Templates bake the ticker into each
+      // formula at apply time; users re-apply the template to switch ticker.
+      const t = String(ticker || 'TSLA').trim().toUpperCase() || 'TSLA';
+      return [
+        { id: 'A1', type: 'value',   value: '@i18n:wsCardPortfolioValue' },
+        { id: 'A2', type: 'value',   value: '@i18n:wsCardAssetCount' },
+        { id: 'A3', type: 'value',   value: '@i18n:wsCardTopAlloc' },
+        { id: 'A5', type: 'value',   value: 'Position Analyzer' },
+        { id: 'A6', type: 'value',   value: 'Ticker' },
+        { id: 'B6', type: 'value',   value: t },
+        { id: 'A7', type: 'value',   value: 'Quantity' },
+        { id: 'B7', type: 'formula', formula: `=ASSET.QTY("${t}")`,        format: 'number'   },
+        { id: 'A8', type: 'value',   value: 'Price' },
+        { id: 'B8', type: 'formula', formula: `=ASSET.PRICE("${t}")`,      format: 'currency' },
+        { id: 'A9', type: 'value',   value: 'Value' },
+        { id: 'B9', type: 'formula', formula: `=ASSET.VALUE("${t}")`,      format: 'currency' },
+        { id: 'A10', type: 'value',  value: 'Cost Basis' },
+        { id: 'B10', type: 'formula', formula: `=ASSET.COST("${t}")`,      format: 'currency' },
+        { id: 'A11', type: 'value',  value: 'PnL' },
+        { id: 'B11', type: 'formula', formula: `=ASSET.PNL("${t}")`,       format: 'currency' },
+        { id: 'A12', type: 'value',  value: 'PnL %' },
+        { id: 'B12', type: 'formula', formula: `=ASSET.PNL_PCT("${t}")`,   format: 'number'   },
+        { id: 'A13', type: 'value',  value: '24h Change %' },
+        { id: 'B13', type: 'formula', formula: `=PRICE.CHANGE24H("${t}")`, format: 'number'   },
+      ];
+    },
+  },
+  {
+    id:          'market-watch',
+    name:        'Market Watch',
+    description: 'Live prices and 24h change for BTC, ETH, TSLA, AAPL, SPY, S&P 500',
+    build: () => {
+      const rows = [
+        { id: 'A1', type: 'value', value: '@i18n:wsCardPortfolioValue' },
+        { id: 'A2', type: 'value', value: '@i18n:wsCardAssetCount' },
+        { id: 'A3', type: 'value', value: '@i18n:wsCardTopAlloc' },
+        { id: 'A5', type: 'value', value: 'Market Watch' },
+        { id: 'A6', type: 'value', value: 'Symbol' },
+        { id: 'B6', type: 'value', value: 'Price' },
+        { id: 'C6', type: 'value', value: '24h %' },
+      ];
+      // S&P 500 uses the canonical ^GSPC symbol. PRICE() resolves via the
+      // alias map; PRICE.CHANGE24H does a direct MARKET_DATA lookup, so the
+      // canonical symbol is what works for both.
+      const tickers = [
+        ['BTC',     'BTC'],
+        ['ETH',     'ETH'],
+        ['TSLA',    'TSLA'],
+        ['AAPL',    'AAPL'],
+        ['SPY',     'SPY'],
+        ['S&P 500', '^GSPC'],
+      ];
+      tickers.forEach(([label, sym], i) => {
+        const r = 7 + i;
+        rows.push({ id: `A${r}`, type: 'value',   value: label });
+        rows.push({ id: `B${r}`, type: 'formula', formula: `=PRICE("${sym}")`,           format: 'currency' });
+        rows.push({ id: `C${r}`, type: 'formula', formula: `=PRICE.CHANGE24H("${sym}")`, format: 'number'   });
+      });
+      return rows;
+    },
+  },
+];
+
+function _wp4ApplyTemplate(template, ticker) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get('main');
+  if (!sheet) return false;
+  // Wipe non-readonly cells (system seeds stay because they're readonly).
+  for (const id of [...sheet.cells.keys()]) {
+    const c = sheet.cells.get(id);
+    if (c && !c.readonly) {
+      sheet.cells.delete(id);
+      try { _setCellDependencies(id, []); } catch (_) {}
+    }
+  }
+  // Write template cells; readonly conflicts (e.g. B1/B2/B3) are skipped.
+  const cells = template.build(ticker);
+  for (const spec of cells) {
+    if (!_isCellInGridBounds(spec.id)) continue;
+    const existing = sheet.cells.get(spec.id);
+    if (existing && existing.readonly) continue;
+    sheet.cells.set(spec.id, createWorkspaceCell({
+      id:      spec.id,
+      type:    spec.type,
+      value:   spec.type === 'value'   ? spec.value   : null,
+      formula: spec.type === 'formula' ? spec.formula : null,
+      format:  spec.format || null,
+    }));
+  }
+  // Rebuild dep graph + evaluate user formulas in topological order before
+  // render so the user sees computed values on the first frame.
+  _rebuildAndRecomputeAll(sheet);
+  saveWorkspacePersistence();
+  if (typeof renderWorkspace === 'function') renderWorkspace();
+  return true;
+}
+
+function _wp4CloseSelector() {
+  if (_WP4.menuEl && _WP4.menuEl.parentNode) {
+    _WP4.menuEl.parentNode.removeChild(_WP4.menuEl);
+  }
+  _WP4.menuEl = null;
+  if (_WP4.outsideHandler) {
+    document.removeEventListener('mousedown', _WP4.outsideHandler, true);
+    _WP4.outsideHandler = null;
+  }
+}
+
+function _wp4ConfirmAndApply(template) {
+  const sheet = WORKSPACE_RUNTIME.sheets.get('main');
+  const hasUserData = sheet && [...sheet.cells.values()].some(c => c && !c.readonly);
+  let ticker = null;
+  if (template.needsTicker) {
+    const raw = (typeof window !== 'undefined' && window.prompt)
+      ? window.prompt('Ticker symbol for Position Analyzer:', 'TSLA')
+      : 'TSLA';
+    if (raw == null) return;       // user cancelled the prompt
+    ticker = String(raw).trim().toUpperCase() || 'TSLA';
+  }
+  if (hasUserData && typeof window !== 'undefined' && window.confirm) {
+    const ok = window.confirm(`Apply "${template.name}"? This replaces current workspace cells (system seeds preserved).`);
+    if (!ok) return;
+  }
+  _wp4ApplyTemplate(template, ticker);
+}
+
+function _wp4OpenSelector(anchor) {
+  _wp4CloseSelector();
+  const rect = anchor && anchor.getBoundingClientRect
+    ? anchor.getBoundingClientRect()
+    : { right: window.innerWidth - 24, bottom: 80 };
+  const menu = document.createElement('div');
+  menu.setAttribute('role', 'menu');
+  menu.style.cssText = [
+    'position:fixed',
+    `right:${Math.max(16, window.innerWidth - rect.right)}px`,
+    `top:${rect.bottom + 6}px`,
+    'background:#1c1c20',
+    'color:#e8e8ea',
+    'border:1px solid rgba(255,255,255,0.10)',
+    'border-radius:8px',
+    'box-shadow:0 14px 36px rgba(0,0,0,0.5)',
+    'padding:8px 0',
+    'min-width:280px',
+    'max-width:340px',
+    'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
+    'font-size:13px',
+    'z-index:10000',
+    'user-select:none',
+  ].join(';');
+
+  const title = document.createElement('div');
+  title.textContent = 'Workspace Templates';
+  title.style.cssText = 'padding:6px 16px 8px;color:#a3a3a9;text-transform:uppercase;letter-spacing:0.08em;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px';
+  menu.appendChild(title);
+
+  for (const tpl of _WP4_TEMPLATES) {
+    const row = document.createElement('div');
+    row.setAttribute('role', 'menuitem');
+    row.style.cssText = 'padding:10px 16px;cursor:pointer';
+    const name = document.createElement('div');
+    name.style.cssText = 'font-weight:600';
+    name.textContent = tpl.name;
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px;line-height:1.4';
+    desc.textContent = tpl.description;
+    row.appendChild(name);
+    row.appendChild(desc);
+    row.addEventListener('mouseenter', () => { row.style.background = 'rgba(255,255,255,0.06)'; });
+    row.addEventListener('mouseleave', () => { row.style.background = 'transparent'; });
+    row.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      _wp4CloseSelector();
+      _wp4ConfirmAndApply(tpl);
+    });
+    menu.appendChild(row);
+  }
+
+  document.body.appendChild(menu);
+  _WP4.menuEl = menu;
+  _WP4.outsideHandler = (ev) => {
+    if (_WP4.menuEl && !_WP4.menuEl.contains(ev.target)) _wp4CloseSelector();
+  };
+  setTimeout(() => {
+    if (_WP4.outsideHandler) {
+      document.addEventListener('mousedown', _WP4.outsideHandler, true);
+    }
+  }, 0);
+}
+
+// Templates button click — document-level so the button works after every
+// re-render without needing per-render rebinding.
+document.addEventListener('click', (e) => {
+  if (typeof currentTab !== 'string' || currentTab !== 'workspace') return;
+  const btn = e.target.closest && e.target.closest('[data-aurix-templates]');
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (_WP4.menuEl) _wp4CloseSelector();
+  else              _wp4OpenSelector(btn);
+});
+
+// Esc closes the template selector (when not editing a cell).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (typeof currentTab !== 'string' || currentTab !== 'workspace') return;
+  if (_WP4.menuEl) { _wp4CloseSelector(); }
+});
 
 // FC-10: register base financial formulas (pure consumers of derived snapshot).
 registerFinancialFormula(
