@@ -372,10 +372,15 @@ const T = {
     // Modal: Add asset
     modalAddTitle:   'Añadir activo',
     modalEditRETitle: 'Editar inmueble',
-    karat:           'Quilates',
-    goldUnit:        'Unidad',
-    gramUnit:        'g (gramos)',
-    ozUnit:          'oz troy',
+    karat:                'Quilates',
+    goldUnit:             'Unidad',
+    gramUnit:             'g',
+    ozUnit:               'oz troy',
+    kgUnit:               'kg',
+    goldSectionTitle:     'Oro físico',
+    goldSpotPerGram:      (k, p, c) => `Spot ${k}K: ${p} ${c}/g`,
+    goldSpotPair:         (perG, perOz, c) => `Spot 24K: ${perG} ${c}/g · ${perOz} ${c}/oz`,
+    goldPurityLabel:      'Pureza',
     qty:             'Cantidad',
     qtyGold:         u => `Cantidad (${u})`,
     estimatedVal:    'Valor estimado:',
@@ -814,10 +819,15 @@ const T = {
     // Modal: Add asset
     modalAddTitle:   'Add asset',
     modalEditRETitle: 'Edit property',
-    karat:           'Carats',
-    goldUnit:        'Unit',
-    gramUnit:        'g (grams)',
-    ozUnit:          'troy oz',
+    karat:                'Karats',
+    goldUnit:             'Unit',
+    gramUnit:             'g',
+    ozUnit:               'troy oz',
+    kgUnit:               'kg',
+    goldSectionTitle:     'Physical gold',
+    goldSpotPerGram:      (k, p, c) => `Spot ${k}K: ${p} ${c}/g`,
+    goldSpotPair:         (perG, perOz, c) => `Spot 24K: ${perG} ${c}/g · ${perOz} ${c}/oz`,
+    goldPurityLabel:      'Purity',
     qty:             'Quantity',
     qtyGold:         u => `Quantity (${u})`,
     estimatedVal:    'Estimated value:',
@@ -1850,6 +1860,20 @@ function toBase(amount, fromCurrency) {
   return amount / usdToEur;                        // EUR → USD
 }
 
+// GOLD-1: physical-gold valuation constants. Spec-precise troy-ounce
+// → gram factor and the per-karat purity lookup. The lookup mirrors
+// karat/24 exactly to four decimals (10K=0.4167, 14K=0.5833, 18K=0.75,
+// 21K=0.875, 22K=0.9167, 24K=1.0) so the math stays continuous if a
+// future karat (e.g. 9K) is added without registering it here.
+const OZ_TO_G = 31.1034768;
+const _PURITY_TABLE = { 10: 0.4167, 14: 0.5833, 18: 0.7500, 21: 0.8750, 22: 0.9167, 24: 1.0000 };
+function _goldPurity(k)   { return _PURITY_TABLE[k] ?? (Number(k) || 0) / 24; }
+function _goldGrams(qty, unit) {
+  if (unit === 'oz') return qty * OZ_TO_G;
+  if (unit === 'kg') return qty * 1000;
+  return qty;
+}
+
 // Gold-aware value in assetCurrency: applies karat purity for XAU assets
 function assetNativeValue(asset) {
   // LIQ-1: cash is just an amount of its own currency. Multiplying by a
@@ -1859,8 +1883,11 @@ function assetNativeValue(asset) {
   // assetCurrency by definition; price has no meaning beyond unity.
   if (asset.type === 'cash') return Number(asset.qty || 0);
   if (asset.ticker === 'XAU' && asset.karat) {
-    const grams = asset.goldUnit === 'oz' ? asset.qty * 31.1035 : asset.qty;
-    return grams * (asset.karat / 24) * (asset.price / 31.1035);
+    // GOLD-1: physical gold — value = grams × purity × (spot per oz / OZ_TO_G).
+    // Honours the stored unit (g | oz | kg). asset.price is the live USD
+    // per troy ounce supplied by fetchGoldSpotPrice via the refresh loop.
+    const grams = _goldGrams(asset.qty, asset.goldUnit || 'g');
+    return grams * _goldPurity(asset.karat) * (asset.price / OZ_TO_G);
   }
   return asset.qty * asset.price;
 }
@@ -13175,11 +13202,16 @@ async function selectAsset(entry) {
   formPreviewEl.style.display = '';
   btnSubmitEl.style.display  = '';
 
-  // Gold: show karat/unit selectors
+  // GOLD-1: physical gold section + karat/unit selectors. Section
+  // banner header shows the live spot reference so the user grasps
+  // the price-per-gram before entering quantity.
   const isGoldEntry = entry.ticker === 'XAU';
+  const goldSectionEl = document.getElementById('goldSection');
+  if (goldSectionEl)   goldSectionEl.style.display   = isGoldEntry ? '' : 'none';
   if (karatGroupEl)    karatGroupEl.style.display    = isGoldEntry ? '' : 'none';
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = isGoldEntry ? '' : 'none';
   if (qtyLabelEl)      qtyLabelEl.textContent        = isGoldEntry ? t('qtyGold')(pendingGoldUnit) : t('qty');
+  if (!isGoldEntry) _renderGoldSpotLine(null);
 
   setLookupStatus('loading', t('lookupLoading'));
 
@@ -13258,6 +13290,9 @@ function clearSelectedAsset() {
   selectedChipEl.style.display = 'none';
   if (karatGroupEl)    karatGroupEl.style.display    = 'none';
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = 'none';
+  const _gsEl = document.getElementById('goldSection');
+  if (_gsEl) _gsEl.style.display = 'none';
+  _renderGoldSpotLine(null);
   if (qtyLabelEl)      qtyLabelEl.textContent        = t('qty');
   setLookupStatus('');
   updatePreview();
@@ -13548,6 +13583,9 @@ function openModal() {
   focusedSuggIdx       = -1;
   if (karatGroupEl)    karatGroupEl.style.display    = 'none';
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = 'none';
+  const _gsEl = document.getElementById('goldSection');
+  if (_gsEl) _gsEl.style.display = 'none';
+  _renderGoldSpotLine(null);
   if (qtyLabelEl)      qtyLabelEl.textContent        = t('qty');
   isRealEstateMode  = false;
   isManualMode      = false;
@@ -13798,12 +13836,30 @@ function updatePreview() {
   const price = pendingPrice || 0;
   let value;
   if (selectedDbAsset?.ticker === 'XAU' && pendingKarat) {
-    const grams = pendingGoldUnit === 'oz' ? qty * 31.1035 : qty;
-    value = grams * (pendingKarat / 24) * (price / 31.1035);
+    // GOLD-1: physical gold preview uses the same formula as the
+    // canonical assetNativeValue path so what the user sees here is
+    // exactly what gets persisted and rendered on the dashboard.
+    const grams = _goldGrams(qty, pendingGoldUnit);
+    value = grams * _goldPurity(pendingKarat) * (price / OZ_TO_G);
+    _renderGoldSpotLine(price);
   } else {
     value = qty * price;
   }
   previewTotal.textContent = formatDisplay(value, 'USD');
+}
+
+// GOLD-1: render the spot reference banner shown above the karat
+// selector when physical gold is the selected asset. Always sourced
+// from pendingPrice (XAU/USD per troy ounce) so the display follows
+// the global currency toggle through formatDisplay.
+function _renderGoldSpotLine(spotPerOzUsd) {
+  const el = document.getElementById('goldSpotLine');
+  if (!el) return;
+  if (!spotPerOzUsd || !Number.isFinite(spotPerOzUsd)) { el.textContent = ''; return; }
+  const perOz   = spotPerOzUsd;
+  const perGram = spotPerOzUsd / OZ_TO_G;
+  el.textContent = `${t('goldSectionTitle')} — ` +
+    `${formatDisplay(perGram, 'USD')}/g · ${formatDisplay(perOz, 'USD')}/oz`;
 }
 qtyInput.addEventListener('input', updatePreview);
 document.getElementById('manualPrice')?.addEventListener('input', updatePreview);
@@ -13943,7 +13999,7 @@ assetForm.addEventListener('submit', e => {
 
   // Cost basis for this purchase (in asset's native USD)
   const newPurchaseCost = isGoldAsset
-    ? (() => { const g = pendingGoldUnit === 'oz' ? qty * 31.1035 : qty; return g * (pendingKarat / 24) * (pendingPrice / 31.1035); })()
+    ? _goldGrams(qty, pendingGoldUnit) * _goldPurity(pendingKarat) * (pendingPrice / OZ_TO_G)
     : qty * pendingPrice;
 
   let normalFlashId = existing?.id;
@@ -13981,7 +14037,20 @@ assetForm.addEventListener('submit', e => {
       ...(pendingIsManualNav && type === 'fund'
         ? { manualNav: pendingPrice, manualNavUpdatedAt: Date.now() }
         : {}),
-      ...(isGoldAsset ? { karat, goldUnit } : {}),
+      // GOLD-1: physical-gold metadata. karat + goldUnit are the inputs
+      // the user picked; weightGrams + purityFactor + spotPriceAtAdd
+      // are persisted so any downstream tool (reports, exports) can
+      // reproduce the value without re-running the formula.
+      ...(isGoldAsset ? {
+        karat,
+        goldUnit,
+        physicalGold:    true,
+        metal:           'gold',
+        purityFactor:    _goldPurity(karat),
+        weightInput:     qty,
+        weightGrams:     _goldGrams(qty, goldUnit),
+        spotPriceAtAdd:  pendingPrice,
+      } : {}),
       transactions:  [{ type: 'buy', qty, price: pendingPrice, ts: Date.now() }],
     });
   }

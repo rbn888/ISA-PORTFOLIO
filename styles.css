@@ -1158,6 +1158,34 @@ body.modal-open {
   padding: 3px;
   gap: 3px;
 }
+/* GOLD-1: 6-button karat row + 3-button unit row wrap cleanly on
+   narrow viewports without the buttons getting squashed. */
+.type-toggle--wrap { flex-wrap: wrap; }
+.type-toggle--wrap .type-btn { flex: 1 0 auto; min-width: 56px; }
+
+.form-group--gold .gold-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: rgba(255, 205, 96, 0.05);
+  border: 1px solid rgba(255, 205, 96, 0.18);
+  border-radius: 10px;
+}
+.gold-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 205, 96, 0.92);
+}
+.gold-spot-line {
+  font-size: 12.5px;
+  color: rgba(220, 230, 250, 0.72);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
+}
+.gold-spot-line:empty { display: none; }
 .type-btn {
   flex: 1;
   background: transparent;

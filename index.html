@@ -404,12 +404,24 @@
           <span class="input-hint" data-i18n="reRentHint">Opcional</span>
         </div>
 
-        <!-- Gold: Quilates (visible solo para XAU) -->
+        <!-- GOLD-1: Physical gold section (visible solo para XAU). Banner
+             muestra el spot 24K en €/g + €/oz; selectores ampliados a
+             10/14/18/21/22/24K y g/oz/kg. -->
+        <div class="form-group form-group--gold" id="goldSection" style="display:none">
+          <div class="gold-section-head">
+            <span class="gold-section-title" data-i18n="goldSectionTitle">Oro físico</span>
+            <span class="gold-spot-line" id="goldSpotLine"></span>
+          </div>
+        </div>
+
         <div class="form-group" id="karatGroup" style="display:none">
           <label data-i18n="karat">Quilates</label>
-          <div class="type-toggle" id="karatToggle">
+          <div class="type-toggle type-toggle--wrap" id="karatToggle">
+            <button type="button" class="type-btn" data-karat="10">10K</button>
             <button type="button" class="type-btn" data-karat="14">14K</button>
             <button type="button" class="type-btn active" data-karat="18">18K</button>
+            <button type="button" class="type-btn" data-karat="21">21K</button>
+            <button type="button" class="type-btn" data-karat="22">22K</button>
             <button type="button" class="type-btn" data-karat="24">24K</button>
           </div>
         </div>
@@ -417,9 +429,10 @@
         <!-- Gold: Unidad (visible solo para XAU) -->
         <div class="form-group" id="goldUnitGroup" style="display:none">
           <label data-i18n="goldUnit">Unidad</label>
-          <div class="type-toggle" id="goldUnitToggle">
-            <button type="button" class="type-btn active" data-unit="g" data-i18n="gramUnit">g (gramos)</button>
-            <button type="button" class="type-btn" data-unit="oz" data-i18n="ozUnit">oz troy</button>
+          <div class="type-toggle type-toggle--wrap" id="goldUnitToggle">
+            <button type="button" class="type-btn active" data-unit="g"  data-i18n="gramUnit">g</button>
+            <button type="button" class="type-btn"        data-unit="oz" data-i18n="ozUnit">oz troy</button>
+            <button type="button" class="type-btn"        data-unit="kg" data-i18n="kgUnit">kg</button>
           </div>
         </div>
 
