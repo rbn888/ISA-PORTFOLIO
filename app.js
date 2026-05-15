@@ -7719,6 +7719,35 @@ function _pickFigiListing(items, isin) {
   return scored[0].item;
 }
 
+// MC-9B: for mutual funds, OpenFIGI returns regional broker tickers (e.g.
+// FEPD on Stuttgart, FIWIPAE on Dublin, FIWI2EUR on Euronext) that Yahoo
+// can't price. Yahoo search by the same ISIN typically returns a
+// Morningstar 0P* code that Yahoo CAN price end-of-day. This bridge runs
+// only for type:'fund' inside getAssetFromISIN — it never affects stocks,
+// ETFs, indices, crypto, or any non-fund path. Goes through the existing
+// /api/search/assets proxy so no new endpoint is added.
+async function _yahooFundSymbolByISIN(isin, signal) {
+  try {
+    const url = `${PRICES_PROXY.replace('/api/prices','')}/api/search/assets?q=${encodeURIComponent(isin)}`;
+    const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const results = Array.isArray(json?.results) ? json.results : [];
+    if (results.length === 0) return null;
+    // Prefer a Morningstar 0P* code — that's the form Yahoo actually
+    // serves NAVs for. Fall back to any MUTUALFUND result if no 0P*
+    // match (still better than OpenFIGI's unpriceable broker ticker).
+    const morningstar = results.find(r => r && typeof r.marketSymbol === 'string'
+                                       && /^0P[A-Z0-9]+(\.[A-Z]{1,3})?$/.test(r.marketSymbol));
+    if (morningstar) return morningstar.marketSymbol;
+    const anyFund = results.find(r => r && r.type === 'fund' && r.marketSymbol);
+    return anyFund ? anyFund.marketSymbol : null;
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw err;
+    return null;
+  }
+}
+
 async function getAssetFromISIN(isin, signal) {
   const cached = _isinCache.get(isin);
   if (cached) {
@@ -7749,10 +7778,30 @@ async function getAssetFromISIN(isin, signal) {
     const ticker = item.ticker || '';
     const exch   = item.exchCode || 'US';
     const suffix = FIGI_EXCH_SUFFIX[exch] ?? '';
+    const type   = _figiToAssetType(item.securityType, item.securityType2);
+    let symbol   = ticker + suffix;
+
+    // MC-9B: for mutual funds only, prefer Yahoo's priceable form when it
+    // differs from OpenFIGI's broker ticker. OpenFIGI's identity (name,
+    // type, exch) stays; only the SYMBOL used for pricing is swapped.
+    // Product identity is preserved by ISIN — different fund managers
+    // have different ISINs, so this bridge never collapses Fidelity onto
+    // iShares or vice versa.
+    if (type === 'fund') {
+      try {
+        const priceable = await _yahooFundSymbolByISIN(isin, signal);
+        if (priceable && priceable !== symbol) symbol = priceable;
+      } catch (e) {
+        if (e && e.name === 'AbortError') throw e;
+        // Any other error: fall through with the OpenFIGI symbol; the
+        // user still gets the Manual NAV fallback (MC-7) for funds.
+      }
+    }
+
     const result = {
-      name:   item.name ? _toTitleCase(item.name) : null,
-      type:   _figiToAssetType(item.securityType, item.securityType2),
-      symbol: ticker + suffix,
+      name: item.name ? _toTitleCase(item.name) : null,
+      type,
+      symbol,
       exch,
     };
     _isinCache.set(isin, { value: result, ts: Date.now() });
