@@ -14972,6 +14972,87 @@ if (typeof window !== 'undefined') {
     build:    _wp6BuildIntent,
     apply:    _wp6ApplyIntent,
   };
+
+  // PR-WP6D.2: temporary runtime trace for browser QA. Dumps both the
+  // workspace PRICE() lookup path and the dashboard reactive lookup path
+  // side-by-side so we can see exactly where TSLA/BTC fall through.
+  // Usage in browser console:
+  //   window.__aurixPriceDiag('TSLA')
+  //   window.__aurixPriceDiag('BTC')
+  // Remove this helper after the trace is captured.
+  window.__aurixPriceDiag = function(symbol) {
+    const md = (typeof MARKET_DATA !== 'undefined' && Array.isArray(MARKET_DATA))
+      ? MARKET_DATA : [];
+    const sym = String(symbol || '').trim();
+    const symUpper = sym.toUpperCase();
+    let reactivePath = null;
+    try { reactivePath = (typeof getReactiveMarketPrice === 'function') ? getReactiveMarketPrice(sym) : 'getReactiveMarketPrice missing'; } catch (e) { reactivePath = 'THREW: ' + e.message; }
+    let workspacePath = null;
+    try { workspacePath = (typeof getMarketPrice === 'function') ? getMarketPrice(sym) : 'getMarketPrice missing'; } catch (e) { workspacePath = 'THREW: ' + e.message; }
+    let getMarketAssetResult = null;
+    try {
+      const item = (typeof getMarketAsset === 'function') ? getMarketAsset(sym) : null;
+      getMarketAssetResult = item ? {
+        symbol: item.symbol,
+        canonicalSymbol: item.canonicalSymbol ?? null,
+        price: item.price ?? null,
+        current_price: item.current_price ?? null,
+        type: item.type ?? null,
+        fallback: !!item.fallback,
+      } : null;
+    } catch (e) { getMarketAssetResult = 'THREW: ' + e.message; }
+    let resolved = null;
+    try {
+      const r = (typeof resolveAsset === 'function') ? resolveAsset(sym) : null;
+      resolved = r ? { id: r.id, symbol: r.symbol, aliases: r.aliases } : null;
+    } catch (e) { resolved = 'THREW: ' + e.message; }
+    const aliasHit = (typeof MARKET_SYMBOL_ALIASES !== 'undefined')
+      ? (MARKET_SYMBOL_ALIASES[symUpper] || null) : null;
+    const normalized = (typeof normalizeSymbol === 'function') ? normalizeSymbol(sym) : null;
+    // Find items whose normalized symbol or canonicalSymbol matches the
+    // first 3 chars of the requested symbol (helps spot near-misses).
+    const probe = String(normalized || '').slice(0, 3);
+    const candidates = md
+      .map(d => ({
+        symbol: d.symbol,
+        canonicalSymbol: d.canonicalSymbol ?? null,
+        type: d.type ?? null,
+        price: d.price ?? null,
+        current_price: d.current_price ?? null,
+        normSym: (typeof normalizeSymbol === 'function') ? normalizeSymbol(d.symbol) : null,
+        normCanonical: (d.canonicalSymbol && typeof normalizeSymbol === 'function')
+          ? normalizeSymbol(d.canonicalSymbol) : null,
+      }))
+      .filter(d => (d.normSym && d.normSym.includes(probe))
+                || (d.normCanonical && d.normCanonical.includes(probe)));
+    const sample = md.slice(0, 8).map(d => ({
+      symbol: d.symbol,
+      canonicalSymbol: d.canonicalSymbol ?? null,
+      type: d.type ?? null,
+      price: d.price ?? d.current_price,
+    }));
+    const report = {
+      input: symbol,
+      normalized,
+      resolveAsset: resolved,
+      MARKET_SYMBOL_ALIASES_hit: aliasHit,
+      MARKET_DATA_length: md.length,
+      MARKET_DATA_VERSION: (typeof MARKET_DATA_VERSION === 'number') ? MARKET_DATA_VERSION : null,
+      MARKET_DATA_first8: sample,
+      candidates_with_probe: candidates,
+      reactivePath_price: reactivePath,
+      workspacePath_price: workspacePath,
+      getMarketAsset_item: getMarketAssetResult,
+      __notes: [
+        'reactivePath_price: getReactiveMarketPrice — dashboard path',
+        'workspacePath_price: getMarketPrice → getMarketAsset — workspace PRICE() path',
+        'mismatch (one numeric, the other null/error) is the bug we are hunting',
+      ],
+    };
+    try { console.log('[aurix-price-diag]', JSON.stringify(report, null, 2)); }
+    catch (_) { console.log('[aurix-price-diag]', report); }
+    return report;
+  };
 }
 
 // ── PR-WP6C: local intent parser + assistant input ─────────────────────────
