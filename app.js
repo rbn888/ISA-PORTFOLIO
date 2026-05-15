@@ -1235,10 +1235,30 @@ const ASSET_DB = [
   { ticker: 'VOO',   name: 'Vanguard S&P 500 ETF',                type: 'etf', marketSymbol: 'VOO' },
   { ticker: 'URTH',  name: 'iShares MSCI World ETF',              type: 'etf', marketSymbol: 'URTH' },
   { ticker: 'VEA',   name: 'Vanguard FTSE Developed World ETF',   type: 'etf', marketSymbol: 'VEA' },
-  { ticker: 'IWDA',  name: 'iShares Core MSCI World (London)',    type: 'etf', marketSymbol: 'IWDA.L' },
-  { ticker: 'VWCE',  name: 'Vanguard FTSE All-World Acc (Xetra)', type: 'etf', marketSymbol: 'VWCE.DE' },
-  { ticker: 'CSPX',  name: 'iShares Core S&P 500 UCITS (London)', type: 'etf', marketSymbol: 'CSPX.L' },
-  { ticker: 'EQQQ',  name: 'Invesco EQQQ NASDAQ-100 (London)',    type: 'etf', marketSymbol: 'EQQQ.L' },
+  // MC-3: UCITS / European-listed ETFs. marketSymbol is the bare ticker;
+  // the snapshot router (REGISTRY in api/prices/snapshot.js) maps each
+  // canonical ticker to its most-liquid exchange symbol and tolerates
+  // exchange-suffixed inputs (IWDA.L, IWDA.AS, EUNL.DE → all resolve).
+  { ticker: 'IWDA',  name: 'iShares Core MSCI World',         type: 'etf', marketSymbol: 'IWDA' },
+  { ticker: 'SWDA',  name: 'iShares Core MSCI World (LSE)',   type: 'etf', marketSymbol: 'SWDA' },
+  { ticker: 'EUNL',  name: 'iShares Core MSCI World (Xetra)', type: 'etf', marketSymbol: 'EUNL' },
+  { ticker: 'VWCE',  name: 'Vanguard FTSE All-World (Acc)',   type: 'etf', marketSymbol: 'VWCE' },
+  { ticker: 'VWRL',  name: 'Vanguard FTSE All-World (Dist)',  type: 'etf', marketSymbol: 'VWRL' },
+  { ticker: 'VWRA',  name: 'Vanguard FTSE All-World Acc (LSE)',type: 'etf', marketSymbol: 'VWRA' },
+  { ticker: 'VUSA',  name: 'Vanguard S&P 500 (Dist)',         type: 'etf', marketSymbol: 'VUSA' },
+  { ticker: 'VUAA',  name: 'Vanguard S&P 500 (Acc)',          type: 'etf', marketSymbol: 'VUAA' },
+  { ticker: 'CSPX',  name: 'iShares Core S&P 500 UCITS',      type: 'etf', marketSymbol: 'CSPX' },
+  { ticker: 'SXR8',  name: 'iShares Core S&P 500 (Xetra)',    type: 'etf', marketSymbol: 'SXR8' },
+  { ticker: 'EQQQ',  name: 'Invesco EQQQ NASDAQ-100',         type: 'etf', marketSymbol: 'EQQQ' },
+  { ticker: 'CNDX',  name: 'Invesco NASDAQ-100 (Acc)',        type: 'etf', marketSymbol: 'CNDX' },
+  { ticker: 'CW8',   name: 'Amundi MSCI World (Paris)',       type: 'etf', marketSymbol: 'CW8'  },
+  { ticker: 'LCWD',  name: 'Amundi MSCI World (Xetra)',       type: 'etf', marketSymbol: 'LCWD' },
+  { ticker: 'EIMI',  name: 'iShares Core MSCI EM IMI',        type: 'etf', marketSymbol: 'EIMI' },
+  { ticker: 'VFEM',  name: 'Vanguard FTSE Emerging Markets',  type: 'etf', marketSymbol: 'VFEM' },
+  { ticker: 'AGGH',  name: 'iShares Core Global Agg Bond',    type: 'etf', marketSymbol: 'AGGH' },
+  { ticker: 'VAGF',  name: 'Vanguard Global Agg Bond',        type: 'etf', marketSymbol: 'VAGF' },
+  { ticker: 'SGLN',  name: 'iShares Physical Gold',           type: 'etf', marketSymbol: 'SGLN' },
+  { ticker: 'PHAU',  name: 'WisdomTree Physical Gold',        type: 'etf', marketSymbol: 'PHAU' },
   // Metals
   { ticker: 'XAU',   name: 'Gold',   type: 'metal', marketSymbol: 'GC=F' },
   { ticker: 'XAG',   name: 'Silver', type: 'metal', marketSymbol: 'SI=F' },
@@ -6435,6 +6455,43 @@ const _ASSET_REGISTRY = Object.freeze({
   'asset:vti':   { id:'asset:vti',   type:'etf',    symbol:'VTI',   displayName:'Vanguard Total Stock Market', aliases:[],        providerKeys:{ yahoo:'VTI', twelvedata:'VTI' } },
   'asset:urth':  { id:'asset:urth',  type:'etf',    symbol:'URTH',  displayName:'iShares MSCI World',aliases:[],                  providerKeys:{ yahoo:'URTH', twelvedata:'URTH' } },
   'asset:vea':   { id:'asset:vea',   type:'etf',    symbol:'VEA',   displayName:'Vanguard Developed Markets', aliases:[],         providerKeys:{ yahoo:'VEA', twelvedata:'VEA' } },
+
+  // MC-3: UCITS / European-listed ETFs. Canonical `symbol` is the bare
+  // ticker (IWDA, VWCE, …); `providerKeys.yahoo` carries the most-liquid
+  // exchange-suffixed form. Alternate listings are added to `aliases` so
+  // users typing the LSE / Xetra / Amsterdam form resolve to the same
+  // canonical entry. Human shorthands ("MSCI WORLD", "GOLD ETF", …) are
+  // aliased deliberately — first-write-wins in _ASSET_ALIAS_INDEX, so the
+  // earliest-listed entry below claims each shorthand.
+  // iShares Core MSCI World — Amsterdam (primary liquidity), LSE, Xetra
+  'asset:iwda':  { id:'asset:iwda',  type:'etf', symbol:'IWDA', displayName:'iShares Core MSCI World',     aliases:['IWDA.L','IWDA.AS','MSCI WORLD','WORLD ETF','MSCI WORLD ETF'], providerKeys:{ yahoo:'IWDA.AS', twelvedata:'IWDA.AS' } },
+  'asset:swda':  { id:'asset:swda',  type:'etf', symbol:'SWDA', displayName:'iShares Core MSCI World (LSE)', aliases:['SWDA.L'],                                                    providerKeys:{ yahoo:'SWDA.L',  twelvedata:'SWDA.L'  } },
+  'asset:eunl':  { id:'asset:eunl',  type:'etf', symbol:'EUNL', displayName:'iShares Core MSCI World (Xetra)', aliases:['EUNL.DE'],                                                  providerKeys:{ yahoo:'EUNL.DE', twelvedata:'EUNL.DE' } },
+  // Vanguard FTSE All-World — Xetra Acc (primary), LSE Dist, LSE Acc
+  'asset:vwce':  { id:'asset:vwce',  type:'etf', symbol:'VWCE', displayName:'Vanguard FTSE All-World Acc', aliases:['VWCE.DE','VANGUARD FTSE ALL-WORLD','VANGUARD FTSE ALL WORLD','FTSE ALL WORLD','FTSE ALL-WORLD','ALL WORLD ETF','VANGUARD ALL WORLD'], providerKeys:{ yahoo:'VWCE.DE', twelvedata:'VWCE.DE' } },
+  'asset:vwrl':  { id:'asset:vwrl',  type:'etf', symbol:'VWRL', displayName:'Vanguard FTSE All-World Dist',aliases:['VWRL.L'],                                                       providerKeys:{ yahoo:'VWRL.L',  twelvedata:'VWRL.L'  } },
+  'asset:vwra':  { id:'asset:vwra',  type:'etf', symbol:'VWRA', displayName:'Vanguard FTSE All-World Acc (LSE)', aliases:['VWRA.L'],                                                 providerKeys:{ yahoo:'VWRA.L',  twelvedata:'VWRA.L'  } },
+  // Vanguard S&P 500 UCITS
+  'asset:vusa':  { id:'asset:vusa',  type:'etf', symbol:'VUSA', displayName:'Vanguard S&P 500 (Dist)',     aliases:['VUSA.L','VANGUARD S&P 500'],                                    providerKeys:{ yahoo:'VUSA.L',  twelvedata:'VUSA.L'  } },
+  'asset:vuaa':  { id:'asset:vuaa',  type:'etf', symbol:'VUAA', displayName:'Vanguard S&P 500 (Acc)',      aliases:['VUAA.L'],                                                       providerKeys:{ yahoo:'VUAA.L',  twelvedata:'VUAA.L'  } },
+  // iShares Core S&P 500 UCITS — LSE, Xetra
+  'asset:cspx':  { id:'asset:cspx',  type:'etf', symbol:'CSPX', displayName:'iShares Core S&P 500 UCITS',  aliases:['CSPX.L','S&P 500 ETF','S&P 500 UCITS','ISHARES S&P 500'],        providerKeys:{ yahoo:'CSPX.L',  twelvedata:'CSPX.L'  } },
+  'asset:sxr8':  { id:'asset:sxr8',  type:'etf', symbol:'SXR8', displayName:'iShares Core S&P 500 (Xetra)',aliases:['SXR8.DE'],                                                      providerKeys:{ yahoo:'SXR8.DE', twelvedata:'SXR8.DE' } },
+  // Invesco NASDAQ-100 UCITS
+  'asset:eqqq':  { id:'asset:eqqq',  type:'etf', symbol:'EQQQ', displayName:'Invesco EQQQ NASDAQ-100',     aliases:['EQQQ.L','NASDAQ ETF','NASDAQ 100 ETF','NASDAQ 100 UCITS','INVESCO NASDAQ 100'], providerKeys:{ yahoo:'EQQQ.L', twelvedata:'EQQQ.L' } },
+  'asset:cndx':  { id:'asset:cndx',  type:'etf', symbol:'CNDX', displayName:'Invesco NASDAQ-100 Acc',      aliases:['CNDX.L'],                                                       providerKeys:{ yahoo:'CNDX.L',  twelvedata:'CNDX.L'  } },
+  // Amundi MSCI World — Paris, Xetra
+  'asset:cw8':   { id:'asset:cw8',   type:'etf', symbol:'CW8',  displayName:'Amundi MSCI World',           aliases:['CW8.PA','AMUNDI MSCI WORLD'],                                   providerKeys:{ yahoo:'CW8.PA',  twelvedata:'CW8.PA'  } },
+  'asset:lcwd':  { id:'asset:lcwd',  type:'etf', symbol:'LCWD', displayName:'Amundi MSCI World (Xetra)',   aliases:['LCWD.DE','LYXOR MSCI WORLD'],                                   providerKeys:{ yahoo:'LCWD.DE', twelvedata:'LCWD.DE' } },
+  // Emerging markets
+  'asset:eimi':  { id:'asset:eimi',  type:'etf', symbol:'EIMI', displayName:'iShares Core MSCI EM IMI',    aliases:['EIMI.L','MSCI EMERGING MARKETS','EMERGING MARKETS ETF','EM ETF'], providerKeys:{ yahoo:'EIMI.L', twelvedata:'EIMI.L' } },
+  'asset:vfem':  { id:'asset:vfem',  type:'etf', symbol:'VFEM', displayName:'Vanguard FTSE Emerging Markets', aliases:['VFEM.L','VANGUARD EMERGING MARKETS','FTSE EMERGING MARKETS'], providerKeys:{ yahoo:'VFEM.L', twelvedata:'VFEM.L' } },
+  // Aggregate bonds
+  'asset:aggh':  { id:'asset:aggh',  type:'etf', symbol:'AGGH', displayName:'iShares Core Global Agg Bond (Hedged)', aliases:['AGGH.L','GLOBAL AGGREGATE BOND','GLOBAL BOND ETF','BOND ETF'], providerKeys:{ yahoo:'AGGH.L', twelvedata:'AGGH.L' } },
+  'asset:vagf':  { id:'asset:vagf',  type:'etf', symbol:'VAGF', displayName:'Vanguard Global Aggregate Bond', aliases:['VAGF.L','VANGUARD GLOBAL BOND'],                              providerKeys:{ yahoo:'VAGF.L', twelvedata:'VAGF.L' } },
+  // Physical gold ETCs
+  'asset:sgln':  { id:'asset:sgln',  type:'etf', symbol:'SGLN', displayName:'iShares Physical Gold ETC',   aliases:['SGLN.L','GOLD ETF','PHYSICAL GOLD ETC','ISHARES PHYSICAL GOLD'], providerKeys:{ yahoo:'SGLN.L',  twelvedata:'SGLN.L'  } },
+  'asset:phau':  { id:'asset:phau',  type:'etf', symbol:'PHAU', displayName:'WisdomTree Physical Gold',    aliases:['PHAU.L','WISDOMTREE PHYSICAL GOLD'],                            providerKeys:{ yahoo:'PHAU.L',  twelvedata:'PHAU.L'  } },
 
   // Indices
   'asset:gspc':    { id:'asset:gspc',    type:'index', symbol:'^GSPC',     displayName:'S&P 500',         aliases:['SP500','S&P500','S&P 500','SPX','GSPC'],                                providerKeys:{ yahoo:'^GSPC',     twelvedata:'^GSPC'     } },

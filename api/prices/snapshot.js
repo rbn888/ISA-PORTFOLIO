@@ -174,6 +174,31 @@ const REGISTRY = {
   VTI:  { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VTI'  }, { provider: 'twelvedata', providerId: 'VTI'  }] },
   URTH: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'URTH' }, { provider: 'twelvedata', providerId: 'URTH' }] },
   VEA:  { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VEA'  }, { provider: 'twelvedata', providerId: 'VEA'  }] },
+  // MC-3: UCITS / European-listed ETFs. Canonical key is the bare ticker
+  // (IWDA, VWCE, …); providerId carries the most-liquid exchange-suffixed
+  // form Yahoo expects. resolveSymbol() additionally strips
+  // 1-3-letter exchange suffixes so inputs like 'IWDA.L', 'IWDA.AS',
+  // 'EUNL.DE' all converge to the same canonical entry.
+  IWDA: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'IWDA.AS' }, { provider: 'twelvedata', providerId: 'IWDA.AS' }] },
+  SWDA: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'SWDA.L'  }, { provider: 'twelvedata', providerId: 'SWDA.L'  }] },
+  EUNL: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'EUNL.DE' }, { provider: 'twelvedata', providerId: 'EUNL.DE' }] },
+  VWCE: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VWCE.DE' }, { provider: 'twelvedata', providerId: 'VWCE.DE' }] },
+  VWRL: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VWRL.L'  }, { provider: 'twelvedata', providerId: 'VWRL.L'  }] },
+  VWRA: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VWRA.L'  }, { provider: 'twelvedata', providerId: 'VWRA.L'  }] },
+  VUSA: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VUSA.L'  }, { provider: 'twelvedata', providerId: 'VUSA.L'  }] },
+  VUAA: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VUAA.L'  }, { provider: 'twelvedata', providerId: 'VUAA.L'  }] },
+  CSPX: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'CSPX.L'  }, { provider: 'twelvedata', providerId: 'CSPX.L'  }] },
+  SXR8: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'SXR8.DE' }, { provider: 'twelvedata', providerId: 'SXR8.DE' }] },
+  EQQQ: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'EQQQ.L'  }, { provider: 'twelvedata', providerId: 'EQQQ.L'  }] },
+  CNDX: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'CNDX.L'  }, { provider: 'twelvedata', providerId: 'CNDX.L'  }] },
+  CW8:  { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'CW8.PA'  }, { provider: 'twelvedata', providerId: 'CW8.PA'  }] },
+  LCWD: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'LCWD.DE' }, { provider: 'twelvedata', providerId: 'LCWD.DE' }] },
+  EIMI: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'EIMI.L'  }, { provider: 'twelvedata', providerId: 'EIMI.L'  }] },
+  VFEM: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VFEM.L'  }, { provider: 'twelvedata', providerId: 'VFEM.L'  }] },
+  AGGH: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'AGGH.L'  }, { provider: 'twelvedata', providerId: 'AGGH.L'  }] },
+  VAGF: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'VAGF.L'  }, { provider: 'twelvedata', providerId: 'VAGF.L'  }] },
+  SGLN: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'SGLN.L'  }, { provider: 'twelvedata', providerId: 'SGLN.L'  }] },
+  PHAU: { assetType: 'etf', providers: [{ provider: 'yahoo', providerId: 'PHAU.L'  }, { provider: 'twelvedata', providerId: 'PHAU.L'  }] },
 
   // Indices: yahoo → twelvedata
   '^GSPC':     { assetType: 'index', providers: [{ provider: 'yahoo', providerId: '^GSPC'     }, { provider: 'twelvedata', providerId: '^GSPC'     }] },
@@ -202,6 +227,15 @@ function resolveSymbol(raw) {
   if (REGISTRY[raw]) return { canonical: raw, entry: REGISTRY[raw] };
   const upper = raw.toUpperCase();
   if (REGISTRY[upper]) return { canonical: upper, entry: REGISTRY[upper] };
+  // MC-3: tolerate Yahoo exchange suffixes. UCITS ETFs cross-list across
+  // exchanges (IWDA on .AS/.L, EUNL on .DE, etc.); the canonical REGISTRY
+  // entry stores ONE provider chain and any suffixed input converges to
+  // that entry. Restricted to 1-3 uppercase letters so we don't strip
+  // anything from index tickers (^GSPC) or futures (GC=F).
+  const stripped = upper.replace(/\.[A-Z]{1,3}$/, '');
+  if (stripped !== upper && REGISTRY[stripped]) {
+    return { canonical: stripped, entry: REGISTRY[stripped] };
+  }
   return null;
 }
 
