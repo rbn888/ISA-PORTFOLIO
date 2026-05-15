@@ -491,6 +491,7 @@ const T = {
     discCat_commodities_precious_metals:    'Metales preciosos',
     discCat_commodities_energy_commodities: 'Energía',
     discCat_commodities_industrial_metals:  'Metales industriales',
+    view_more_discovery: 'Ver más',
     empty_watchlist:   'Añade activos ⭐ para seguirlos aquí',
     market_no_results: 'Sin resultados',
     stale:             'sin actualizar',
@@ -914,6 +915,7 @@ const T = {
     discCat_commodities_precious_metals:    'Precious Metals',
     discCat_commodities_energy_commodities: 'Energy',
     discCat_commodities_industrial_metals:  'Industrial Metals',
+    view_more_discovery: 'View more',
     empty_watchlist:   'Add assets ⭐ to track them here',
     market_no_results: 'No results',
     stale:             'stale data',
@@ -11041,10 +11043,20 @@ function _renderDiscoveryCatalog(tabKey) {
       </div>
     </button>
   `).join('');
+  // MC-11C.1: cap visible cards at 3 on mobile via the .is-collapsed
+  // class — CSS hides .funds-card:nth-child(n+4) and reveals the "View
+  // more" button only on narrow viewports. Desktop ignores the rule and
+  // always shows every card. The button is only emitted when the
+  // category actually has more than 3 cards, otherwise no affordance.
+  const showMoreLabel = t('view_more_discovery') || 'Ver más';
+  const showMoreHtml  = cat.items.length > 3
+    ? `<button class="funds-show-more" type="button" data-disc-expand="${_escFunds(tabKey)}">${_escFunds(showMoreLabel)}</button>`
+    : '';
   return `
-    <div class="funds-discover">
+    <div class="funds-discover is-collapsed">
       <div class="funds-cats" role="tablist">${chips}</div>
       <div class="funds-grid">${cards}</div>
+      ${showMoreHtml}
     </div>
   `;
 }
@@ -11059,6 +11071,17 @@ function _initFundsCatalogDelegation() {
   document.addEventListener('click', (e) => {
     if (typeof currentMarketTab !== 'string') return;
     if (!_DISCOVERY_CATALOGS[currentMarketTab]) return;
+    // MC-11C.1: mobile "View more" expander. CSS hides cards 4+ when
+    // .funds-discover.is-collapsed; clicking the button removes the
+    // class on that container so the rest of the cards reveal. The
+    // button itself hides via the same CSS rule once expanded. No
+    // re-render needed — we mutate the existing DOM directly.
+    const expander = e.target.closest && e.target.closest('[data-disc-expand]');
+    if (expander) {
+      const container = expander.closest('.funds-discover');
+      if (container) container.classList.remove('is-collapsed');
+      return;
+    }
     const chip = e.target.closest && e.target.closest('[data-disc-cat]');
     if (chip) {
       const tabKey = chip.dataset.discTab;
@@ -11495,7 +11518,15 @@ function initMarketTabs() {
 function updateMarketTabUI() {
   document.querySelectorAll('.market-tab').forEach(t => t.classList.remove('active'));
   const active = document.querySelector(`.market-tab[data-market="${currentMarketTab}"]`);
-  if (active) active.classList.add('active');
+  if (active) {
+    active.classList.add('active');
+    // MC-11C.1: keep the active pill in view on mobile — important when
+    // the scroller is wider than the viewport so the user always sees
+    // which tab is selected after a click. Desktop fits all tabs.
+    if (typeof active.scrollIntoView === 'function') {
+      try { active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+    }
+  }
 }
 
 function renderMarketByType(type) {
