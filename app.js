@@ -654,6 +654,10 @@ const T = {
     wsSyncingMarket:         'Sincronizando actualizaciones de mercado',
     wsStableSignal:          'Señal estable',
     wsNoActiveSignals:       'Sin señales de riesgo activas',
+    wsSyncLabel:             'Sincronización',
+    wsSyncLive:              'Mercado al día',
+    wsSyncOffline:           'Sin sincronización reciente',
+    ws_mobile_note:          'La edición tipo hoja está disponible en escritorio. En móvil se muestran los indicadores clave.',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Plantillas',
     ws_assistant_title:      'Asistente de Workspace',
@@ -1083,6 +1087,10 @@ const T = {
     wsSyncingMarket:         'Syncing market updates',
     wsStableSignal:          'Stable signal',
     wsNoActiveSignals:       'No active risk signals',
+    wsSyncLabel:             'Sync',
+    wsSyncLive:              'Market live',
+    wsSyncOffline:           'No recent sync',
+    ws_mobile_note:          'Spreadsheet editing is available on desktop. Mobile shows key workspace insights.',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Templates',
     ws_assistant_title:      'Workspace Assistant',
@@ -6091,26 +6099,47 @@ function _renderWorkspaceMobile(sheet) {
     </div>
   `).join('');
 
-  // AW-5 §11: compact risk strip (max 3 active signals, fall back to "Stable").
-  const flat = _buildWorkspaceCopilotMessages().slice(0, 3);
-  const riskItems = flat.map(t => `
-    <li class="aurix-mobile-risk-item">
-      <span class="aurix-mobile-risk-dot" aria-hidden="true"></span>
-      <span class="aurix-mobile-risk-text">${_escapeWorkspaceText(t)}</span>
-    </li>
-  `).join('');
+  // MW-1: stacked risk panel by category — Concentration / Exposure /
+  // Volatility / Sync. Reads the same derived snapshot consumed by the
+  // desktop risk monitor so the mobile view never drifts from the
+  // source-of-truth; the Sync row is synthesised from the existing
+  // WORKSPACE_RUNTIME.stale flag (no new pipelines, no persistence).
+  const categories = _buildWorkspaceRiskCategories();
+  const syncTone = WORKSPACE_RUNTIME.stale ? 'info' : 'ok';
+  const syncText = WORKSPACE_RUNTIME.stale
+    ? (t('wsSyncOffline') || 'Sync paused')
+    : (t('wsSyncLive')    || 'Market live');
+  categories.push({
+    id: 'sync',
+    label: t('wsSyncLabel') || 'Sync',
+    signals: [{ tone: syncTone, text: syncText }],
+  });
 
+  const riskRows = categories.map(cat => {
+    const sig = cat.signals[0] || { tone: 'ok', text: '—' };
+    const tone = String(sig.tone || 'ok');
+    return `
+      <li class="aurix-mobile-risk-row is-${_escapeWorkspaceText(tone)}">
+        <span class="aurix-mobile-risk-row-label">${_escapeWorkspaceText(cat.label)}</span>
+        <span class="aurix-mobile-risk-row-signal">
+          <span class="aurix-mobile-risk-dot" aria-hidden="true"></span>
+          <span class="aurix-mobile-risk-text">${_escapeWorkspaceText(sig.text)}</span>
+        </span>
+      </li>
+    `;
+  }).join('');
+
+  // MW-1: drop the redundant <header> — bottom-nav already signals the
+  // active section, matching the Market mobile philosophy (MC-11C.3).
   return `
     <div class="aurix-workspace-shell is-mobile">
-      <header class="aurix-mobile-header">
-        <h2 class="aurix-mobile-title">${_escapeWorkspaceText(t('ws_title'))}</h2>
-      </header>
       <section class="aurix-mobile-summary">${summary}</section>
+      <p class="aurix-mobile-note">${_escapeWorkspaceText(t('ws_mobile_note') || '')}</p>
       <section class="aurix-mobile-risk" aria-label="${_escapeWorkspaceText(t('ws_risk_signals'))}">
         <header class="aurix-mobile-risk-header">
           <span class="aurix-mobile-risk-eyebrow">${_escapeWorkspaceText(t('ws_risk_signals'))}</span>
         </header>
-        <ul class="aurix-mobile-risk-list">${riskItems}</ul>
+        <ul class="aurix-mobile-risk-list">${riskRows}</ul>
       </section>
     </div>
   `;

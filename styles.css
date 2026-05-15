@@ -7765,46 +7765,49 @@ body.workspace-active .header {
    Mobile UX hardening: constraint width on tablets so the mobile dashboard
    doesn't stretch awkwardly between mobile and desktop breakpoints. */
 .aurix-workspace-shell.is-mobile {
-  gap: 18px;
-  padding-bottom: var(--space-3);
+  gap: 12px;
+  padding: 8px 12px var(--space-3);
   max-width: 560px;
   margin-inline: auto;
   width: 100%;
+  max-width: min(560px, 100%);
+  overflow-x: hidden;
 }
 
-/* Mobile UX hardening: clear hierarchy below the global AURIX header.
-   No inner brand duplication — single screen title with breathing room. */
-.aurix-mobile-header {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 0 4px;
-  margin: 0;
+/* MW-1: the legacy <header> with the duplicate "Workspace" title is no
+   longer rendered (bottom nav already signals the active section), but
+   the rules are kept harmless in case any external consumer still
+   targets them. */
+.aurix-mobile-header { display: none; }
+.aurix-mobile-title  { display: none; }
+
+/* MW-1: small premium note explaining the mobile/desktop split, sits
+   between the cards and the risk panel. */
+.aurix-mobile-note {
+  margin: 2px 2px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(220,230,250,0.55);
+  letter-spacing: 0.005em;
 }
 
-.aurix-mobile-title {
-  font-size: 24px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-  margin: 0;
-}
-
-/* AW-6 §8: 6 cards × 2 columns × 3 rows. Polish tipográfico. */
+/* MW-1: 6 cards × 2 columns × 3 rows — tighter gap to match Market
+   mobile rhythm. */
 .aurix-mobile-summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .aurix-summary-card {
-  padding: 14px 16px;
-  border-radius: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.07);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 88px;
+  gap: 5px;
+  min-height: 80px;
   justify-content: center;
   position: relative;
   overflow: hidden;
@@ -7885,15 +7888,17 @@ body.workspace-active .header {
   opacity: 0.88;
 }
 
-/* AW-6 §8: mobile risk strip — más legible y discreta. */
+/* MW-1: stacked mobile risk panel — categorised by Concentration /
+   Exposure / Volatility / Sync. No half-cut layout: each row has its
+   own line, label on the left, signal text + tone dot on the right. */
 .aurix-mobile-risk {
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 14px;
-  padding: 16px 18px 18px;
+  padding: 14px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .aurix-mobile-risk-header {
@@ -7902,12 +7907,12 @@ body.workspace-active .header {
 }
 
 .aurix-mobile-risk-eyebrow {
-  font-size: 11.5px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text);
   font-weight: var(--font-weight-semibold);
-  opacity: 0.86;
+  opacity: 0.82;
 }
 
 .aurix-mobile-risk-list {
@@ -7916,17 +7921,37 @@ body.workspace-active .header {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
-.aurix-mobile-risk-item {
+.aurix-mobile-risk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.aurix-mobile-risk-row:first-child { border-top: 0; }
+
+.aurix-mobile-risk-row-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: var(--font-weight-semibold);
+  color: rgba(220,230,250,0.55);
+}
+
+.aurix-mobile-risk-row-signal {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 13.5px;
-  line-height: 1.5;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
   color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: right;
+  justify-content: flex-end;
 }
 
 .aurix-mobile-risk-dot {
@@ -7934,14 +7959,18 @@ body.workspace-active .header {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  margin-top: 8px;
   background: rgba(138, 166, 255, 0.85);
-  opacity: 0.88;
 }
 
+.aurix-mobile-risk-row.is-ok   .aurix-mobile-risk-dot { background: rgba(63,191,127,0.85); }
+.aurix-mobile-risk-row.is-info .aurix-mobile-risk-dot { background: rgba(138,166,255,0.85); }
+.aurix-mobile-risk-row.is-warn .aurix-mobile-risk-dot { background: rgba(233,168,87,0.92); }
+
 .aurix-mobile-risk-text {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── AW-6.2: Immersive desktop workstation refinement ──────────────────────
