@@ -11683,9 +11683,23 @@ async function searchYahooFinance(query, signal) {
   }
 }
 
-// CoinGecko search removed — search limited to ASSET_DB
-async function searchCoinGeckoAPI(_query, _signal) {
-  return [];
+// MC-2A: CoinGecko crypto search is now proxied through the Aurix backend
+// (/api/search/crypto). The browser never talks to CoinGecko directly. Errors,
+// rate limits, malformed responses, and short queries all degrade to [] so
+// stock / ETF / metals search keep working unchanged.
+async function searchCoinGeckoAPI(query, signal) {
+  const q = String(query || '').trim();
+  if (!q || q.length < 2) return [];
+  const url = `${PRICES_PROXY.replace('/api/prices','')}/api/search/crypto?q=${encodeURIComponent(q)}`;
+  try {
+    const res = await fetch(url, { signal, headers: { Accept: 'application/json' } });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json?.results) ? json.results : [];
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw err;
+    return [];
+  }
 }
 
 function searchMetalsLocal(query) {
