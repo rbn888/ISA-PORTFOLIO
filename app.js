@@ -11106,13 +11106,14 @@ function _renderDiscoveryCatalog(tabKey) {
       </div>
     </button>
   `).join('');
-  // MC-11C.1: cap visible cards at 3 on mobile via the .is-collapsed
-  // class — CSS hides .funds-card:nth-child(n+4) and reveals the "View
-  // more" button only on narrow viewports. Desktop ignores the rule and
-  // always shows every card. The button is only emitted when the
-  // category actually has more than 3 cards, otherwise no affordance.
+  // MC-11C.3: cap visible cards at 2 on mobile (down from 3) so the
+  // live monitoring table reaches the user sooner. CSS hides
+  // .funds-card:nth-child(n+3) and reveals the "View more" button only
+  // on narrow viewports. Desktop ignores the rule and shows every card.
+  // The button is emitted only when the category actually has more than
+  // 2 cards, otherwise no affordance.
   const showMoreLabel = t('view_more_discovery') || 'Ver más';
-  const showMoreHtml  = cat.items.length > 3
+  const showMoreHtml  = cat.items.length > 2
     ? `<button class="funds-show-more" type="button" data-disc-expand="${_escFunds(tabKey)}">${_escFunds(showMoreLabel)}</button>`
     : '';
   return `
