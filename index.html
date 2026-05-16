@@ -350,7 +350,10 @@
 
       <div class="modal-header">
         <button class="add-v2-back" id="addV2Back" type="button" aria-label="Back" data-i18n-aria="addV2_back">‹</button>
-        <h3 data-i18n="modalAddTitle">Añadir activo</h3>
+        <div class="modal-title-block">
+          <h3 data-i18n="modalAddTitle">Añadir activo</h3>
+          <p class="modal-subtitle" id="addV2HeaderSub" hidden></p>
+        </div>
         <button class="modal-close" id="modalClose">✕</button>
       </div>
 
@@ -360,6 +363,11 @@
       </div>
 
       <form id="assetForm" class="modal-body">
+        <!-- ADD-V4.2: 2-column layout wrapper. Mobile collapses to a single
+             stack; desktop in asset mode renders left=search / right=
+             preview+qty+CTA. Submit handler unchanged — wrapper is purely
+             presentational. -->
+        <div class="add-v2-left">
 
         <!-- Buscador -->
         <div id="searchWrap">
@@ -607,19 +615,47 @@
           </div>
         </div>
 
-        <!-- Cantidad (visible tras seleccionar activo) -->
-        <div class="form-group" id="qtyGroup" style="display:none">
-          <label for="assetQty" id="qtyLabel" data-i18n="qty">Cantidad</label>
-          <input type="text" inputmode="decimal" id="assetQty" placeholder="0" autocomplete="off">
-        </div>
+        </div><!-- /.add-v2-left -->
 
-        <div class="form-preview" id="formPreview" style="display:none">
-          <span data-i18n="estimatedVal">Valor estimado:</span> <strong id="previewTotal">$0.00</strong>
-        </div>
+        <div class="add-v2-right">
+          <!-- Desktop live preview panel. Reads from existing selected
+               state (selectedDbAsset / pendingPrice / pendingCurrency)
+               via _addV4RenderPreview. No new pricing logic. -->
+          <div class="add-v2-preview" id="addV2PreviewCard">
+            <div class="add-v2-preview-empty" id="addV2PreviewEmpty">
+              <span class="add-v2-preview-empty-icon" aria-hidden="true">◉</span>
+              <span class="add-v2-preview-empty-text" data-i18n="addV2_preview_empty">Selecciona un activo para ver vista previa.</span>
+            </div>
+            <div class="add-v2-preview-body" id="addV2PreviewBody" hidden>
+              <div class="add-v2-preview-head">
+                <div class="add-v2-preview-name" id="addV2PreviewName"></div>
+                <span class="add-v2-preview-type" id="addV2PreviewType"></span>
+              </div>
+              <div class="add-v2-preview-meta">
+                <span class="add-v2-preview-ticker" id="addV2PreviewTicker"></span>
+                <span class="add-v2-preview-currency" id="addV2PreviewCurrency"></span>
+              </div>
+              <div class="add-v2-preview-price-label" data-i18n="addV2_preview_price">Precio en vivo</div>
+              <div class="add-v2-preview-price" id="addV2PreviewPrice">—</div>
+              <div class="add-v2-preview-value-label" data-i18n="addV2_preview_value">Posición estimada</div>
+              <div class="add-v2-preview-value" id="addV2PreviewValue">—</div>
+            </div>
+          </div>
 
-        <div class="modal-cta">
-          <button type="submit" class="btn-submit" id="btnSubmitAsset" style="display:none" data-i18n="addToPortfolio">Añadir a cartera</button>
-        </div>
+          <!-- Cantidad (visible tras seleccionar activo) -->
+          <div class="form-group" id="qtyGroup" style="display:none">
+            <label for="assetQty" id="qtyLabel" data-i18n="qty">Cantidad</label>
+            <input type="text" inputmode="decimal" id="assetQty" placeholder="0" autocomplete="off">
+          </div>
+
+          <div class="form-preview" id="formPreview" style="display:none">
+            <span data-i18n="estimatedVal">Valor estimado:</span> <strong id="previewTotal">$0.00</strong>
+          </div>
+
+          <div class="modal-cta">
+            <button type="submit" class="btn-submit" id="btnSubmitAsset" style="display:none" data-i18n="addToPortfolio">Añadir a cartera</button>
+          </div>
+        </div><!-- /.add-v2-right -->
       </form>
     </div>
   </div>

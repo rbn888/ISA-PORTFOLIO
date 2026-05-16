@@ -1415,10 +1415,10 @@ body.modal-open {
    radius, glass background, soft Aurix focus ring. Mobile already
    gets the 46px / 16px treatment from MA-1; this unifies desktop. */
 .modal[data-mode="asset"] .search-field-wrap input {
-  height: 46px;
+  height: 52px;
   font-size: 15px;
-  padding: 0 44px 0 14px;
-  border-radius: 12px;
+  padding: 0 44px 0 16px;
+  border-radius: 14px;
   background: rgba(13,18,30,0.55);
   border-color: rgba(255,255,255,0.10);
 }
@@ -1426,6 +1426,392 @@ body.modal-open {
   border-color: rgba(74,130,240,0.45);
   background: rgba(13,18,30,0.75);
   box-shadow: 0 0 0 4px rgba(74,130,240,0.08);
+}
+
+/* ── ADD-V4.2: premium desktop modal — financial asset onboarding ──
+   Wider workspace-style sheet on desktop (≥901px), preserved mobile
+   sheet experience. The 2-column layout is scoped to data-mode="asset"
+   so gold / RE / liquidity keep the single-column flow. */
+@media (min-width: 901px) {
+  /* Premium presence — wider, taller, deeper shadow, glass. */
+  .modal-overlay.open .modal {
+    max-width: 980px;
+    width: 100%;
+    min-height: 640px;
+    border-radius: 24px;
+    background: rgba(14,18,28,0.94);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.04) inset,
+      0 40px 80px -32px rgba(4,8,16,0.95),
+      0 24px 48px -24px rgba(74,130,240,0.10);
+  }
+  .modal-header {
+    padding: 22px 26px 18px;
+  }
+  .modal-header h3 { font-size: 22px; letter-spacing: -0.012em; }
+  .modal-title-block { display: flex; flex-direction: column; gap: 4px; }
+  .modal-title-block .modal-subtitle {
+    font-size: 13px;
+    color: rgba(220,230,250,0.6);
+    letter-spacing: 0.005em;
+    margin: 0;
+  }
+  .modal-body { padding: 4px 26px 26px; }
+
+  /* 2-column layout — asset mode only. Search left, preview+qty+CTA right. */
+  .modal[data-mode="asset"] #assetForm.modal-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 28px;
+    padding: 4px 26px 26px;
+  }
+  .modal[data-mode="asset"] .add-v2-left  { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .modal[data-mode="asset"] .add-v2-right { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  /* When mode is anything other than asset, the two-column wrappers
+     collapse into a single stream so gold/RE/manual keep their flow. */
+  .modal:not([data-mode="asset"]) .add-v2-left,
+  .modal:not([data-mode="asset"]) .add-v2-right {
+    display: contents;
+  }
+}
+
+/* On smaller viewports both wrappers behave as `display: contents` so
+   the existing single-column stack is preserved exactly. */
+@media (max-width: 900px) {
+  .add-v2-left, .add-v2-right { display: contents; }
+}
+
+.modal-title-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.modal-title-block h3 { line-height: 1.2; }
+.modal-subtitle {
+  font-size: 12.5px;
+  color: rgba(220,230,250,0.55);
+  letter-spacing: 0.005em;
+  margin: 0;
+}
+
+/* Filter chips — secondary visual weight in asset mode. Smaller pads,
+   lower contrast, tighter spacing so they read as filter chrome rather
+   than primary actions. */
+.modal[data-mode="asset"] .search-filters {
+  gap: 6px;
+  margin: 4px 0 16px;
+}
+.modal[data-mode="asset"] .filter-btn {
+  padding: 5px 11px;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: rgba(220,230,250,0.6);
+  border-color: rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.025);
+}
+.modal[data-mode="asset"] .filter-btn:hover {
+  color: rgba(225,233,255,0.92);
+  border-color: rgba(138,166,255,0.32);
+  background: rgba(138,166,255,0.06);
+}
+.modal[data-mode="asset"] .filter-btn.active {
+  color: #fff;
+  border-color: rgba(138,166,255,0.45);
+  background: rgba(138,166,255,0.14);
+}
+
+/* Premium asset cards (replaces pill quick picks in asset mode). */
+.add-v2-asset-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012));
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.16s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.22s ease;
+  min-width: 0;
+}
+.add-v2-asset-card:hover {
+  border-color: rgba(138,166,255,0.32);
+  background: linear-gradient(180deg, rgba(138,166,255,0.08), rgba(138,166,255,0.02));
+  transform: scale(1.01);
+}
+.add-v2-asset-card:active {
+  transform: scale(0.985);
+  box-shadow: 0 0 0 4px rgba(138,166,255,0.10);
+}
+.add-v2-asset-icon {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  flex-shrink: 0;
+  background: rgba(91,156,246,.16); color: #5b9cf6;
+}
+.add-v2-asset-icon.crypto { background: rgba(91,156,246,.18); color: #5b9cf6; }
+.add-v2-asset-icon.stock  { background: rgba(192,200,216,.18); color: #c0c8d8; }
+.add-v2-asset-icon.etf    { background: rgba(143,157,186,.18); color: #8f9dba; }
+.add-v2-asset-icon.metal  { background: rgba(212,168,67,.18);  color: #d4a843; }
+.add-v2-asset-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.add-v2-asset-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.005em;
+}
+.add-v2-asset-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.add-v2-asset-ticker {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(220,230,250,0.65);
+  letter-spacing: 0.02em;
+}
+.add-v2-asset-type-pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.65);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.add-v2-asset-type-pill.crypto { color: #5b9cf6; background: rgba(91,156,246,.10); border-color: rgba(91,156,246,.20); }
+.add-v2-asset-type-pill.stock  { color: #c0c8d8; background: rgba(192,200,216,.10); border-color: rgba(192,200,216,.18); }
+.add-v2-asset-type-pill.etf    { color: #8f9dba; background: rgba(143,157,186,.10); border-color: rgba(143,157,186,.18); }
+.add-v2-asset-type-pill.metal  { color: #d4a843; background: rgba(212,168,67,.10); border-color: rgba(212,168,67,.22); }
+
+/* Quick picks layout: desktop = 2-column grid; mobile = horizontal
+   carousel that scrolls. Recents become a single horizontal row of
+   compact text chips (existing .add-v2-chip style). */
+@media (min-width: 561px) {
+  .modal[data-mode="asset"] #addV2PopularChips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+@media (max-width: 560px) {
+  .modal[data-mode="asset"] #addV2PopularChips {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 10px;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal[data-mode="asset"] #addV2PopularChips::-webkit-scrollbar { display: none; }
+  .modal[data-mode="asset"] .add-v2-asset-card { flex: 0 0 78%; max-width: 320px; }
+}
+
+/* ── ADD-V4.2: live preview panel (desktop) ─────────────────────── */
+.add-v2-preview {
+  position: relative;
+  border-radius: 18px;
+  padding: 22px 22px 24px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012));
+  border: 1px solid rgba(255,255,255,0.07);
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 0.18s ease;
+}
+.add-v2-preview-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(220,230,250,0.55);
+  text-align: center;
+  padding: 24px 14px;
+}
+.add-v2-preview-empty-icon {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(138,166,255,0.10);
+  border: 1px solid rgba(138,166,255,0.22);
+  color: rgba(138,166,255,0.95);
+  font-size: 18px;
+}
+.add-v2-preview-empty-text {
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 240px;
+}
+.add-v2-preview-body { display: flex; flex-direction: column; gap: 6px; }
+.add-v2-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.add-v2-preview-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.add-v2-preview-type {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.65);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.add-v2-preview-type.crypto { color: #5b9cf6; background: rgba(91,156,246,.10); border-color: rgba(91,156,246,.20); }
+.add-v2-preview-type.stock  { color: #c0c8d8; background: rgba(192,200,216,.10); border-color: rgba(192,200,216,.18); }
+.add-v2-preview-type.etf    { color: #8f9dba; background: rgba(143,157,186,.10); border-color: rgba(143,157,186,.18); }
+.add-v2-preview-type.metal  { color: #d4a843; background: rgba(212,168,67,.10); border-color: rgba(212,168,67,.22); }
+.add-v2-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(220,230,250,0.55);
+  letter-spacing: 0.02em;
+}
+.add-v2-preview-ticker { font-weight: 600; font-variant-numeric: tabular-nums; }
+.add-v2-preview-currency { font-weight: 600; color: rgba(220,230,250,0.45); }
+.add-v2-preview-price-label,
+.add-v2-preview-value-label {
+  margin-top: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.5);
+}
+.add-v2-preview-price {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(248,252,255,0.92);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.add-v2-preview-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+/* Hide the desktop preview card on mobile — sticky CTA + inline
+   preview already cover that flow. Also hide in non-asset modes
+   (gold/RE) so the dedicated flows stay clean. */
+@media (max-width: 900px) {
+  .add-v2-preview { display: none; }
+}
+.modal:not([data-mode="asset"]) .add-v2-preview { display: none !important; }
+
+/* Desktop CTA lives inside the right column, not floating at the
+   bottom of the sheet. Keep it sticky-free; the right column is a
+   flex column so the button naturally sits below qty + previewTotal. */
+@media (min-width: 901px) {
+  .modal[data-mode="asset"] .modal-cta {
+    position: static;
+    padding: 0;
+    background: none;
+  }
+  .modal[data-mode="asset"] .btn-submit {
+    padding: 14px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+  /* Desktop hides the inline #formPreview line — the live preview
+     card on the right is the canonical view. */
+  .modal[data-mode="asset"] #formPreview { display: none !important; }
+}
+
+/* Picker step gets a tighter, centred width on the wider desktop
+   modal so the type cards stay readable instead of stretching the
+   full 980px. Mobile keeps the existing full-bleed layout. */
+@media (min-width: 901px) {
+  .add-v2-picker {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 28px 32px 32px;
+  }
+}
+
+/* ISIN advanced disclosure — keep monospace input but ensure colors
+   read on the dark sheet (defensive fix for ISIN input + status). */
+.form-group--isin input {
+  background: rgba(13,18,30,0.55);
+  color: rgba(248,252,255,0.96);
+  border-color: rgba(255,255,255,0.10);
+}
+.form-group--isin input:focus {
+  background: rgba(13,18,30,0.75);
+  border-color: rgba(74,130,240,0.45);
+  box-shadow: 0 0 0 4px rgba(74,130,240,0.08);
+}
+.form-group--isin label {
+  color: rgba(220,230,250,0.72);
+}
+.form-group--isin .label-optional { color: rgba(220,230,250,0.45); }
+
+/* Promote the existing isin-toggle (mobile-only by default) to all
+   viewports in asset mode — premium disclosure label. */
+.modal[data-mode="asset"] .isin-toggle-mobile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(138,166,255,0.05);
+  border: 1px solid rgba(138,166,255,0.16);
+  border-radius: 12px;
+  width: auto;
+  align-self: flex-start;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: rgba(220,230,250,0.85);
+}
+.modal[data-mode="asset"] .isin-toggle-mobile:hover {
+  border-color: rgba(138,166,255,0.32);
+  background: rgba(138,166,255,0.10);
+}
+.modal[data-mode="asset"] #searchWrap.isin-revealed .isin-or-wrap {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
 .modal-body {

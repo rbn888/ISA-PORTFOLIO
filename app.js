@@ -356,8 +356,11 @@ const T = {
     addCtx: { crypto: '+ Añadir cripto', stock: '+ Añadir acción', etf: '+ Añadir fondo', metal: '+ Añadir metal', real_estate: '+ Añadir inmueble', cash: '+ Añadir liquidez' },
     // Search
     searchPH: {
-      all: 'Buscar activo...', crypto: 'Buscar criptomoneda...',
-      stock: 'Buscar acción...', etf: 'Buscar ETF o fondo...', metal: 'Buscar metal...',
+      all: 'Buscar BTC, Apple, Vanguard, MSCI World…',
+      crypto: 'Buscar BTC, ETH, SOL…',
+      stock: 'Buscar Apple, Tesla, NVIDIA…',
+      etf: 'Buscar SPY, IWDA, Vanguard…',
+      metal: 'Buscar Oro, Plata…',
     },
     noResults:       q => `Sin resultados para "${q}"`,
     // Price lookup
@@ -391,9 +394,17 @@ const T = {
     // ADD-V2.2: contextual Step-2 polish — quick picks, recents, advanced.
     addV2_quick_recent:        'Recientes',
     addV2_quick_popular:       'Populares',
-    addV2_advanced:            'Opciones avanzadas',
+    addV2_advanced:            'Añadir por ISIN (avanzado)',
     addV2_title_gold:          'Añadir oro físico',
     addV2_title_re:            'Añadir inmueble',
+    // ADD-V4.2: financial asset header + preview
+    addV2_title_asset:         'Añadir activo financiero',
+    addV2_subtitle_asset:      'Acciones, ETFs, fondos, cripto e índices',
+    addV2_subtitle_gold:       'Joyería, lingotes y monedas',
+    addV2_subtitle_re:         'Inmuebles y rentas',
+    addV2_preview_empty:       'Selecciona un activo para ver vista previa.',
+    addV2_preview_price:       'Precio en vivo',
+    addV2_preview_value:       'Posición estimada',
     modalEditRETitle: 'Editar inmueble',
     karat:                'Quilates',
     goldUnit:             'Unidad',
@@ -605,7 +616,7 @@ const T = {
     watchlistTitleCaps:'LISTA DE SEGUIMIENTO',
     bootLoading:       'Cargando…',
     // Search placeholders
-    searchAssetPH:     'Buscar activo...',
+    searchAssetPH:     'Buscar BTC, Apple, Vanguard, MSCI World…',
     reNamePH:          'ej. Apartamento Madrid',
     // Add asset modal toggles
     typeAsset:         'Activo',
@@ -906,8 +917,11 @@ const T = {
     addCtx: { crypto: '+ Add crypto', stock: '+ Add stock', etf: '+ Add fund', metal: '+ Add metal', real_estate: '+ Add property', cash: '+ Add cash' },
     // Search
     searchPH: {
-      all: 'Search asset...', crypto: 'Search cryptocurrency...',
-      stock: 'Search stock...', etf: 'Search ETF or fund...', metal: 'Search metal...',
+      all: 'Search BTC, Apple, Vanguard, MSCI World…',
+      crypto: 'Search BTC, ETH, SOL…',
+      stock: 'Search Apple, Tesla, NVIDIA…',
+      etf: 'Search SPY, IWDA, Vanguard…',
+      metal: 'Search Gold, Silver…',
     },
     noResults:       q => `No results for "${q}"`,
     // Price lookup
@@ -941,9 +955,17 @@ const T = {
     // ADD-V2.2: contextual Step-2 polish — quick picks, recents, advanced.
     addV2_quick_recent:        'Recent',
     addV2_quick_popular:       'Popular',
-    addV2_advanced:            'Advanced options',
+    addV2_advanced:            'Add via ISIN (advanced)',
     addV2_title_gold:          'Add physical gold',
     addV2_title_re:            'Add real estate',
+    // ADD-V4.2: financial asset header + preview
+    addV2_title_asset:         'Add financial asset',
+    addV2_subtitle_asset:      'Stocks, ETFs, funds, crypto and indices',
+    addV2_subtitle_gold:       'Jewelry, bars and coins',
+    addV2_subtitle_re:         'Properties and rental income',
+    addV2_preview_empty:       'Select an asset to see the preview.',
+    addV2_preview_price:       'Live price',
+    addV2_preview_value:       'Estimated position',
     modalEditRETitle: 'Edit property',
     karat:                'Karats',
     goldUnit:             'Unit',
@@ -1155,7 +1177,7 @@ const T = {
     watchlistTitleCaps:'WATCHLIST',
     bootLoading:       'Loading…',
     // Search placeholders
-    searchAssetPH:     'Search asset...',
+    searchAssetPH:     'Search BTC, Apple, Vanguard, MSCI World…',
     reNamePH:          'e.g. Madrid Apartment',
     // Add asset modal toggles
     typeAsset:         'Asset',
@@ -13563,6 +13585,10 @@ async function selectAsset(entry) {
   searchInputWrapEl.style.display = 'none';
   if (searchFiltersEl) searchFiltersEl.style.display = 'none';
   if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
+  // ADD-V4.2: populate the desktop preview header as soon as the
+  // selection happens; price line updates again once the async fetch
+  // resolves below (chipPrice / pendingPrice).
+  if (typeof _addV4RenderPreview === 'function') _addV4RenderPreview();
 
   // Reveal qty + submit
   qtyGroup.style.display    = '';
@@ -13631,6 +13657,7 @@ async function selectAsset(entry) {
       pendingPrice            = price;
       chipPriceEl.textContent = formatDisplay(price, 'USD');
       setLookupStatus('ok', '');
+      if (typeof _addV4RenderPreview === 'function') _addV4RenderPreview();
     } else if (entry.type === 'fund') {
       // MC-7: provider couldn't price this fund — let the user enter NAV.
       chipPriceEl.textContent = t('noPrice');
@@ -13691,6 +13718,8 @@ function clearSelectedAsset() {
   if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
   // ADD-V4.1: when leaving gold, restore qty input to its original spot.
   if (typeof _addV4RestoreQty === 'function') _addV4RestoreQty();
+  // ADD-V4.2: reset the desktop preview panel to its placeholder.
+  if (typeof _addV4RenderPreview === 'function') _addV4RenderPreview();
 }
 
 function enterSearchMode() {
@@ -14320,6 +14349,9 @@ function updatePreview() {
     value = qty * price;
   }
   previewTotal.textContent = formatDisplay(value, 'USD');
+  // ADD-V4.2: keep the desktop preview value in lockstep with the
+  // inline preview text. Mobile ignores this element (display:none).
+  if (typeof _addV4RenderPreview === 'function') _addV4RenderPreview();
 }
 
 // ADD-V4.1: gold market reference — small premium card above the
@@ -15644,7 +15676,8 @@ modalOverlay.addEventListener('click', e => {
 // to the chosen flow — search/filters/ISIN for gold + RE, gold/RE
 // controls for asset, etc. Header title swaps via JS so each flow
 // reads "Añadir activo / Añadir oro físico / Añadir inmueble".
-const _ADD_V2_TITLE_KEY = { asset: 'modalAddTitle', gold: 'addV2_title_gold', real_estate: 'addV2_title_re' };
+const _ADD_V2_TITLE_KEY = { asset: 'addV2_title_asset', gold: 'addV2_title_gold', real_estate: 'addV2_title_re' };
+const _ADD_V2_SUB_KEY   = { asset: 'addV2_subtitle_asset', gold: 'addV2_subtitle_gold', real_estate: 'addV2_subtitle_re' };
 
 function _addV2Activate(targetStep) {
   const modal = document.querySelector('#modalOverlay .modal');
@@ -15657,6 +15690,19 @@ function _addV2SetMode(mode) {
   if (titleEl) {
     const key = _ADD_V2_TITLE_KEY[mode] || 'modalAddTitle';
     titleEl.textContent = t(key);
+  }
+  // ADD-V4.2: contextual subtitle under the header so each mode reads
+  // "Add financial asset / Stocks, ETFs, funds, crypto and indices".
+  const subEl = document.getElementById('addV2HeaderSub');
+  if (subEl) {
+    const subKey = _ADD_V2_SUB_KEY[mode];
+    if (subKey) {
+      subEl.textContent = t(subKey);
+      subEl.hidden = false;
+    } else {
+      subEl.textContent = '';
+      subEl.hidden = true;
+    }
   }
 }
 
@@ -15676,10 +15722,19 @@ const _ADD_V2_QUICK_PICKS = [
 function _addV2RenderQuickPicks() {
   const wrap = document.getElementById('addV2PopularChips');
   if (!wrap) return;
+  // ADD-V4.2: premium asset cards (replaces pill soup). Desktop wraps
+  // into a 2-column grid via CSS; mobile keeps a horizontal carousel.
+  const typeLabel = T[lang].typeLabel || {};
   wrap.innerHTML = _ADD_V2_QUICK_PICKS.map(p => `
-    <button type="button" class="add-v2-chip" data-quick-ticker="${escHtml(p.ticker)}">
-      <span class="add-v2-chip-badge ${escHtml(p.type)}">${escHtml(p.ticker.slice(0, 4))}</span>
-      <span class="add-v2-chip-text">${escHtml(p.name)}</span>
+    <button type="button" class="add-v2-asset-card" data-quick-ticker="${escHtml(p.ticker)}">
+      <span class="add-v2-asset-icon ${escHtml(p.type)}">${escHtml(p.ticker.slice(0, 4))}</span>
+      <span class="add-v2-asset-text">
+        <span class="add-v2-asset-name">${escHtml(p.name)}</span>
+        <span class="add-v2-asset-meta">
+          <span class="add-v2-asset-ticker">${escHtml(p.ticker)}</span>
+          <span class="add-v2-asset-type-pill ${escHtml(p.type)}">${escHtml(typeLabel[p.type] || p.type)}</span>
+        </span>
+      </span>
     </button>
   `).join('');
   wrap.querySelectorAll('[data-quick-ticker]').forEach(btn => {
@@ -15722,6 +15777,63 @@ function _addV2RenderRecents() {
 function _addV2RefreshQuick() {
   _addV2RenderQuickPicks();
   _addV2RenderRecents();
+}
+
+// ADD-V4.2: desktop live preview panel. Reads from existing selected
+// state (no new pricing logic, no provider calls). Called from the
+// existing flow points: selectAsset (header populated), updatePreview
+// (value updates with qty), clearSelectedAsset (reset to placeholder).
+function _addV4RenderPreview() {
+  const card  = document.getElementById('addV2PreviewCard');
+  const empty = document.getElementById('addV2PreviewEmpty');
+  const body  = document.getElementById('addV2PreviewBody');
+  if (!card || !empty || !body) return;
+
+  const asset = (typeof selectedDbAsset !== 'undefined') ? selectedDbAsset : null;
+  if (!asset) {
+    empty.hidden = false;
+    body.hidden  = true;
+    return;
+  }
+
+  empty.hidden = true;
+  body.hidden  = false;
+
+  const nameEl     = document.getElementById('addV2PreviewName');
+  const typeEl     = document.getElementById('addV2PreviewType');
+  const tickerEl   = document.getElementById('addV2PreviewTicker');
+  const currencyEl = document.getElementById('addV2PreviewCurrency');
+  const priceEl    = document.getElementById('addV2PreviewPrice');
+  const valueEl    = document.getElementById('addV2PreviewValue');
+
+  const displayName = (typeof getDisplayName === 'function') ? getDisplayName(asset) : (asset.name || asset.ticker || '');
+  const ticker      = String(asset.ticker || asset.symbol || '').toUpperCase();
+  const typeKey     = String(asset.type || '').toLowerCase();
+  const typeLabel   = (T[lang]?.typeLabel || {})[typeKey] || typeKey;
+  const currency    = (pendingCurrency || 'USD').toUpperCase();
+
+  if (nameEl)     nameEl.textContent     = displayName;
+  if (typeEl) {
+    typeEl.textContent = typeLabel;
+    typeEl.className = `add-v2-preview-type ${typeKey}`;
+  }
+  if (tickerEl)   tickerEl.textContent   = ticker;
+  if (currencyEl) currencyEl.textContent = currency;
+
+  if (priceEl) {
+    if (typeof pendingPrice === 'number' && Number.isFinite(pendingPrice)) {
+      priceEl.textContent = formatDisplay(pendingPrice, 'USD');
+    } else {
+      priceEl.textContent = '—';
+    }
+  }
+  if (valueEl) {
+    // Mirror the existing previewTotal computation result without
+    // duplicating the formula — it's already written into #previewTotal
+    // by updatePreview() right before this runs in the qty-input flow.
+    const totalEl = document.getElementById('previewTotal');
+    valueEl.textContent = totalEl ? totalEl.textContent : '—';
+  }
 }
 
 (function _addV2Wire() {
