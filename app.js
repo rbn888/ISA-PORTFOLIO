@@ -471,6 +471,14 @@ const T = {
     tab_indices:       'Índices',
     tab_commodities:   'Materias',
     tab_funds:         'Fondos y ETFs',         // legacy alias — kept for any code reading the key
+    market_badge_crypto:    'CRIPTO',
+    market_badge_stock:     'ACCIÓN',
+    market_badge_etf:       'ETF',
+    market_badge_fund:      'FONDO',
+    market_badge_index:     'ÍNDICE',
+    market_badge_commodity: 'MP',
+    market_badge_metal:     'METAL',
+    discovery_add_cta:      '+ Añadir',
     // MC-9A: curated funds catalog category labels
     fundCat_msci_world:        'MSCI World',
     fundCat_sp_500:            'S&P 500',
@@ -507,7 +515,8 @@ const T = {
     discCat_commodities_energy_commodities: 'Energía',
     discCat_commodities_industrial_metals:  'Metales industriales',
     view_more_discovery: 'Ver más',
-    empty_watchlist:   'Añade activos ⭐ para seguirlos aquí',
+    empty_watchlist:        'Tu seguimiento está vacío',
+    empty_watchlist_helper: 'Añade activos con la estrella para monitorizarlos aquí.',
     market_no_results: 'Sin resultados',
     stale:             'sin actualizar',
     // Metrics placeholder
@@ -923,6 +932,14 @@ const T = {
     tab_indices:       'Indices',
     tab_commodities:   'Commodities',
     tab_funds:         'Funds & ETFs',           // legacy alias — kept for any code reading the key
+    market_badge_crypto:    'CRYPTO',
+    market_badge_stock:     'STOCK',
+    market_badge_etf:       'ETF',
+    market_badge_fund:      'FUND',
+    market_badge_index:     'INDEX',
+    market_badge_commodity: 'COMM',
+    market_badge_metal:     'METAL',
+    discovery_add_cta:      '+ Add',
     // MC-9A: curated funds catalog category labels
     fundCat_msci_world:        'MSCI World',
     fundCat_sp_500:            'S&P 500',
@@ -959,7 +976,8 @@ const T = {
     discCat_commodities_energy_commodities: 'Energy',
     discCat_commodities_industrial_metals:  'Industrial Metals',
     view_more_discovery: 'View more',
-    empty_watchlist:   'Add assets ⭐ to track them here',
+    empty_watchlist:        'Your watchlist is empty',
+    empty_watchlist_helper: 'Star assets to monitor them here.',
     market_no_results: 'No results',
     stale:             'stale data',
     // Metrics placeholder
@@ -2158,7 +2176,7 @@ let _donutHoverIdx = -1;   // ephemeral hover (index into _donutDist)
 let _donutDist     = [];
 let activeCategory = null; // persistent category filter ('crypto', 'metal', …, or null)
 let currentTab       = 'home';
-let currentMarketTab = 'crypto';
+let currentMarketTab = 'watchlist';
 let marketSearchData = [];
 // ── FC-4: MARKET_DATA is the ABSOLUTE SINGLE SOURCE OF TRUTH ─────────────────
 // All live pricing state lives here. No module may own a parallel price store.
@@ -10530,7 +10548,7 @@ function renderMarket() {
     </div>
   `;
   // Preserve currentMarketTab across re-renders (e.g. language switch)
-  if (!currentMarketTab) currentMarketTab = 'crypto';
+  if (!currentMarketTab) currentMarketTab = 'watchlist';
   updateMarketTabUI();
   updateMarketHeader();
   initMarketTabs();
@@ -10657,7 +10675,13 @@ function renderMyAssetsBlock(data) {
     watchedSet.has(normalizeSymbol(item.symbol || item.provider_id))
   );
   if (!filtered.length) {
-    return `<div class="empty-watchlist">${t('empty_watchlist')}</div>`;
+    return `
+      <div class="empty-watchlist">
+        <div class="empty-watchlist-icon" aria-hidden="true">★</div>
+        <div class="empty-watchlist-title">${t('empty_watchlist')}</div>
+        <div class="empty-watchlist-helper">${t('empty_watchlist_helper')}</div>
+      </div>
+    `;
   }
   const sorted = [...filtered].sort((a, b) => {
     if (a.change24h == null && b.change24h != null) return 1;
@@ -11196,7 +11220,7 @@ function _renderDiscoveryCatalog(tabKey) {
       <div class="funds-card-name">${_escFunds(it.name)}</div>
       <div class="funds-card-badges">${_fundCardBadges(it)}</div>
       <div class="funds-card-foot">
-        <span class="funds-card-cta">+ Add</span>
+        <span class="funds-card-cta">${_escFunds(t('discovery_add_cta'))}</span>
       </div>
     </button>
   `).join('');
@@ -11678,11 +11702,16 @@ function updateMarketTabUI() {
   const active = document.querySelector(`.market-tab[data-market="${currentMarketTab}"]`);
   if (active) {
     active.classList.add('active');
-    // MC-11C.1: keep the active pill in view on mobile — important when
-    // the scroller is wider than the viewport so the user always sees
+    // Keep the active pill in view on mobile — important when the
+    // scroller is wider than the viewport so the user always sees
     // which tab is selected after a click. Desktop fits all tabs.
+    // requestAnimationFrame defers the scroll until after layout so
+    // the initial Market mount (Watchlist) lands at scrollLeft=0
+    // instead of a stale offset from a previous render.
     if (typeof active.scrollIntoView === 'function') {
-      try { active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+      requestAnimationFrame(() => {
+        try { active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' }); } catch (_) {}
+      });
     }
   }
 }
@@ -12113,8 +12142,16 @@ function renderMarketItem(item) {
   // language as MC-10 fund cards so the visual system stays unified.
   // Only renders when item.type is one of the known kinds — never invents.
   const kind = String(item.type || '').toLowerCase();
-  const KIND_LABEL = { crypto:'CRYPTO', stock:'STOCK', etf:'ETF', index:'INDEX', commodity:'COMM', fund:'FUND', metal:'METAL' };
-  const badgeLabel = KIND_LABEL[kind];
+  const KIND_KEY = {
+    crypto:    'market_badge_crypto',
+    stock:     'market_badge_stock',
+    etf:       'market_badge_etf',
+    index:     'market_badge_index',
+    commodity: 'market_badge_commodity',
+    fund:      'market_badge_fund',
+    metal:     'market_badge_metal',
+  };
+  const badgeLabel = KIND_KEY[kind] ? t(KIND_KEY[kind]) : null;
   const badgeHtml  = badgeLabel
     ? `<span class="market-row-badge is-${kind}">${badgeLabel}</span>`
     : '';
