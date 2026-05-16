@@ -394,10 +394,27 @@
             Busca un activo por nombre, ticker o ISIN.
           </div>
 
-          <!-- Mobile-only ISIN trigger — keeps the advanced ISIN field tucked away by default -->
+          <!-- ADD-V2.2: quick picks + recents for the asset mode. JS renders
+               the chip rows on Step-2 entry and hides them once a chip is
+               selected. Tap routes through the existing selectAsset flow. -->
+          <div class="add-v2-quick" id="addV2Quick">
+            <div class="add-v2-quick-section" id="addV2RecentSection" hidden>
+              <div class="add-v2-quick-label" data-i18n="addV2_quick_recent">Recientes</div>
+              <div class="add-v2-chips" id="addV2RecentChips"></div>
+            </div>
+            <div class="add-v2-quick-section">
+              <div class="add-v2-quick-label" data-i18n="addV2_quick_popular">Populares</div>
+              <div class="add-v2-chips" id="addV2PopularChips"></div>
+            </div>
+          </div>
+
+          <!-- ADD-V2.2: advanced options toggle. Promoted from mobile-only
+               to all viewports in asset mode — keeps ISIN one tap away
+               without dominating Step 2. Original id preserved so the
+               mobile collapsing logic from ADD-ASSET-MOBILE-1 still works. -->
           <button type="button" class="isin-toggle-mobile" id="isinToggleMobile" aria-expanded="false">
             <span class="isin-toggle-icon" aria-hidden="true">+</span>
-            <span class="isin-toggle-label" data-i18n="isinToggleShow">Buscar por ISIN</span>
+            <span class="isin-toggle-label" data-i18n="addV2_advanced">Opciones avanzadas</span>
           </button>
 
           <!-- ISIN entry — secondary option, always visible in search mode -->

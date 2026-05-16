@@ -1274,6 +1274,160 @@ body.modal-open {
 .add-v2-back:hover { color: var(--text); background: var(--bg-card-2); }
 .modal[data-from-picker="1"] .add-v2-back { display: inline-flex; }
 
+/* ── ADD-V2.2: contextual Step-2 chrome ───────────────────────────
+   Each mode hides the chrome that belongs to a different flow. The
+   existing JS still drives fine-grained visibility (qty group reveal,
+   gold section after XAU select, etc.) — these rules only suppress
+   the cross-mode noise. */
+
+/* ASSET mode: drop the RE filter chip (handled by the picker card
+   now), drop the redundant mobile empty hint, reveal the curated
+   quick picks instead. Promote the ISIN toggle to all viewports. */
+.modal[data-mode="asset"] .filter-btn[data-filter="real_estate"] {
+  display: none !important;
+}
+.modal[data-mode="asset"] #searchEmptyHint {
+  display: none !important;
+}
+.modal[data-mode="asset"] .isin-toggle-mobile {
+  display: inline-flex;
+}
+.modal[data-mode="asset"] #searchWrap .form-or-divider {
+  display: none;
+}
+
+#addV2Quick {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  margin: 4px 0 14px;
+}
+.modal[data-mode="asset"] #addV2Quick:not(.is-hidden) { display: flex; }
+
+.add-v2-quick-section { display: flex; flex-direction: column; gap: 8px; }
+.add-v2-quick-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(220,230,250,0.55);
+}
+.add-v2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.add-v2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.add-v2-chip:hover {
+  border-color: rgba(138,166,255,0.32);
+  background: rgba(138,166,255,0.08);
+}
+.add-v2-chip:active { transform: scale(0.97); }
+.add-v2-chip.is-recent { padding: 7px 12px; }
+.add-v2-chip-badge {
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.add-v2-chip-badge.crypto { background: rgba(91,156,246,.18); color: #5b9cf6; }
+.add-v2-chip-badge.stock  { background: rgba(192,200,216,.18); color: #c0c8d8; }
+.add-v2-chip-badge.etf    { background: rgba(143,157,186,.18); color: #8f9dba; }
+.add-v2-chip-badge.metal  { background: rgba(212,168,67,.18);  color: #d4a843; }
+.add-v2-chip-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+@media (max-width: 560px) {
+  /* Mobile: chips become a horizontal carousel — no wrap, no clip. */
+  .add-v2-chips {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .add-v2-chips::-webkit-scrollbar { display: none; }
+  .add-v2-chip { flex-shrink: 0; }
+}
+
+/* GOLD mode: dedicated gold experience — only gold-related controls
+   visible. The picker auto-selects XAU via the canonical selectAsset
+   pipeline, so the gold section / karat / unit selectors populate the
+   same way they would when XAU is searched manually. */
+.modal[data-mode="gold"] #searchInputWrap,
+.modal[data-mode="gold"] #searchFilters,
+.modal[data-mode="gold"] #isinOrWrap,
+.modal[data-mode="gold"] #isinToggleMobile,
+.modal[data-mode="gold"] #addV2Quick,
+.modal[data-mode="gold"] #searchEmptyHint {
+  display: none !important;
+}
+
+/* REAL ESTATE mode: dedicated RE experience — search, ISIN and gold
+   are not part of this flow. enterRealEstateMode() already hides
+   search inputs via inline style; these rules belt-and-braces the rest
+   so no cross-flow chrome bleeds through. */
+.modal[data-mode="real_estate"] #searchInputWrap,
+.modal[data-mode="real_estate"] #searchFilters,
+.modal[data-mode="real_estate"] #isinOrWrap,
+.modal[data-mode="real_estate"] #isinToggleMobile,
+.modal[data-mode="real_estate"] #addV2Quick,
+.modal[data-mode="real_estate"] #searchEmptyHint,
+.modal[data-mode="real_estate"] #goldSection,
+.modal[data-mode="real_estate"] #karatGroup,
+.modal[data-mode="real_estate"] #goldUnitGroup {
+  display: none !important;
+}
+
+/* ADD-V2.2: when Step 2 was entered via the picker, the modal header
+   has [back, title, close]. Centre the title between back and close so
+   the eye lands on the contextual heading immediately. */
+.modal[data-from-picker="1"] .modal-header h3 {
+  flex: 1;
+  text-align: center;
+  margin: 0 8px;
+}
+/* The Activo / Liquidez segmented control is redundant when the user
+   already picked a type in Step 1 — back returns to Step 1 for switches. */
+.modal[data-from-picker="1"] .add-type-toggle {
+  display: none;
+}
+
+/* ADD-V2.2: premium search polish in asset mode — taller field, 12px
+   radius, glass background, soft Aurix focus ring. Mobile already
+   gets the 46px / 16px treatment from MA-1; this unifies desktop. */
+.modal[data-mode="asset"] .search-field-wrap input {
+  height: 46px;
+  font-size: 15px;
+  padding: 0 44px 0 14px;
+  border-radius: 12px;
+  background: rgba(13,18,30,0.55);
+  border-color: rgba(255,255,255,0.10);
+}
+.modal[data-mode="asset"] .search-field-wrap input:focus {
+  border-color: rgba(74,130,240,0.45);
+  background: rgba(13,18,30,0.75);
+  box-shadow: 0 0 0 4px rgba(74,130,240,0.08);
+}
+
 .modal-body {
   padding: var(--space-5);
   /* MC-7B: scroll the form body, not the whole modal, so the header

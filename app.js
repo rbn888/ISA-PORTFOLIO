@@ -388,6 +388,12 @@ const T = {
     addV2_pick_other_title:    'Otro activo',
     addV2_pick_other_sub:      'Próximamente',
     addV2_back:                'Volver',
+    // ADD-V2.2: contextual Step-2 polish — quick picks, recents, advanced.
+    addV2_quick_recent:        'Recientes',
+    addV2_quick_popular:       'Populares',
+    addV2_advanced:            'Opciones avanzadas',
+    addV2_title_gold:          'Añadir oro físico',
+    addV2_title_re:            'Añadir inmueble',
     modalEditRETitle: 'Editar inmueble',
     karat:                'Quilates',
     goldUnit:             'Unidad',
@@ -907,6 +913,12 @@ const T = {
     addV2_pick_other_title:    'Other asset',
     addV2_pick_other_sub:      'Coming soon',
     addV2_back:                'Back',
+    // ADD-V2.2: contextual Step-2 polish — quick picks, recents, advanced.
+    addV2_quick_recent:        'Recent',
+    addV2_quick_popular:       'Popular',
+    addV2_advanced:            'Advanced options',
+    addV2_title_gold:          'Add physical gold',
+    addV2_title_re:            'Add real estate',
     modalEditRETitle: 'Edit property',
     karat:                'Karats',
     goldUnit:             'Unit',
@@ -11531,9 +11543,11 @@ _initFundsCatalogDelegation();
 // pricing code added here.
 // ADD-V2.1: discovery picks already know the asset type, so skip the
 // Step-1 type picker and land directly on the form.
+// ADD-V2.2: pin asset mode so search/quick-picks chrome stays usable.
 function _openAddAssetWithFund(item) {
   if (!item) return;
   try { openModal({ skipPicker: true }); } catch (_) {}
+  if (typeof _addV2SetMode === 'function') _addV2SetMode('asset');
   setTimeout(() => {
     try { selectAsset(item); } catch (e) { console.warn('[funds-pick]', e?.message); }
   }, 60);
@@ -13792,13 +13806,17 @@ if (_isinToggleBtn) {
 // Helper hint visibility — show only when the user has nothing typed,
 // no chip selected, and the suggestions list is empty. JS-driven so we
 // can hook into the existing search lifecycle without CSS :has() gaps.
+// ADD-V2.2: also toggles the quick-picks block via a class so the CSS
+// rule that's mode-gated can do the rest.
 const _searchEmptyHintEl = document.getElementById('searchEmptyHint');
 function _updateSearchEmptyHint() {
-  if (!_searchEmptyHintEl) return;
   const hasChip   = selectedChipEl && selectedChipEl.style.display !== 'none';
   const hasQuery  = !!(searchInput && searchInput.value.trim());
   const inputOpen = !!(searchInputWrapEl && searchInputWrapEl.style.display !== 'none');
-  _searchEmptyHintEl.style.display = (inputOpen && !hasChip && !hasQuery) ? '' : 'none';
+  const idle = inputOpen && !hasChip && !hasQuery;
+  if (_searchEmptyHintEl) _searchEmptyHintEl.style.display = idle ? '' : 'none';
+  const quickEl = document.getElementById('addV2Quick');
+  if (quickEl) quickEl.classList.toggle('is-hidden', !idle);
 }
 if (searchInput) {
   searchInput.addEventListener('input', _updateSearchEmptyHint);
@@ -13826,9 +13844,16 @@ document.addEventListener('click', (e) => {
 // Reuses openModal() then programmatically clicks the matching filter button.
 // ADD-V2.1: skips the type picker — contextual entry points already
 // know which type the user is adding.
+// ADD-V2.2: maps the category type onto the right contextual mode so
+// the Step-2 chrome matches (RE → real_estate mode, anything else →
+// asset mode with quick picks).
 function openContextualModal(type) {
   openModal({ skipPicker: true });
   const filterKey = { crypto: 'crypto', stock: 'stock', etf: 'etf', metal: 'metal', real_estate: 'real_estate' }[type];
+  if (typeof _addV2SetMode === 'function') {
+    _addV2SetMode(type === 'real_estate' ? 'real_estate' : 'asset');
+  }
+  if (typeof _addV2RefreshQuick === 'function' && type !== 'real_estate') _addV2RefreshQuick();
   if (filterKey) {
     const btn = document.querySelector(`.filter-btn[data-filter="${filterKey}"]`);
     if (btn) btn.click();
@@ -14720,7 +14745,9 @@ function openEditRealEstateModal(id) {
   // Open modal (resets state), then enter RE mode, then prefill.
   // ADD-V2.1: skips the type picker — this is an edit entry point, not
   // a new-asset flow, so dropping into Step 2 directly is correct.
+  // ADD-V2.2: pin the RE mode so the contextual CSS hides search/gold.
   openModal({ skipPicker: true });
+  if (typeof _addV2SetMode === 'function') _addV2SetMode('real_estate');
   // Activate the RE filter button visually
   filterBtns.forEach(b => b.classList.toggle('active', b.dataset.filter === 'real_estate'));
   enterRealEstateMode();
@@ -15421,27 +15448,93 @@ modalOverlay.addEventListener('click', e => {
   if (e.target === modalOverlay) closeModal();
 });
 
-// ── ADD-V2.1: Step-1 type picker — routing ─────────────────
-// All routes reuse the existing flows. No submit / persistence logic
-// is duplicated here. Cards just decide which sub-flow to land on:
-//   asset      → existing form, default "Todos" filter (search-driven)
-//   liquidity  → close modal, open the existing #liquidityOverlay
-//   gold       → existing form, "Metales" filter activated programmatically
-//   real_estate→ existing form, RE mode entered via the canonical helper
-//   other      → disabled (the card itself is aria-disabled)
+// ── ADD-V2.1/V2.2: Step-1 type picker — routing + mode-aware Step 2 ─
+// All routes reuse the existing flows (selectAsset, enterRealEstateMode,
+// openLiquidityModal). No submit / persistence logic is duplicated.
+// Cards set the modal's data-mode so CSS hides every section irrelevant
+// to the chosen flow — search/filters/ISIN for gold + RE, gold/RE
+// controls for asset, etc. Header title swaps via JS so each flow
+// reads "Añadir activo / Añadir oro físico / Añadir inmueble".
+const _ADD_V2_TITLE_KEY = { asset: 'modalAddTitle', gold: 'addV2_title_gold', real_estate: 'addV2_title_re' };
+
 function _addV2Activate(targetStep) {
   const modal = document.querySelector('#modalOverlay .modal');
   if (modal) modal.dataset.step = targetStep;
 }
-function _addV2RouteToFormFilter(filterKey) {
-  _addV2Activate('form');
-  // Defer one tick so the form is visible before the filter button is
-  // clicked — initSearch / filter handlers query layout in some paths.
-  setTimeout(() => {
-    const btn = document.querySelector(`.filter-btn[data-filter="${filterKey}"]`);
-    if (btn) btn.click();
-  }, 0);
+function _addV2SetMode(mode) {
+  const modal = document.querySelector('#modalOverlay .modal');
+  if (modal) modal.dataset.mode = mode || '';
+  const titleEl = document.querySelector('#modalOverlay .modal-header h3');
+  if (titleEl) {
+    const key = _ADD_V2_TITLE_KEY[mode] || 'modalAddTitle';
+    titleEl.textContent = t(key);
+  }
 }
+
+// Curated quick picks — every entry maps directly to a shape selectAsset
+// already accepts, so taps reuse the existing pricing pipeline.
+const _ADD_V2_QUICK_PICKS = [
+  { ticker:'BTC',  name:'Bitcoin',    type:'crypto', coinId:'bitcoin' },
+  { ticker:'ETH',  name:'Ethereum',   type:'crypto', coinId:'ethereum' },
+  { ticker:'AAPL', name:'Apple',      type:'stock',  marketSymbol:'AAPL' },
+  { ticker:'TSLA', name:'Tesla',      type:'stock',  marketSymbol:'TSLA' },
+  { ticker:'NVDA', name:'NVIDIA',     type:'stock',  marketSymbol:'NVDA' },
+  { ticker:'SPY',  name:'S&P 500',    type:'etf',    marketSymbol:'SPY' },
+  { ticker:'IWDA', name:'MSCI World', type:'etf',    marketSymbol:'IWDA.AS' },
+  { ticker:'XAU',  name:'Gold',       type:'metal',  marketSymbol:'GC=F' },
+];
+
+function _addV2RenderQuickPicks() {
+  const wrap = document.getElementById('addV2PopularChips');
+  if (!wrap) return;
+  wrap.innerHTML = _ADD_V2_QUICK_PICKS.map(p => `
+    <button type="button" class="add-v2-chip" data-quick-ticker="${escHtml(p.ticker)}">
+      <span class="add-v2-chip-badge ${escHtml(p.type)}">${escHtml(p.ticker.slice(0, 4))}</span>
+      <span class="add-v2-chip-text">${escHtml(p.name)}</span>
+    </button>
+  `).join('');
+  wrap.querySelectorAll('[data-quick-ticker]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = _ADD_V2_QUICK_PICKS.find(p => p.ticker === btn.dataset.quickTicker);
+      if (item && typeof selectAsset === 'function') {
+        closeSuggestions();
+        selectAsset(item);
+      }
+    });
+  });
+}
+
+function _addV2RenderRecents() {
+  const section = document.getElementById('addV2RecentSection');
+  const wrap    = document.getElementById('addV2RecentChips');
+  if (!section || !wrap) return;
+  // Reuse the global-search recents store — query strings only, no
+  // portfolio leakage. Tap pre-fills the search input and runs the
+  // existing search pipeline.
+  const list = (typeof _gsLoadRecent === 'function') ? _gsLoadRecent() : [];
+  if (!list.length) { section.hidden = true; return; }
+  section.hidden = false;
+  wrap.innerHTML = list.map(q => `
+    <button type="button" class="add-v2-chip is-recent" data-recent-q="${escHtml(q)}">
+      <span class="add-v2-chip-text">${escHtml(q)}</span>
+    </button>
+  `).join('');
+  wrap.querySelectorAll('[data-recent-q]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.recentQ || '';
+      if (!searchInput) return;
+      searchInput.value = q;
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      try { searchInput.focus(); } catch (_) {}
+    });
+  });
+}
+
+function _addV2RefreshQuick() {
+  _addV2RenderQuickPicks();
+  _addV2RenderRecents();
+}
+
 (function _addV2Wire() {
   const picker      = document.getElementById('addV2Picker');
   const pickerClose = document.getElementById('addV2PickerClose');
@@ -15454,6 +15547,7 @@ function _addV2RouteToFormFilter(filterKey) {
       try { if (typeof exitManualMode === 'function') exitManualMode(); } catch (_) {}
       try { if (typeof clearSelectedAsset === 'function') clearSelectedAsset(); } catch (_) {}
       try { if (typeof enterSearchMode === 'function') enterSearchMode(); } catch (_) {}
+      _addV2SetMode('');
       _addV2Activate('picker');
     });
   }
@@ -15463,7 +15557,10 @@ function _addV2RouteToFormFilter(filterKey) {
     if (!card || card.classList.contains('is-disabled')) return;
     const pick = card.dataset.pick;
     if (pick === 'asset') {
+      _addV2SetMode('asset');
       _addV2Activate('form');
+      _addV2RefreshQuick();
+      if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
       return;
     }
     if (pick === 'liquidity') {
@@ -15472,11 +15569,26 @@ function _addV2RouteToFormFilter(filterKey) {
       return;
     }
     if (pick === 'gold') {
-      _addV2RouteToFormFilter('metal');
+      _addV2SetMode('gold');
+      _addV2Activate('form');
+      // Auto-select XAU through the canonical selectAsset pipeline so
+      // the gold section, karat selector and unit selector populate
+      // exactly as if the user had searched and tapped Gold themselves.
+      setTimeout(() => {
+        try {
+          if (typeof selectAsset === 'function') {
+            selectAsset({ ticker:'XAU', name:'Gold', type:'metal', marketSymbol:'GC=F' });
+          }
+        } catch (_) {}
+      }, 30);
       return;
     }
     if (pick === 'real_estate') {
-      _addV2RouteToFormFilter('real_estate');
+      _addV2SetMode('real_estate');
+      _addV2Activate('form');
+      // The existing helper hides search, reveals RE fields, and resets
+      // pending RE state — exactly what we want for this card.
+      try { if (typeof enterRealEstateMode === 'function') enterRealEstateMode(); } catch (_) {}
       return;
     }
   });
