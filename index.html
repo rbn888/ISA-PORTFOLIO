@@ -487,42 +487,109 @@
           <span class="input-hint" data-i18n="reRentHint">Opcional</span>
         </div>
 
-        <!-- GOLD-1: Physical gold section (visible solo para XAU). Banner
-             muestra el spot 24K en €/g + €/oz; selectores ampliados a
-             10/14/18/21/22/24K y g/oz/kg.
-             GOLD-2: añade panel dual Spot / Estimación de venta con
-             control de margen del comprador. Estimación de venta es
-             puramente informativa — el portfolio sigue usando el valor
-             spot como neto. -->
+        <!-- GOLD-V4.1: Premium physical-gold add flow.
+             - Market reference card (spot per gram / oz).
+             - "¿Qué tienes?" group: purity (retail labels) + unit + qty.
+             - Valuation mode: Spot / Resale, with buyer profile under
+               resale mapping to the existing margin field (5/8/15%).
+             - One clean summary card replaces the old dual-panel.
+             No formula or persistence changes. The legacy
+             #karatGroup / #goldUnitGroup / #goldMarginChips nodes are
+             kept (hidden) so old handlers stay no-ops; new buttons live
+             inside #goldSection and use delegated handlers. -->
         <div class="form-group form-group--gold" id="goldSection" style="display:none">
-          <div class="gold-section-head">
-            <span class="gold-section-title" data-i18n="goldSectionTitle">Oro físico</span>
-            <span class="gold-spot-line" id="goldSpotLine"></span>
+
+          <!-- Section 1 — market reference -->
+          <div class="gold-market-card" id="goldMarketRef">
+            <div class="gold-market-head">
+              <span class="gold-market-eyebrow" data-i18n="gold_market_label">Precio internacional del oro</span>
+              <span class="gold-market-meta" data-i18n="gold_market_meta">24K referencia spot</span>
+            </div>
+            <div class="gold-market-price" id="goldSpotLine">—</div>
           </div>
-          <div class="gold-valuation-panel" id="goldValuationPanel">
-            <div class="gold-val-row gold-val-row--spot">
-              <div class="gold-val-label" data-i18n="goldSpotValLabel">Valor spot</div>
-              <div class="gold-val-amount" id="goldSpotValAmount">—</div>
-              <div class="gold-val-meta" data-i18n="goldSpotValMeta">Valor de metal en vivo</div>
+
+          <!-- Section 2 — ¿Qué tienes? -->
+          <div class="gold-section-eyebrow" data-i18n="gold_what_label">¿Qué tienes?</div>
+
+          <div class="gold-field-block">
+            <div class="gold-field-label" data-i18n="gold_purity_label">Pureza</div>
+            <div class="gold-purity-grid" id="goldPurityGrid">
+              <button type="button" class="gold-chip" data-gold-karat="24">
+                <span class="gold-chip-title">24K</span>
+                <span class="gold-chip-sub" data-i18n="gold_purity_24_sub">Lingote</span>
+              </button>
+              <button type="button" class="gold-chip" data-gold-karat="22">
+                <span class="gold-chip-title">22K</span>
+                <span class="gold-chip-sub" data-i18n="gold_purity_22_sub">Moneda</span>
+              </button>
+              <button type="button" class="gold-chip is-active" data-gold-karat="18">
+                <span class="gold-chip-title">18K</span>
+                <span class="gold-chip-sub" data-i18n="gold_purity_18_sub">Joyería</span>
+              </button>
+              <button type="button" class="gold-chip" data-gold-karat="14">
+                <span class="gold-chip-title">14K</span>
+                <span class="gold-chip-sub" data-i18n="gold_purity_14_sub">Aleación</span>
+              </button>
             </div>
-            <div class="gold-val-row gold-val-row--resale">
-              <div class="gold-val-label" data-i18n="goldResaleValLabel">Valor estimado de venta</div>
-              <div class="gold-val-amount" id="goldResaleValAmount">—</div>
-              <div class="gold-val-meta" id="goldResaleMarginLabel">Basado en 8% de margen del comprador</div>
-              <div class="gold-margin-chips" id="goldMarginChips" role="tablist">
-                <button type="button" data-margin="5">5%</button>
-                <button type="button" data-margin="8" class="active">8%</button>
-                <button type="button" data-margin="10">10%</button>
-                <button type="button" data-margin="12">12%</button>
-                <button type="button" data-margin="15">15%</button>
-              </div>
-              <div class="gold-val-disclaimer" data-i18n="goldResaleDisclaimer">Estimación orientativa, no garantía de compra.</div>
+            <button type="button" class="gold-more-toggle" id="goldMoreToggle" aria-expanded="false">
+              <span data-i18n="gold_more_options">Más opciones</span>
+              <span class="gold-more-icon" aria-hidden="true">+</span>
+            </button>
+            <div class="gold-purity-advanced" id="goldPurityAdvanced" hidden>
+              <button type="button" class="gold-chip" data-gold-karat="21">
+                <span class="gold-chip-title">21K</span>
+                <span class="gold-chip-sub" data-i18n="gold_purity_21_sub">Aleación</span>
+              </button>
+              <button type="button" class="gold-chip" data-gold-karat="10">
+                <span class="gold-chip-title">10K</span>
+                <span class="gold-chip-sub" data-i18n="gold_purity_10_sub">Aleación</span>
+              </button>
             </div>
+          </div>
+
+          <div class="gold-field-block">
+            <div class="gold-field-label" data-i18n="gold_unit_label">Unidad</div>
+            <div class="gold-unit-row" id="goldUnitRow">
+              <button type="button" class="gold-pill is-active" data-gold-unit="g"  data-i18n="gramUnit">g</button>
+              <button type="button" class="gold-pill"            data-gold-unit="oz" data-i18n="ozUnit">oz troy</button>
+              <button type="button" class="gold-pill"            data-gold-unit="kg" data-i18n="kgUnit">kg</button>
+            </div>
+          </div>
+
+          <!-- Quantity anchor — #qtyGroup is moved here in gold mode so the
+               three "What do you own?" inputs (purity/unit/qty) stay
+               visually grouped, then restored on exit. -->
+          <div id="goldQtyAnchor"></div>
+
+          <!-- Section 3 — Valoración -->
+          <div class="gold-section-eyebrow gold-section-eyebrow--tight" data-i18n="gold_value_label">Valorar como</div>
+          <div class="gold-mode-row" id="goldModeRow">
+            <button type="button" class="gold-pill is-active" data-gold-mode="spot"  data-i18n="gold_value_spot">Valor spot</button>
+            <button type="button" class="gold-pill"            data-gold-mode="resale" data-i18n="gold_value_resale">Venta estimada</button>
+          </div>
+
+          <div class="gold-buyer-block" id="goldBuyerBlock" hidden>
+            <div class="gold-field-label" data-i18n="gold_buyer_label">Tipo de comprador</div>
+            <div class="gold-buyer-row" id="goldBuyerRow">
+              <button type="button" class="gold-pill" data-gold-buyer="premium" data-margin-internal="5"  data-i18n="gold_buyer_premium">Comprador premium</button>
+              <button type="button" class="gold-pill is-active" data-gold-buyer="standard" data-margin-internal="8" data-i18n="gold_buyer_standard">Comprador normal</button>
+              <button type="button" class="gold-pill" data-gold-buyer="conservative" data-margin-internal="15" data-i18n="gold_buyer_conservative">Comprador conservador</button>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="gold-summary-card" id="goldSummaryCard">
+            <div class="gold-summary-label" data-i18n="gold_summary_label">Valor estimado hoy</div>
+            <div class="gold-summary-amount" id="goldSummaryAmount">—</div>
+            <div class="gold-summary-meta" id="goldSummaryMeta" data-i18n="gold_summary_meta_spot">Valor internacional del metal</div>
+            <div class="gold-summary-spot" id="goldSummarySpotRef" hidden></div>
+            <div class="gold-summary-disclaimer" id="goldSummaryDisclaimer" hidden data-i18n="gold_disclaimer">Estimación orientativa, no garantía de compra.</div>
           </div>
         </div>
 
-        <div class="form-group" id="karatGroup" style="display:none">
-          <label data-i18n="karat">Quilates</label>
+        <!-- Legacy karat / unit / margin chip groups kept hidden so any
+             external handler that still queries these IDs stays a no-op. -->
+        <div class="form-group" id="karatGroup" style="display:none" aria-hidden="true">
           <div class="type-toggle type-toggle--wrap" id="karatToggle">
             <button type="button" class="type-btn" data-karat="10">10K</button>
             <button type="button" class="type-btn" data-karat="14">14K</button>
@@ -532,14 +599,11 @@
             <button type="button" class="type-btn" data-karat="24">24K</button>
           </div>
         </div>
-
-        <!-- Gold: Unidad (visible solo para XAU) -->
-        <div class="form-group" id="goldUnitGroup" style="display:none">
-          <label data-i18n="goldUnit">Unidad</label>
+        <div class="form-group" id="goldUnitGroup" style="display:none" aria-hidden="true">
           <div class="type-toggle type-toggle--wrap" id="goldUnitToggle">
-            <button type="button" class="type-btn active" data-unit="g"  data-i18n="gramUnit">g</button>
-            <button type="button" class="type-btn"        data-unit="oz" data-i18n="ozUnit">oz troy</button>
-            <button type="button" class="type-btn"        data-unit="kg" data-i18n="kgUnit">kg</button>
+            <button type="button" class="type-btn active" data-unit="g">g</button>
+            <button type="button" class="type-btn"        data-unit="oz">oz troy</button>
+            <button type="button" class="type-btn"        data-unit="kg">kg</button>
           </div>
         </div>
 

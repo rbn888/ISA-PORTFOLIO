@@ -409,6 +409,31 @@ const T = {
     goldResaleValLabel:   'Valor estimado de venta',
     goldResaleMarginNote: m => `Basado en ${m}% de margen del comprador`,
     goldResaleDisclaimer: 'Estimación orientativa, no garantía de compra.',
+    // ADD-V4.1: premium gold UX
+    gold_market_label:    'Precio internacional del oro',
+    gold_market_meta:     '24K referencia spot',
+    gold_what_label:      '¿Qué tienes?',
+    gold_purity_label:    'Pureza',
+    gold_unit_label:      'Unidad',
+    gold_more_options:    'Más opciones',
+    gold_purity_24_sub:   'Lingote',
+    gold_purity_22_sub:   'Moneda',
+    gold_purity_18_sub:   'Joyería',
+    gold_purity_14_sub:   'Aleación',
+    gold_purity_21_sub:   'Aleación',
+    gold_purity_10_sub:   'Aleación',
+    gold_value_label:     'Valorar como',
+    gold_value_spot:      'Valor spot',
+    gold_value_resale:    'Venta estimada',
+    gold_buyer_label:     'Tipo de comprador',
+    gold_buyer_premium:   'Comprador premium',
+    gold_buyer_standard:  'Comprador normal',
+    gold_buyer_conservative: 'Comprador conservador',
+    gold_summary_label:   'Valor estimado hoy',
+    gold_summary_meta_spot:   'Valor internacional del metal',
+    gold_summary_meta_resale: 'Estimación orientativa según comprador',
+    gold_summary_spot_ref:    spot => `Valor spot: ${spot}`,
+    gold_disclaimer:      'Estimación orientativa, no garantía de compra.',
     qty:             'Cantidad',
     qtyGold:         u => `Cantidad (${u})`,
     estimatedVal:    'Valor estimado:',
@@ -934,6 +959,31 @@ const T = {
     goldResaleValLabel:   'Estimated resale value',
     goldResaleMarginNote: m => `Based on ${m}% dealer margin`,
     goldResaleDisclaimer: 'Indicative estimate, not guaranteed dealer payout.',
+    // ADD-V4.1: premium gold UX
+    gold_market_label:    'International gold price',
+    gold_market_meta:     '24K spot reference',
+    gold_what_label:      'What do you own?',
+    gold_purity_label:    'Purity',
+    gold_unit_label:      'Unit',
+    gold_more_options:    'More options',
+    gold_purity_24_sub:   'Bar',
+    gold_purity_22_sub:   'Coin',
+    gold_purity_18_sub:   'Jewelry',
+    gold_purity_14_sub:   'Alloy',
+    gold_purity_21_sub:   'Alloy',
+    gold_purity_10_sub:   'Alloy',
+    gold_value_label:     'Value as',
+    gold_value_spot:      'Spot value',
+    gold_value_resale:    'Estimated resale',
+    gold_buyer_label:     'Buyer profile',
+    gold_buyer_premium:   'Premium buyer',
+    gold_buyer_standard:  'Standard buyer',
+    gold_buyer_conservative: 'Conservative buyer',
+    gold_summary_label:   'Estimated value today',
+    gold_summary_meta_spot:   'International metal value',
+    gold_summary_meta_resale: 'Indicative buyer-based estimate',
+    gold_summary_spot_ref:    spot => `Spot value: ${spot}`,
+    gold_disclaimer:      'Indicative estimate, not guaranteed dealer payout.',
     qty:             'Quantity',
     qtyGold:         u => `Quantity (${u})`,
     estimatedVal:    'Estimated value:',
@@ -13534,6 +13584,16 @@ async function selectAsset(entry) {
   if (isinOrWrapEl)    isinOrWrapEl.style.display    = isGoldEntry ? 'none' : '';
   if (qtyLabelEl)      qtyLabelEl.textContent        = isGoldEntry ? t('qtyGold')(pendingGoldUnit) : t('qty');
   if (!isGoldEntry) _renderGoldSpotLine(null);
+  // ADD-V4.1: sync the new gold buttons to the pending state so the
+  // active highlights match whether the user landed via the picker
+  // shortcut or via the search dropdown. Also rehome the qty input
+  // into the "What do you own?" group, or restore it when leaving.
+  if (isGoldEntry) {
+    if (typeof _addV4SyncGoldUI === 'function')      _addV4SyncGoldUI();
+    if (typeof _addV4MoveQtyIntoGold === 'function') _addV4MoveQtyIntoGold();
+  } else {
+    if (typeof _addV4RestoreQty === 'function') _addV4RestoreQty();
+  }
 
   setLookupStatus('loading', t('lookupLoading'));
 
@@ -13629,6 +13689,8 @@ function clearSelectedAsset() {
   setLookupStatus('');
   updatePreview();
   if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
+  // ADD-V4.1: when leaving gold, restore qty input to its original spot.
+  if (typeof _addV4RestoreQty === 'function') _addV4RestoreQty();
 }
 
 function enterSearchMode() {
@@ -13977,6 +14039,8 @@ function openModal(opts) {
   pendingKarat         = 18;
   pendingGoldUnit      = 'g';
   pendingResaleMargin  = 8;
+  // ADD-V4.1: reset valuation mode to canonical spot on every open.
+  if (typeof pendingGoldValuationMode !== 'undefined') pendingGoldValuationMode = 'spot';
   currentSuggestions   = [];
   renderedSuggestions  = [];
   activeSearchFilter   = 'all';
@@ -13986,6 +14050,10 @@ function openModal(opts) {
   const _gsEl = document.getElementById('goldSection');
   if (_gsEl) _gsEl.style.display = 'none';
   _renderGoldSpotLine(null);
+  // ADD-V4.1: restore qty input to its original parent so reopening
+  // the modal in a non-gold flow doesn't strand it inside a hidden
+  // gold section.
+  if (typeof _addV4RestoreQty === 'function') _addV4RestoreQty();
   if (qtyLabelEl)      qtyLabelEl.textContent        = t('qty');
   isRealEstateMode  = false;
   isManualMode      = false;
@@ -14254,35 +14322,49 @@ function updatePreview() {
   previewTotal.textContent = formatDisplay(value, 'USD');
 }
 
-// GOLD-1: render the spot reference banner shown above the karat
-// selector when physical gold is the selected asset. Always sourced
-// from pendingPrice (XAU/USD per troy ounce) so the display follows
-// the global currency toggle through formatDisplay.
+// ADD-V4.1: gold market reference — small premium card above the
+// purity/unit row. Same data source as before (pendingPrice = XAU/USD
+// per troy ounce) so the figure follows the global currency toggle.
 function _renderGoldSpotLine(spotPerOzUsd) {
   const el = document.getElementById('goldSpotLine');
   if (!el) return;
-  if (!spotPerOzUsd || !Number.isFinite(spotPerOzUsd)) { el.textContent = ''; return; }
-  const perOz   = spotPerOzUsd;
+  if (!spotPerOzUsd || !Number.isFinite(spotPerOzUsd)) { el.textContent = '—'; return; }
   const perGram = spotPerOzUsd / OZ_TO_G;
-  el.textContent = `${t('goldSectionTitle')} — ` +
-    `${formatDisplay(perGram, 'USD')}/g · ${formatDisplay(perOz, 'USD')}/oz`;
+  el.textContent = `${formatDisplay(perGram, 'USD')}/g · ${formatDisplay(spotPerOzUsd, 'USD')}/oz`;
 }
 
-// GOLD-2: render the dual-value gold panel (Spot vs Estimated resale).
-// Spot value is the canonical metal math (already computed by the
-// caller). Resale is spot × (1 - margin/100). Both amounts route
-// through formatDisplay so they follow the global currency toggle.
+// ADD-V4.1: one premium summary card that adapts to the chosen
+// valuation mode. Spot stays the canonical metal math; resale is the
+// existing spot × (1 - margin/100) — formula untouched. Buyer profile
+// → margin mapping (5/8/15) preserves the persisted resaleMargin /
+// resaleFactor fields so submit-time storage is unchanged.
+let pendingGoldValuationMode = 'spot';  // 'spot' | 'resale'
 function _renderGoldValuation(spotValueUsd) {
-  const spotEl   = document.getElementById('goldSpotValAmount');
-  const resaleEl = document.getElementById('goldResaleValAmount');
-  const marginEl = document.getElementById('goldResaleMarginLabel');
-  if (!spotEl || !resaleEl) return;
+  const amountEl  = document.getElementById('goldSummaryAmount');
+  const metaEl    = document.getElementById('goldSummaryMeta');
+  const spotRefEl = document.getElementById('goldSummarySpotRef');
+  const discEl    = document.getElementById('goldSummaryDisclaimer');
+  if (!amountEl) return;
   const v = Number(spotValueUsd) || 0;
   const margin = Number(pendingResaleMargin) || 0;
   const factor = Math.max(0, Math.min(1, 1 - margin / 100));
-  spotEl.textContent   = formatDisplay(v,          'USD');
-  resaleEl.textContent = formatDisplay(v * factor, 'USD');
-  if (marginEl) marginEl.textContent = t('goldResaleMarginNote')(margin);
+  const isResale = pendingGoldValuationMode === 'resale';
+  const shown = isResale ? v * factor : v;
+  amountEl.textContent = formatDisplay(shown, 'USD');
+  if (metaEl) metaEl.textContent = t(isResale ? 'gold_summary_meta_resale' : 'gold_summary_meta_spot');
+  if (spotRefEl) {
+    if (isResale && v > 0) {
+      spotRefEl.hidden = false;
+      const spotStr = formatDisplay(v, 'USD');
+      spotRefEl.textContent = (typeof t('gold_summary_spot_ref') === 'function')
+        ? t('gold_summary_spot_ref')(spotStr)
+        : `Spot: ${spotStr}`;
+    } else {
+      spotRefEl.hidden = true;
+      spotRefEl.textContent = '';
+    }
+  }
+  if (discEl) discEl.hidden = !isResale;
 }
 qtyInput.addEventListener('input', updatePreview);
 document.getElementById('manualPrice')?.addEventListener('input', updatePreview);
@@ -15155,6 +15237,113 @@ if (goldMarginChipsEl) {
     });
   });
 }
+
+// ── ADD-V4.1: premium gold UX — delegated wiring ───────────────────
+// The new selectors (purity / unit / valuation mode / buyer) live
+// inside #goldSection. They mutate the same pending* state vars the
+// existing gold logic reads (pendingKarat, pendingGoldUnit,
+// pendingResaleMargin) so submit-time persistence and the canonical
+// formulas (assetNativeValue, _goldGrams, _goldPurity) keep working
+// unchanged. No new persisted fields.
+
+// Move #qtyGroup inside the gold section so purity/unit/qty group
+// visually under "What do you own?"; restored to its original parent
+// when leaving gold mode. Position uses an anchor div + a sentinel
+// so multiple back-and-forth transitions stay correct.
+let _addV4QtyHome = null;
+let _addV4QtyNext = null;
+function _addV4MoveQtyIntoGold() {
+  const anchor = document.getElementById('goldQtyAnchor');
+  if (!anchor || !qtyGroup) return;
+  if (anchor.contains(qtyGroup)) return;  // already moved
+  if (!_addV4QtyHome) {
+    _addV4QtyHome = qtyGroup.parentNode;
+    _addV4QtyNext = qtyGroup.nextSibling;
+  }
+  anchor.appendChild(qtyGroup);
+}
+function _addV4RestoreQty() {
+  if (!_addV4QtyHome || !qtyGroup) return;
+  if (qtyGroup.parentNode === _addV4QtyHome) return;
+  if (_addV4QtyNext && _addV4QtyNext.parentNode === _addV4QtyHome) {
+    _addV4QtyHome.insertBefore(qtyGroup, _addV4QtyNext);
+  } else {
+    _addV4QtyHome.appendChild(qtyGroup);
+  }
+}
+function _addV4SyncGoldUI() {
+  const section = document.getElementById('goldSection');
+  if (!section) return;
+  section.querySelectorAll('[data-gold-karat]').forEach(b =>
+    b.classList.toggle('is-active', Number(b.dataset.goldKarat) === Number(pendingKarat))
+  );
+  section.querySelectorAll('[data-gold-unit]').forEach(b =>
+    b.classList.toggle('is-active', String(b.dataset.goldUnit) === String(pendingGoldUnit))
+  );
+  section.querySelectorAll('[data-gold-mode]').forEach(b =>
+    b.classList.toggle('is-active', b.dataset.goldMode === pendingGoldValuationMode)
+  );
+  section.querySelectorAll('[data-gold-buyer]').forEach(b =>
+    b.classList.toggle('is-active', Number(b.dataset.marginInternal) === Number(pendingResaleMargin))
+  );
+  const buyerBlock = document.getElementById('goldBuyerBlock');
+  if (buyerBlock) buyerBlock.hidden = pendingGoldValuationMode !== 'resale';
+  // Reveal the advanced 10K / 21K row if the user landed on a karat
+  // that lives in that bucket (e.g. coming back to edit a 21K asset).
+  const adv = document.getElementById('goldPurityAdvanced');
+  if (adv) {
+    const inAdvanced = pendingKarat === 10 || pendingKarat === 21;
+    if (inAdvanced) adv.hidden = false;
+    const moreBtn = document.getElementById('goldMoreToggle');
+    if (moreBtn) moreBtn.setAttribute('aria-expanded', inAdvanced ? 'true' : 'false');
+  }
+}
+
+(function _addV4WireGold() {
+  const section = document.getElementById('goldSection');
+  if (!section) return;
+  section.addEventListener('click', e => {
+    const target = e.target.closest && e.target.closest('button');
+    if (!target || target.disabled) return;
+
+    if (target.dataset.goldKarat) {
+      pendingKarat = parseInt(target.dataset.goldKarat, 10) || pendingKarat;
+      _addV4SyncGoldUI();
+      updatePreview();
+      return;
+    }
+    if (target.dataset.goldUnit) {
+      pendingGoldUnit = target.dataset.goldUnit;
+      if (qtyLabelEl) qtyLabelEl.textContent = t('qtyGold')(pendingGoldUnit);
+      _addV4SyncGoldUI();
+      updatePreview();
+      return;
+    }
+    if (target.dataset.goldMode) {
+      pendingGoldValuationMode = target.dataset.goldMode === 'resale' ? 'resale' : 'spot';
+      _addV4SyncGoldUI();
+      updatePreview();
+      return;
+    }
+    if (target.dataset.goldBuyer) {
+      const m = parseInt(target.dataset.marginInternal, 10);
+      if (Number.isFinite(m)) pendingResaleMargin = m;
+      _addV4SyncGoldUI();
+      updatePreview();
+      return;
+    }
+    if (target.id === 'goldMoreToggle') {
+      const adv = document.getElementById('goldPurityAdvanced');
+      if (!adv) return;
+      const willOpen = adv.hidden;
+      adv.hidden = !willOpen;
+      target.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      const icon = target.querySelector('.gold-more-icon');
+      if (icon) icon.textContent = willOpen ? '−' : '+';
+      return;
+    }
+  });
+})();
 
 function validateTransaction(asset, tx) {
   syncQtyFromTransactions(asset);

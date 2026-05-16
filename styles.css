@@ -1594,6 +1594,273 @@ body.modal-open {
   font-style: italic;
   letter-spacing: 0.005em;
 }
+
+/* ── ADD-V4.1: premium physical-gold layout ─────────────────────
+   Sits inside #goldSection (visible only when XAU is the selected
+   asset, i.e. data-mode="gold" or a manual XAU pick). Hides the
+   legacy dual-panel / margin-chips rendering above which is still
+   present in DOM for backward-compat but never visible. */
+.form-group--gold .gold-section-head,
+.form-group--gold .gold-valuation-panel { display: none; }
+/* Legacy outer karat/unit groups — kept in DOM so old handlers stay
+   harmless, but never visible. selectAsset() still flips their inline
+   display; !important keeps them hidden either way. */
+#karatGroup, #goldUnitGroup { display: none !important; }
+
+#goldSection.form-group--gold {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+/* Section 1 — market reference */
+.gold-market-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(233,196,106,0.08), rgba(233,196,106,0.02));
+  border: 1px solid rgba(233,196,106,0.22);
+}
+.gold-market-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gold-market-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(233,196,106,0.95);
+}
+.gold-market-meta {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(220,230,250,0.5);
+  text-transform: uppercase;
+}
+.gold-market-price {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(248,252,255,0.95);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
+}
+
+/* Section eyebrow */
+.gold-section-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.78);
+  margin-top: 6px;
+}
+.gold-section-eyebrow--tight { margin-top: 4px; }
+
+/* Field block — label + control(s) */
+.gold-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gold-field-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(220,230,250,0.62);
+}
+
+/* Purity grid — 2×2 retail-friendly purity cards */
+.gold-purity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.gold-purity-advanced {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.gold-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(220,230,250,0.85);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.gold-chip:hover {
+  border-color: rgba(233,196,106,0.32);
+  background: rgba(233,196,106,0.05);
+}
+.gold-chip:active { transform: scale(0.985); }
+.gold-chip.is-active {
+  border-color: rgba(233,196,106,0.55);
+  background: rgba(233,196,106,0.12);
+  color: rgba(255,238,176,0.98);
+}
+.gold-chip-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.gold-chip-sub {
+  font-size: 11.5px;
+  color: rgba(220,230,250,0.55);
+  font-weight: 500;
+}
+.gold-chip.is-active .gold-chip-sub { color: rgba(255,238,176,0.75); }
+
+.gold-more-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 0;
+  background: none;
+  border: none;
+  color: rgba(138,166,255,0.92);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+.gold-more-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(138,166,255,0.12);
+  color: rgba(138,166,255,0.95);
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Unit + valuation mode + buyer rows share a pill style */
+.gold-unit-row,
+.gold-mode-row,
+.gold-buyer-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gold-pill {
+  flex: 1 0 auto;
+  min-width: 0;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(220,230,250,0.78);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.gold-pill:hover {
+  border-color: rgba(233,196,106,0.32);
+  background: rgba(233,196,106,0.06);
+  color: rgba(255,238,176,0.95);
+}
+.gold-pill.is-active {
+  border-color: rgba(233,196,106,0.55);
+  background: rgba(233,196,106,0.14);
+  color: rgba(255,238,176,0.98);
+}
+.gold-pill:active { transform: scale(0.97); }
+
+.gold-buyer-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gold-buyer-row {
+  flex-direction: row;
+}
+@media (max-width: 480px) {
+  .gold-buyer-row { flex-direction: column; }
+  .gold-buyer-row .gold-pill { width: 100%; }
+}
+
+/* Summary card */
+.gold-summary-card {
+  margin-top: 4px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(233,196,106,0.16) 0%, rgba(233,196,106,0) 60%),
+    linear-gradient(180deg, rgba(20,16,8,0.92), rgba(14,12,8,0.92));
+  border: 1px solid rgba(233,196,106,0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gold-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.6);
+}
+.gold-summary-amount {
+  font-size: clamp(24px, 5.5vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.gold-summary-meta {
+  font-size: 12.5px;
+  color: rgba(220,230,250,0.6);
+  letter-spacing: 0.005em;
+}
+.gold-summary-spot {
+  font-size: 11.5px;
+  color: rgba(220,230,250,0.55);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.gold-summary-disclaimer {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: rgba(220,230,250,0.42);
+  font-style: italic;
+  letter-spacing: 0.005em;
+}
+
+/* Hide the legacy in-form estimate strip in gold mode — the summary
+   card above is the single source of truth for the user. */
+.modal[data-mode="gold"] #formPreview { display: none !important; }
+
+/* Reserve bottom space so the sticky CTA never covers the summary
+   card or buyer row on phones with home-indicators. */
+@media (max-width: 768px) {
+  .modal[data-mode="gold"] .modal-body {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 58px + 28px + 16px);
+  }
+}
 .type-btn {
   flex: 1;
   background: transparent;
