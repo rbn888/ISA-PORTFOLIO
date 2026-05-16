@@ -294,6 +294,7 @@
   <!-- Modal: Añadir activo -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
+      <span class="sheet-handle" aria-hidden="true"></span>
       <div class="modal-header">
         <h3 data-i18n="modalAddTitle">Añadir activo</h3>
         <button class="modal-close" id="modalClose">✕</button>
@@ -333,6 +334,17 @@
             <button type="button" class="chip-clear" id="chipClear">✕</button>
           </div>
           <span class="lookup-status" id="lookupStatus"></span>
+
+          <!-- Helper hint visible only when no input and no chip (mobile sheet) -->
+          <div class="search-empty-hint" id="searchEmptyHint" data-i18n="searchEmptyHint">
+            Busca un activo por nombre, ticker o ISIN.
+          </div>
+
+          <!-- Mobile-only ISIN trigger — keeps the advanced ISIN field tucked away by default -->
+          <button type="button" class="isin-toggle-mobile" id="isinToggleMobile" aria-expanded="false">
+            <span class="isin-toggle-icon" aria-hidden="true">+</span>
+            <span class="isin-toggle-label" data-i18n="isinToggleShow">Buscar por ISIN</span>
+          </button>
 
           <!-- ISIN entry — secondary option, always visible in search mode -->
           <div class="isin-or-wrap" id="isinOrWrap">

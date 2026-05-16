@@ -371,6 +371,9 @@ const T = {
     btnEdit:         'Editar',
     // Modal: Add asset
     modalAddTitle:   'Añadir activo',
+    searchEmptyHint: 'Busca un activo por nombre, ticker o ISIN.',
+    isinToggleShow:  'Buscar por ISIN',
+    isinToggleHide:  'Ocultar ISIN',
     modalEditRETitle: 'Editar inmueble',
     karat:                'Quilates',
     goldUnit:             'Unidad',
@@ -832,6 +835,9 @@ const T = {
     btnEdit:         'Edit',
     // Modal: Add asset
     modalAddTitle:   'Add asset',
+    searchEmptyHint: 'Search an asset by name, ticker or ISIN.',
+    isinToggleShow:  'Search by ISIN',
+    isinToggleHide:  'Hide ISIN',
     modalEditRETitle: 'Edit property',
     karat:                'Karats',
     goldUnit:             'Unit',
@@ -13287,6 +13293,7 @@ async function selectAsset(entry) {
   selectedChipEl.style.display    = '';
   searchInputWrapEl.style.display = 'none';
   if (searchFiltersEl) searchFiltersEl.style.display = 'none';
+  if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
 
   // Reveal qty + submit
   qtyGroup.style.display    = '';
@@ -13402,6 +13409,7 @@ function clearSelectedAsset() {
   if (qtyLabelEl)      qtyLabelEl.textContent        = t('qty');
   setLookupStatus('');
   updatePreview();
+  if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
 }
 
 function enterSearchMode() {
@@ -13549,6 +13557,49 @@ searchInput.addEventListener('focus', () => {
 
 
 chipClearBtn.addEventListener('click', () => enterSearchMode());
+
+// ── Mobile ISIN toggle ─────────────────────────────────────
+// On phones the ISIN field is collapsed by default — most users search by
+// name/ticker, so the advanced ISIN entry stays one tap away rather than
+// dominating the sheet. Desktop keeps the original always-visible layout.
+const _isinToggleBtn = document.getElementById('isinToggleMobile');
+const _searchWrapEl  = document.getElementById('searchWrap');
+function _setIsinRevealed(revealed) {
+  if (!_searchWrapEl || !_isinToggleBtn) return;
+  _searchWrapEl.classList.toggle('isin-revealed', revealed);
+  _isinToggleBtn.setAttribute('aria-expanded', revealed ? 'true' : 'false');
+  const labelEl = _isinToggleBtn.querySelector('.isin-toggle-label');
+  if (labelEl) labelEl.textContent = revealed ? t('isinToggleHide') : t('isinToggleShow');
+  const iconEl = _isinToggleBtn.querySelector('.isin-toggle-icon');
+  if (iconEl)  iconEl.textContent  = revealed ? '−' : '+';
+}
+if (_isinToggleBtn) {
+  _isinToggleBtn.addEventListener('click', () => {
+    const revealed = !_searchWrapEl.classList.contains('isin-revealed');
+    _setIsinRevealed(revealed);
+    if (revealed) {
+      const isinEl = document.getElementById('isinInput');
+      setTimeout(() => isinEl && isinEl.focus(), 60);
+    }
+  });
+}
+
+// Helper hint visibility — show only when the user has nothing typed,
+// no chip selected, and the suggestions list is empty. JS-driven so we
+// can hook into the existing search lifecycle without CSS :has() gaps.
+const _searchEmptyHintEl = document.getElementById('searchEmptyHint');
+function _updateSearchEmptyHint() {
+  if (!_searchEmptyHintEl) return;
+  const hasChip   = selectedChipEl && selectedChipEl.style.display !== 'none';
+  const hasQuery  = !!(searchInput && searchInput.value.trim());
+  const inputOpen = !!(searchInputWrapEl && searchInputWrapEl.style.display !== 'none');
+  _searchEmptyHintEl.style.display = (inputOpen && !hasChip && !hasQuery) ? '' : 'none';
+}
+if (searchInput) {
+  searchInput.addEventListener('input', _updateSearchEmptyHint);
+  searchInput.addEventListener('focus', _updateSearchEmptyHint);
+  searchInput.addEventListener('blur',  _updateSearchEmptyHint);
+}
 
 // Close dropdown on outside click
 document.addEventListener('click', e => {
@@ -13731,6 +13782,9 @@ function openModal() {
   // Reset modal title in case it was changed for edit mode
   const modalTitle = document.querySelector('#modalOverlay .modal-header h3');
   if (modalTitle) modalTitle.textContent = t('modalAddTitle');
+  // Collapse the mobile ISIN section + refresh the empty hint on every open.
+  if (typeof _setIsinRevealed === 'function') _setIsinRevealed(false);
+  if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
   modalOverlay.classList.add('open');
   document.body.classList.add('modal-open');
   suppressFocusDefaults = true;

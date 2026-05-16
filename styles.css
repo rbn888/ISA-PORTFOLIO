@@ -1100,6 +1100,21 @@ body.modal-open {
 .modal-close:hover  { color: var(--text); background: var(--bg-card-2); }
 .modal-close:active { transform: scale(.85); transition-duration: 70ms; }
 
+/* Mobile drag handle for the bottom-sheet modal. Hidden on desktop
+   (where the modal is a centred card) and revealed inside the mobile
+   media query below. */
+.sheet-handle {
+  display: none;
+}
+
+/* Mobile-only ISIN toggle and helper hint. Hidden by default — the
+   mobile media query reveals them and rewires the ISIN section to be
+   collapsed until the user opts in. */
+.isin-toggle-mobile,
+.search-empty-hint {
+  display: none;
+}
+
 .modal-body {
   padding: var(--space-5);
   /* MC-7B: scroll the form body, not the whole modal, so the header
@@ -3089,22 +3104,45 @@ body:not(.hero-active) #orb-canvas {
   }
   .modal {
     max-width: 100%;
+    width: 100%;
     border-radius: 20px 20px 0 0;
     transform: translateY(60px) scale(0.98);
     transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
     will-change: transform, opacity;
-    /* Constrain height so body can scroll independently */
-    max-height: 88svh;
-    max-height: 88vh; /* fallback for older Safari */
+    /* Constrain height so body can scroll independently. dvh respects
+       the iOS keyboard inset; svh is the fallback for older Safari. */
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    max-height: 92svh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* Premium sheet feel: a hairline top border + a tiny tint shift
+       from the surface behind. Bottom area honours the home indicator. */
+    background: rgba(14,16,22,0.96);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .modal-overlay.open .modal {
     transform: translateY(0) scale(1);
   }
+  /* Drag handle — purely decorative, signals "this is a sheet". */
+  .sheet-handle {
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.18);
+    margin: 8px auto 4px;
+    flex-shrink: 0;
+  }
   /* Header stays fixed at top of sheet */
-  .modal-header { flex-shrink: 0; }
+  .modal-header {
+    flex-shrink: 0;
+    padding: 6px 16px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .modal-header h3 { font-size: 16px; }
   /* Form body scrolls within the constrained sheet */
   .modal-body {
     overflow-y: auto;
@@ -3113,9 +3151,99 @@ body:not(.hero-active) #orb-canvas {
     touch-action: pan-y;
     will-change: transform;
     flex: 1;
-    min-height: 0; /* required for flex child to shrink below content height */
-    padding-bottom: 140px;
+    min-height: 0;
+    padding: 14px 16px 96px;
   }
+  /* Sticky CTA bar at the bottom of the sheet so the primary button is
+     always reachable without scrolling. Honours the home indicator. */
+  .modal-cta {
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  /* Segmented Activo / Liquidez control: roomier tap targets aligned
+     with the sheet gutters. */
+  .add-type-toggle {
+    margin: 4px 16px 10px;
+    gap: 6px;
+  }
+  .add-type-toggle .type-btn { padding: 11px 0; font-size: 13.5px; }
+
+  /* Search input: 48px height + 16px font so iOS Safari doesn't
+     auto-zoom on focus (which then drags the sheet sideways). */
+  .search-field-wrap input {
+    height: 46px;
+    font-size: 16px;
+    padding: 0 44px 0 14px;
+    border-radius: 12px;
+  }
+  .search-clear { right: 12px; }
+  /* Filter chips wrap cleanly instead of forcing a horizontal scroll. */
+  .search-filters {
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 4px 0 12px;
+  }
+  .filter-btn { padding: 7px 12px; font-size: 12px; }
+  /* Selected chip — premium, aligned with the search input radius. */
+  .selected-chip {
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 14px;
+    background: rgba(255,255,255,0.03);
+    border-color: rgba(255,255,255,0.06);
+  }
+
+  /* Empty-state helper — only renders when JS confirms no chip, no
+     query, no manual mode. Subtle and out of the way. */
+  .search-empty-hint {
+    display: block;
+    margin: 4px 2px 12px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.01em;
+  }
+
+  /* Mobile ISIN: collapsed by default, revealed only after the user
+     taps the toggle. The big "—— o ——" divider is dropped on mobile
+     to remove visual dead weight (replaced by the toggle link). */
+  .isin-toggle-mobile {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0 12px;
+    padding: 6px 10px 6px 0;
+    background: none;
+    border: none;
+    color: rgba(138,166,255,0.92);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+  }
+  .isin-toggle-mobile:active { opacity: 0.7; }
+  .isin-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(138,166,255,0.12);
+    color: rgba(138,166,255,0.95);
+    font-size: 13px;
+    line-height: 1;
+  }
+  #searchWrap .isin-or-wrap { display: none; }
+  #searchWrap.isin-revealed .isin-or-wrap { display: block; }
+  #searchWrap .form-or-divider { display: none; }
+  #searchWrap.isin-revealed .form-or-divider {
+    display: flex;
+    margin: 6px 0 10px;
+    font-size: 10px;
+    opacity: 0.55;
+  }
+
   /* Suggestions list: tighter max-height on small screens */
   .asset-suggestions { max-height: 42vh; }
 
