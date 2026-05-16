@@ -8037,214 +8037,285 @@ body.workspace-active .header {
 }
 
 /* ── Mobile layout (<1024px): executive cockpit ──────────────────────────── */
-/* AW-6 §10: más respiración entre header / cards / risk / bottom-nav.
-   Mobile UX hardening: constraint width on tablets so the mobile dashboard
-   doesn't stretch awkwardly between mobile and desktop breakpoints. */
+/* MW-2: mobile workspace — premium intelligence dashboard.
+   Hero → secondary KPI grid → portfolio-intelligence header → stacked
+   risk cards → quick actions. Replaces the earlier 6-card grid + table
+   risk panel. Desktop renderer is unaffected — every selector below is
+   either is-mobile scoped or only emitted by _renderWorkspaceMobile. */
 .aurix-workspace-shell.is-mobile {
-  gap: 12px;
-  padding: 8px 12px var(--space-3);
-  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px 24px;
+  max-width: min(560px, 100%);
   margin-inline: auto;
   width: 100%;
-  max-width: min(560px, 100%);
   overflow-x: hidden;
 }
 
-/* MW-1: the legacy <header> with the duplicate "Workspace" title is no
-   longer rendered (bottom nav already signals the active section), but
-   the rules are kept harmless in case any external consumer still
-   targets them. */
-.aurix-mobile-header { display: none; }
-.aurix-mobile-title  { display: none; }
+/* Legacy nodes — kept hidden so any stale consumer of these classes
+   stays a no-op (renderer no longer emits them). */
+.aurix-mobile-header,
+.aurix-mobile-title,
+.aurix-mobile-note,
+.aurix-mobile-summary,
+.aurix-summary-card,
+.aurix-mobile-risk,
+.aurix-mobile-risk-row { /* legacy guards */ }
 
-/* MW-1: small premium note explaining the mobile/desktop split, sits
-   between the cards and the risk panel. */
-.aurix-mobile-note {
-  margin: 2px 2px 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: rgba(220,230,250,0.55);
-  letter-spacing: 0.005em;
+/* ── Hero KPI ─────────────────────────────────────────────── */
+.ws-hero {
+  position: relative;
+  padding: 20px 20px 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(79,142,247,0.16) 0%, rgba(79,142,247,0) 60%),
+    linear-gradient(180deg, rgba(20,26,40,0.92), rgba(12,16,26,0.92));
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 18px 40px -24px rgba(8,12,24,0.85);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 150px;
+  overflow: hidden;
+}
+.ws-hero::after {
+  /* Soft Aurix inner glow that only reads at the top edge — keeps the
+     glass surface premium without competing with the value typography. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(60% 40% at 50% -10%, rgba(79,142,247,0.18), transparent 70%);
+  opacity: 0.9;
+}
+.ws-hero.is-warn {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(233,168,87,0.14) 0%, rgba(233,168,87,0) 60%),
+    linear-gradient(180deg, rgba(28,22,16,0.94), rgba(14,12,8,0.92));
+  border-color: rgba(233,168,87,0.24);
+}
+.ws-hero.is-positive { border-color: rgba(63,191,127,0.22); }
+.ws-hero.is-info     { border-color: rgba(138,166,255,0.22); }
+
+.ws-hero-label {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.65);
+  font-weight: 600;
+}
+.ws-hero-value {
+  position: relative;
+  z-index: 1;
+  font-size: clamp(26px, 6vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  /* Never truncate — clamp scales it down on narrow screens instead. */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: keep-all;
+}
+.ws-hero-delta {
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.ws-hero-delta.is-positive { color: #3FBF7F; }
+.ws-hero-delta.is-negative { color: #E05A5A; }
+.ws-hero-delta.is-muted    { color: rgba(220,230,250,0.55); font-weight: 500; }
+.ws-hero-meta {
+  position: relative;
+  z-index: 1;
+  font-size: 12.5px;
+  color: rgba(220,230,250,0.6);
+  letter-spacing: 0.01em;
+  margin-top: 4px;
 }
 
-/* MW-1: 6 cards × 2 columns × 3 rows — tighter gap to match Market
-   mobile rhythm. */
-.aurix-mobile-summary {
+/* ── Secondary KPI grid (2×2) ─────────────────────────────── */
+.ws-kpi-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-
-.aurix-summary-card {
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.07);
+.ws-kpi-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-height: 80px;
   justify-content: center;
-  position: relative;
-  overflow: hidden;
+  gap: 8px;
+  min-height: 96px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.012));
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: transform 0.18s ease, border-color 0.18s ease;
 }
-
-.aurix-summary-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.030), rgba(255,255,255,0) 50%);
-}
-
-.aurix-summary-card.is-positive {
-  border-color: rgba(63, 191, 127, 0.22);
-}
-
-.aurix-summary-card.is-negative {
-  border-color: rgba(224, 90, 90, 0.22);
-}
-
-.aurix-summary-card.is-warn {
-  border-color: rgba(233, 168, 87, 0.22);
-}
-
-.aurix-summary-card.is-info {
-  border-color: rgba(138, 166, 255, 0.22);
-}
-
-.aurix-summary-label {
+.ws-kpi-card:active { transform: scale(0.985); }
+.ws-kpi-card.is-info     { border-color: rgba(138,166,255,0.22); }
+.ws-kpi-card.is-positive { border-color: rgba(63,191,127,0.22); }
+.ws-kpi-card.is-warn     { border-color: rgba(233,168,87,0.24); }
+.ws-kpi-label {
   font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
-  opacity: 0.82;
+  color: rgba(220,230,250,0.6);
+  font-weight: 600;
 }
-
-.aurix-summary-value {
-  font-size: 19px;
-  font-weight: var(--font-weight-semibold);
+.ws-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.1;
+  /* Long values (FX + thousands) — wrap rather than ellipsis. */
+  white-space: normal;
+  word-break: break-word;
+}
+.ws-kpi-card.is-warn     .ws-kpi-value { color: #E9A857; }
+.ws-kpi-card.is-positive .ws-kpi-value { color: #3FBF7F; }
+
+/* ── Section header ───────────────────────────────────────── */
+.ws-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.ws-section-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(220,230,250,0.85);
+}
+.ws-section-sub {
+  font-size: 12.5px;
+  color: rgba(220,230,250,0.55);
+  letter-spacing: 0.005em;
+  line-height: 1.4;
 }
 
-.aurix-summary-card.is-positive .aurix-summary-value {
-  color: #3FBF7F;
-}
-
-.aurix-summary-card.is-negative .aurix-summary-value {
-  color: #E05A5A;
-}
-
-.aurix-summary-card.is-warn .aurix-summary-value {
-  color: #E9A857;
-}
-
-.aurix-summary-hint {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-}
-
-.aurix-summary-card.is-positive .aurix-summary-hint {
-  color: #3FBF7F;
-  opacity: 0.88;
-}
-
-.aurix-summary-card.is-negative .aurix-summary-hint {
-  color: #E05A5A;
-  opacity: 0.88;
-}
-
-/* MW-1: stacked mobile risk panel — categorised by Concentration /
-   Exposure / Volatility / Sync. No half-cut layout: each row has its
-   own line, label on the left, signal text + tone dot on the right. */
-.aurix-mobile-risk {
-  background: var(--bg-card);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 14px;
-  padding: 14px 14px 14px;
+/* ── Stacked risk cards ───────────────────────────────────── */
+.ws-risk-stack {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-
-.aurix-mobile-risk-header {
-  display: flex;
-  align-items: center;
-}
-
-.aurix-mobile-risk-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text);
-  font-weight: var(--font-weight-semibold);
-  opacity: 0.82;
-}
-
-.aurix-mobile-risk-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.aurix-mobile-risk-row {
+.ws-risk-card {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+  grid-template-columns: 36px 1fr;
   align-items: center;
   gap: 12px;
-  padding: 6px 0;
-  border-top: 1px solid rgba(255,255,255,0.04);
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.06);
 }
-.aurix-mobile-risk-row:first-child { border-top: 0; }
-
-.aurix-mobile-risk-row-label {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: var(--font-weight-semibold);
-  color: rgba(220,230,250,0.55);
-}
-
-.aurix-mobile-risk-row-signal {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--text);
-  text-align: right;
-  justify-content: flex-end;
-}
-
-.aurix-mobile-risk-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
+.ws-risk-icon {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: rgba(138, 166, 255, 0.85);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(138,166,255,0.95);
+  background: rgba(138,166,255,0.12);
+  border: 1px solid rgba(138,166,255,0.20);
+  flex-shrink: 0;
 }
+.ws-risk-body { min-width: 0; }
+.ws-risk-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(220,230,250,0.55);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.ws-risk-msg {
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: #fff;
+  font-weight: 500;
+}
+.ws-risk-card.is-ok       { border-color: rgba(63,191,127,0.22); }
+.ws-risk-card.is-ok       .ws-risk-icon { color: #3FBF7F; background: rgba(63,191,127,0.12); border-color: rgba(63,191,127,0.22); }
+.ws-risk-card.is-warn     { border-color: rgba(233,168,87,0.26); }
+.ws-risk-card.is-warn     .ws-risk-icon { color: #E9A857; background: rgba(233,168,87,0.14); border-color: rgba(233,168,87,0.30); }
+.ws-risk-card.is-critical { border-color: rgba(224,90,90,0.30); }
+.ws-risk-card.is-critical .ws-risk-icon { color: #E05A5A; background: rgba(224,90,90,0.14); border-color: rgba(224,90,90,0.30); }
+.ws-risk-card.is-info     { border-color: rgba(138,166,255,0.22); }
+.ws-risk-card.is-info     .ws-risk-icon { color: rgba(138,166,255,0.95); background: rgba(138,166,255,0.12); border-color: rgba(138,166,255,0.22); }
 
-.aurix-mobile-risk-row.is-ok   .aurix-mobile-risk-dot { background: rgba(63,191,127,0.85); }
-.aurix-mobile-risk-row.is-info .aurix-mobile-risk-dot { background: rgba(138,166,255,0.85); }
-.aurix-mobile-risk-row.is-warn .aurix-mobile-risk-dot { background: rgba(233,168,87,0.92); }
-
-.aurix-mobile-risk-text {
+/* ── Quick actions ────────────────────────────────────────── */
+.ws-quick-actions {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  margin: 4px -2px 0;
+  padding: 0 2px 4px;
+  scroll-padding-inline: 2px;
+}
+.ws-quick-actions::-webkit-scrollbar { display: none; }
+.ws-action {
   flex: 1 1 auto;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 50px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(138,166,255,0.10), rgba(138,166,255,0.04));
+  border: 1px solid rgba(138,166,255,0.22);
+  color: rgba(225,233,255,0.95);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.22s ease;
+}
+.ws-action:active {
+  transform: scale(0.97);
+  background: linear-gradient(180deg, rgba(138,166,255,0.18), rgba(138,166,255,0.06));
+  box-shadow: 0 0 0 4px rgba(138,166,255,0.10);
+}
+.ws-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(138,166,255,0.18);
+  color: rgba(225,233,255,0.95);
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.ws-action-label {
   overflow: hidden;
   text-overflow: ellipsis;
 }

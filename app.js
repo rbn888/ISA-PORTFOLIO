@@ -680,6 +680,21 @@ const T = {
     wsSyncLive:              'Mercado al día',
     wsSyncOffline:           'Sin sincronización reciente',
     ws_mobile_note:          'La edición tipo hoja está disponible en escritorio. En móvil se muestran los indicadores clave.',
+    wsCardLiquidity:         'Liquidez',
+    ws_hero_label:           'Valor total de cartera',
+    ws_hero_today:           'hoy',
+    ws_hero_meta:            (n, band) => `${n} ${n === 1 ? 'activo' : 'activos'} • riesgo ${band}`,
+    ws_hero_meta_empty:      'Sin activos en cartera',
+    ws_no_history:           'Sin histórico suficiente',
+    ws_pi_eyebrow:           'Portfolio Intelligence',
+    ws_pi_sub:               'Visión consolidada de riesgo y exposición',
+    ws_action_add_asset:     'Añadir activo',
+    ws_action_add_liquidity: 'Añadir liquidez',
+    ws_action_open_dashboard:'Abrir dashboard',
+    ws_risk_concentration:   'Concentración',
+    ws_risk_exposure:        'Exposición',
+    ws_risk_volatility:      'Volatilidad',
+    ws_risk_sync:            'Sincronización',
     globalSearchPH:           'Busca BTC, Tesla, IWDA, Oro...',
     globalSearchHeroTitle:    'Buscar activos',
     globalSearchHeroSub:      'Busca acciones, cripto, ETFs, fondos, índices y materias primas.',
@@ -1144,6 +1159,21 @@ const T = {
     wsSyncLive:              'Market live',
     wsSyncOffline:           'No recent sync',
     ws_mobile_note:          'Spreadsheet editing is available on desktop. Mobile shows key workspace insights.',
+    wsCardLiquidity:         'Liquidity',
+    ws_hero_label:           'Total portfolio value',
+    ws_hero_today:           'today',
+    ws_hero_meta:            (n, band) => `${n} ${n === 1 ? 'asset' : 'assets'} • ${band} risk`,
+    ws_hero_meta_empty:      'No assets in portfolio',
+    ws_no_history:           'Not enough history yet',
+    ws_pi_eyebrow:           'Portfolio Intelligence',
+    ws_pi_sub:               'Consolidated risk and exposure overview',
+    ws_action_add_asset:     'Add asset',
+    ws_action_add_liquidity: 'Add cash',
+    ws_action_open_dashboard:'Open dashboard',
+    ws_risk_concentration:   'Concentration',
+    ws_risk_exposure:        'Exposure',
+    ws_risk_volatility:      'Volatility',
+    ws_risk_sync:            'Sync',
     globalSearchPH:           'Search BTC, Tesla, IWDA, Gold...',
     globalSearchHeroTitle:    'Search assets',
     globalSearchHeroSub:      'Search stocks, crypto, ETFs, funds, indices and commodities.',
@@ -6126,9 +6156,11 @@ function _renderWorkspaceDesktop(sheet) {
 }
 
 function _renderWorkspaceMobile(sheet) {
-  // AW-5 §10: executive cockpit. Reads the same derived snapshot as desktop;
-  // never mutates state. Six condensed cards arranged in three rows of two,
-  // followed by a compact risk strip and the FAB.
+  // MW-2: executive intelligence dashboard. Reads the same derived snapshot
+  // as the desktop renderer — pure consumer, no math, no state mutation.
+  // Hierarchy: hero KPI → secondary KPI grid → portfolio-intelligence
+  // section header → stacked risk cards → quick actions. Replaces the
+  // earlier equal-weight 2×3 grid + table risk panel.
   const derived = getDerivedFinancialSnapshot();
   const portfolio  = derived?.portfolio || {};
   const totalValue = Number(portfolio.totalValue || 0);
@@ -6141,119 +6173,182 @@ function _renderWorkspaceMobile(sheet) {
   const dailyPnl    = (typeof portfolio.dailyPnl === 'number') ? portfolio.dailyPnl : null;
   const dailyPnlPct = (typeof portfolio.dailyPnlPct === 'number') ? portfolio.dailyPnlPct : null;
 
-  // Workspace mobile cards: route monetary values through the canonical
-  // display layer so they pick up the global currency toggle uniformly.
-  // portfolio.totalValue is the raw qty*price aggregate (USD per dashboard
-  // convention) — formatDisplay handles the conversion + formatting.
+  // Monetary values route through the canonical display layer so the
+  // global currency toggle is honoured. portfolio.totalValue is the raw
+  // qty*price aggregate (USD per dashboard convention).
   const fmtMoney  = v => formatDisplay(v, 'USD');
   const fmtSigned = v => {
     const n = Number(v) || 0;
     return (n >= 0 ? '+' : '') + formatDisplay(n, 'USD');
   };
 
-  const topLabel = topAlloc?.symbol
-    ? `${topAlloc.symbol} · ${((topAlloc.allocation || 0) * 100).toFixed(1)}%`
-    : '—';
+  // Liquidity in base currency, summed across cash entries via the
+  // canonical liquidity helper — never raw qty (mixed currencies).
+  const liquidityBase = (Array.isArray(assets) ? assets : [])
+    .filter(a => a.type === 'cash')
+    .reduce((s, a) => s + liquidityBaseValue(a), 0);
 
-  // AW-5 §10: simple consumer-only risk score — derived from concentration +
-  // crypto exposure. Range 0–100 (lower = safer). No new computation pipelines.
+  // Risk band — same heuristic the previous version used; consumer-only.
   let riskScore = 25;
-  if (topAlloc && Number(topAlloc.allocation || 0) > 0.5) riskScore += 25;
+  if (topAlloc && Number(topAlloc.allocation || 0) > 0.5)  riskScore += 25;
   else if (topAlloc && Number(topAlloc.allocation || 0) > 0.35) riskScore += 12;
   if (cryptoPct > 40) riskScore += 25;
   else if (cryptoPct > 15) riskScore += 10;
   if (assetCount > 0 && assetCount < 4) riskScore += 10;
   if (assetCount === 0) riskScore = 0;
   riskScore = Math.min(100, Math.max(0, Math.round(riskScore)));
-  const riskBand = riskScore >= 60 ? t('wsRiskBandHigh') : riskScore >= 35 ? t('wsRiskBandModerate') : t('wsRiskBandLow');
+  const riskBand = riskScore >= 60 ? t('wsRiskBandHigh')
+                  : riskScore >= 35 ? t('wsRiskBandModerate')
+                                    : t('wsRiskBandLow');
+  const heroTone = assetCount === 0 ? 'neutral'
+                  : riskScore >= 60 ? 'warn'
+                  : riskScore >= 35 ? 'info'
+                                    : 'positive';
 
-  const cards = [
-    {
-      label: t('wsCardPortfolioValue'),
-      value: assetCount === 0 ? '—' : fmtMoney(totalValue),
-      tone:  'neutral',
-    },
-    {
-      label: t('wsCardDailyPnl'),
-      value: dailyPnl == null ? '—' : fmtSigned(dailyPnl),
-      hint:  dailyPnlPct == null ? null : (dailyPnlPct >= 0 ? '+' : '') + dailyPnlPct.toFixed(2) + '%',
-      tone:  dailyPnl == null ? 'neutral' : (dailyPnl >= 0 ? 'positive' : 'negative'),
-    },
-    {
-      label: t('wsCardTopAlloc'),
-      value: topLabel,
-      tone:  'neutral',
-    },
-    {
-      label: t('wsCardCryptoExposure'),
-      value: assetCount === 0 ? '—' : cryptoPct.toFixed(1) + '%',
-      tone:  cryptoPct > 40 ? 'warn' : 'neutral',
-    },
-    {
-      label: t('wsCardAssetCount'),
-      value: String(assetCount),
-      tone:  'neutral',
-    },
-    {
-      label: t('wsCardRiskScore'),
-      value: assetCount === 0 ? '—' : String(riskScore),
-      hint:  assetCount === 0 ? null : riskBand,
-      tone:  riskScore >= 60 ? 'warn' : (riskScore >= 35 ? 'info' : 'positive'),
-    },
+  // Hero delta: never render "—". If daily P&L is missing we either hide
+  // the line or replace it with a soft "not enough history" note.
+  let heroDeltaHtml = '';
+  if (dailyPnl != null) {
+    const signed = fmtSigned(dailyPnl);
+    const pctStr = dailyPnlPct != null
+      ? ` (${dailyPnlPct >= 0 ? '+' : ''}${dailyPnlPct.toFixed(2)}%)`
+      : '';
+    const deltaTone = dailyPnl >= 0 ? 'positive' : 'negative';
+    heroDeltaHtml = `<div class="ws-hero-delta is-${deltaTone}">${_escapeWorkspaceText(signed)} ${_escapeWorkspaceText(t('ws_hero_today'))}${_escapeWorkspaceText(pctStr)}</div>`;
+  } else if (assetCount > 0) {
+    heroDeltaHtml = `<div class="ws-hero-delta is-muted">${_escapeWorkspaceText(t('ws_no_history'))}</div>`;
+  }
+
+  const heroMeta = assetCount === 0
+    ? t('ws_hero_meta_empty')
+    : (typeof t('ws_hero_meta') === 'function'
+        ? t('ws_hero_meta')(assetCount, String(riskBand).toLowerCase())
+        : `${assetCount} • ${riskBand}`);
+
+  const heroValueText = assetCount === 0 ? fmtMoney(0) : fmtMoney(totalValue);
+
+  // Top allocation label — never "—", show a placeholder dash when empty
+  // but keep the card aligned with the rest of the grid.
+  const topLabel = topAlloc?.symbol
+    ? `${topAlloc.symbol} · ${((topAlloc.allocation || 0) * 100).toFixed(0)}%`
+    : '—';
+
+  // Secondary KPI grid — portfolio value is intentionally absent
+  // (already the hero); the four cards here are pure context metrics.
+  const secondary = [
+    { label: t('wsCardTopAlloc'),       value: topLabel,                                          tone: 'info'     },
+    { label: t('wsCardCryptoExposure'), value: assetCount === 0 ? '—' : cryptoPct.toFixed(1) + '%', tone: cryptoPct > 40 ? 'warn' : 'info' },
+    { label: t('wsCardAssetCount'),     value: String(assetCount),                                tone: 'neutral'  },
+    { label: t('wsCardLiquidity'),      value: formatBase(liquidityBase),                         tone: 'positive' },
   ];
 
-  const summary = cards.map(c => `
-    <div class="aurix-summary-card is-${_escapeWorkspaceText(c.tone || 'neutral')}">
-      <div class="aurix-summary-label">${_escapeWorkspaceText(c.label)}</div>
-      <div class="aurix-summary-value">${_escapeWorkspaceText(c.value)}</div>
-      ${c.hint ? `<div class="aurix-summary-hint">${_escapeWorkspaceText(c.hint)}</div>` : ''}
+  const kpiHtml = secondary.map(c => `
+    <div class="ws-kpi-card is-${_escapeWorkspaceText(c.tone)}">
+      <div class="ws-kpi-label">${_escapeWorkspaceText(c.label)}</div>
+      <div class="ws-kpi-value">${_escapeWorkspaceText(c.value)}</div>
     </div>
   `).join('');
 
-  // MW-1: stacked risk panel by category — Concentration / Exposure /
-  // Volatility / Sync. Reads the same derived snapshot consumed by the
-  // desktop risk monitor so the mobile view never drifts from the
-  // source-of-truth; the Sync row is synthesised from the existing
-  // WORKSPACE_RUNTIME.stale flag (no new pipelines, no persistence).
+  // Stacked risk cards — Concentration / Exposure / Volatility / Sync.
+  // Categories come from the existing derived signal builder; the Sync
+  // row is synthesised from the existing stale flag (no new pipelines).
   const categories = _buildWorkspaceRiskCategories();
-  const syncTone = WORKSPACE_RUNTIME.stale ? 'info' : 'ok';
-  const syncText = WORKSPACE_RUNTIME.stale
-    ? (t('wsSyncOffline') || 'Sync paused')
-    : (t('wsSyncLive')    || 'Market live');
+  const syncStale = !!WORKSPACE_RUNTIME.stale;
   categories.push({
     id: 'sync',
-    label: t('wsSyncLabel') || 'Sync',
-    signals: [{ tone: syncTone, text: syncText }],
+    label: t('ws_risk_sync'),
+    signals: [{
+      tone: syncStale ? 'info' : 'ok',
+      text: syncStale ? (t('wsSyncOffline') || 'Sync paused')
+                      : (t('wsSyncLive')    || 'Market live'),
+    }],
   });
 
-  const riskRows = categories.map(cat => {
-    const sig = cat.signals[0] || { tone: 'ok', text: '—' };
+  const RISK_LABEL_OVERRIDE = {
+    concentration: t('ws_risk_concentration'),
+    exposure:      t('ws_risk_exposure'),
+    volatility:    t('ws_risk_volatility'),
+    sync:          t('ws_risk_sync'),
+  };
+  const RISK_ICON = {
+    concentration: '▲',
+    exposure:      '%',
+    volatility:    '⚡',
+    sync:          '↻',
+  };
+
+  const riskCardsHtml = categories.map(cat => {
+    const sig  = cat.signals[0] || { tone: 'ok', text: '—' };
     const tone = String(sig.tone || 'ok');
+    const icon = RISK_ICON[cat.id] || '•';
+    const label = RISK_LABEL_OVERRIDE[cat.id] || cat.label;
     return `
-      <li class="aurix-mobile-risk-row is-${_escapeWorkspaceText(tone)}">
-        <span class="aurix-mobile-risk-row-label">${_escapeWorkspaceText(cat.label)}</span>
-        <span class="aurix-mobile-risk-row-signal">
-          <span class="aurix-mobile-risk-dot" aria-hidden="true"></span>
-          <span class="aurix-mobile-risk-text">${_escapeWorkspaceText(sig.text)}</span>
-        </span>
-      </li>
+      <article class="ws-risk-card is-${_escapeWorkspaceText(tone)}">
+        <span class="ws-risk-icon" aria-hidden="true">${_escapeWorkspaceText(icon)}</span>
+        <div class="ws-risk-body">
+          <div class="ws-risk-label">${_escapeWorkspaceText(label)}</div>
+          <div class="ws-risk-msg">${_escapeWorkspaceText(sig.text)}</div>
+        </div>
+      </article>
     `;
   }).join('');
 
-  // MW-1: drop the redundant <header> — bottom-nav already signals the
-  // active section, matching the Market mobile philosophy (MC-11C.3).
   return `
     <div class="aurix-workspace-shell is-mobile">
-      <section class="aurix-mobile-summary">${summary}</section>
-      <p class="aurix-mobile-note">${_escapeWorkspaceText(t('ws_mobile_note') || '')}</p>
-      <section class="aurix-mobile-risk" aria-label="${_escapeWorkspaceText(t('ws_risk_signals'))}">
-        <header class="aurix-mobile-risk-header">
-          <span class="aurix-mobile-risk-eyebrow">${_escapeWorkspaceText(t('ws_risk_signals'))}</span>
-        </header>
-        <ul class="aurix-mobile-risk-list">${riskRows}</ul>
+      <section class="ws-hero is-${_escapeWorkspaceText(heroTone)}">
+        <div class="ws-hero-label">${_escapeWorkspaceText(t('ws_hero_label'))}</div>
+        <div class="ws-hero-value">${_escapeWorkspaceText(heroValueText)}</div>
+        ${heroDeltaHtml}
+        <div class="ws-hero-meta">${_escapeWorkspaceText(heroMeta)}</div>
+      </section>
+
+      <section class="ws-kpi-grid">${kpiHtml}</section>
+
+      <header class="ws-section-head">
+        <div class="ws-section-eyebrow">${_escapeWorkspaceText(t('ws_pi_eyebrow'))}</div>
+        <div class="ws-section-sub">${_escapeWorkspaceText(t('ws_pi_sub'))}</div>
+      </header>
+
+      <section class="ws-risk-stack" aria-label="${_escapeWorkspaceText(t('ws_risk_signals'))}">${riskCardsHtml}</section>
+
+      <section class="ws-quick-actions" aria-label="${_escapeWorkspaceText(t('ws_pi_eyebrow'))}">
+        <button type="button" class="ws-action" data-ws-action="add-asset">
+          <span class="ws-action-icon" aria-hidden="true">+</span>
+          <span class="ws-action-label">${_escapeWorkspaceText(t('ws_action_add_asset'))}</span>
+        </button>
+        <button type="button" class="ws-action" data-ws-action="add-liquidity">
+          <span class="ws-action-icon" aria-hidden="true">+</span>
+          <span class="ws-action-label">${_escapeWorkspaceText(t('ws_action_add_liquidity'))}</span>
+        </button>
+        <button type="button" class="ws-action" data-ws-action="open-dashboard">
+          <span class="ws-action-icon" aria-hidden="true">↗</span>
+          <span class="ws-action-label">${_escapeWorkspaceText(t('ws_action_open_dashboard'))}</span>
+        </button>
       </section>
     </div>
   `;
+}
+
+// MW-2: delegated wiring for the mobile quick-action chips. Attaches
+// once per container (renderWorkspace replaces innerHTML on every
+// render, but the container element persists), so subsequent renders
+// don't accumulate listeners.
+function _bindWorkspaceMobileActions(container) {
+  if (!container || container._wsActionsBound) return;
+  container._wsActionsBound = true;
+  container.addEventListener('click', e => {
+    const btn = e.target.closest('[data-ws-action]');
+    if (!btn) return;
+    e.preventDefault();
+    const action = btn.dataset.wsAction;
+    if (action === 'add-asset' && typeof openModal === 'function') {
+      openModal();
+    } else if (action === 'add-liquidity' && typeof openLiquidityModal === 'function') {
+      openLiquidityModal();
+    } else if (action === 'open-dashboard' && typeof switchTab === 'function') {
+      switchTab('home');
+    }
+  });
 }
 
 function renderWorkspace() {
@@ -6270,6 +6365,7 @@ function renderWorkspace() {
   container.innerHTML = isDesktop
     ? _renderWorkspaceDesktop(sheet)
     : _renderWorkspaceMobile(sheet);
+  if (!isDesktop) _bindWorkspaceMobileActions(container);
 
   WORKSPACE_RUNTIME.renderVersion++;
   WORKSPACE_RUNTIME.lastRenderAt   = Date.now();
