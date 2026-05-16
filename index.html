@@ -293,9 +293,63 @@
 
   <!-- Modal: Añadir activo -->
   <div class="modal-overlay" id="modalOverlay">
-    <div class="modal">
+    <div class="modal" data-step="picker">
       <span class="sheet-handle" aria-hidden="true"></span>
+
+      <!-- ADD-V2.1: Step 1 — premium type picker. Routes to the existing
+           flows (selectAsset / liquidityForm / enterRealEstateMode). No
+           submit / persistence logic touched. Toggled via data-step on .modal. -->
+      <section class="add-v2-picker" id="addV2Picker">
+        <div class="add-v2-picker-head">
+          <h3 data-i18n="addV2_picker_title">¿Qué quieres añadir?</h3>
+          <button class="modal-close" id="addV2PickerClose" type="button" aria-label="Close">✕</button>
+        </div>
+        <p class="add-v2-picker-sub" data-i18n="addV2_picker_sub">Elige el tipo para empezar.</p>
+        <div class="add-v2-grid">
+          <button type="button" class="add-v2-card" data-pick="asset">
+            <span class="add-v2-icon">◆</span>
+            <span class="add-v2-text">
+              <span class="add-v2-title" data-i18n="addV2_pick_asset_title">Activo financiero</span>
+              <span class="add-v2-sub" data-i18n="addV2_pick_asset_sub">Acciones, ETFs, fondos, cripto, índices</span>
+            </span>
+            <span class="add-v2-chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="add-v2-card" data-pick="liquidity">
+            <span class="add-v2-icon">€</span>
+            <span class="add-v2-text">
+              <span class="add-v2-title" data-i18n="addV2_pick_liquidity_title">Liquidez</span>
+              <span class="add-v2-sub" data-i18n="addV2_pick_liquidity_sub">Saldos en efectivo en EUR, USD…</span>
+            </span>
+            <span class="add-v2-chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="add-v2-card" data-pick="gold">
+            <span class="add-v2-icon">◉</span>
+            <span class="add-v2-text">
+              <span class="add-v2-title" data-i18n="addV2_pick_gold_title">Oro físico</span>
+              <span class="add-v2-sub" data-i18n="addV2_pick_gold_sub">Joyería, lingotes o monedas por peso y pureza</span>
+            </span>
+            <span class="add-v2-chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="add-v2-card" data-pick="real_estate">
+            <span class="add-v2-icon">⌂</span>
+            <span class="add-v2-text">
+              <span class="add-v2-title" data-i18n="addV2_pick_re_title">Inmueble</span>
+              <span class="add-v2-sub" data-i18n="addV2_pick_re_sub">Valor del inmueble y renta mensual</span>
+            </span>
+            <span class="add-v2-chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="add-v2-card is-disabled" data-pick="other" disabled aria-disabled="true">
+            <span class="add-v2-icon">⋯</span>
+            <span class="add-v2-text">
+              <span class="add-v2-title" data-i18n="addV2_pick_other_title">Otro activo</span>
+              <span class="add-v2-sub add-v2-soon" data-i18n="addV2_pick_other_sub">Próximamente</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
       <div class="modal-header">
+        <button class="add-v2-back" id="addV2Back" type="button" aria-label="Back" data-i18n-aria="addV2_back">‹</button>
         <h3 data-i18n="modalAddTitle">Añadir activo</h3>
         <button class="modal-close" id="modalClose">✕</button>
       </div>

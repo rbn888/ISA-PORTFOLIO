@@ -1115,6 +1115,165 @@ body.modal-open {
   display: none;
 }
 
+/* ── ADD-V2.1: Step 1 type picker ────────────────────────────────
+   Premium first-step picker that lives inside #modalOverlay. The
+   .modal toggles data-step between "picker" and "form" — picker mode
+   hides the existing form scaffolding (header + segmented toggle +
+   #assetForm) and reveals #addV2Picker; form mode is the existing
+   modal exactly as it was. Card clicks route to the existing flows
+   (selectAsset / liquidityForm / enterRealEstateMode) — no submit or
+   persistence logic is duplicated. */
+.modal[data-step="picker"] > .modal-header,
+.modal[data-step="picker"] > .add-type-toggle,
+.modal[data-step="picker"] > #assetForm {
+  display: none;
+}
+.modal:not([data-step="picker"]) > #addV2Picker {
+  display: none;
+}
+
+.add-v2-picker {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 22px;
+  gap: 14px;
+}
+.add-v2-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.add-v2-picker-head h3 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.add-v2-picker-sub {
+  margin: -4px 0 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  letter-spacing: 0.005em;
+}
+.add-v2-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.add-v2-card {
+  display: grid;
+  grid-template-columns: 44px 1fr 16px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+  border: 1px solid rgba(255,255,255,0.07);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.22s ease;
+}
+.add-v2-card:hover {
+  border-color: rgba(138,166,255,0.32);
+  background: linear-gradient(180deg, rgba(138,166,255,0.08), rgba(138,166,255,0.02));
+  box-shadow: 0 0 0 4px rgba(138,166,255,0.06);
+}
+.add-v2-card:active {
+  transform: scale(0.985);
+  box-shadow: 0 0 0 4px rgba(138,166,255,0.10);
+}
+.add-v2-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+  border-color: rgba(255,255,255,0.05);
+}
+.add-v2-card.is-disabled:hover {
+  border-color: rgba(255,255,255,0.05);
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+  box-shadow: none;
+}
+.add-v2-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 700;
+  color: rgba(138,166,255,0.95);
+  background: rgba(138,166,255,0.10);
+  border: 1px solid rgba(138,166,255,0.20);
+}
+.add-v2-card[data-pick="liquidity"] .add-v2-icon { color: #3FBF7F; background: rgba(63,191,127,0.10); border-color: rgba(63,191,127,0.22); }
+.add-v2-card[data-pick="gold"]      .add-v2-icon { color: #E9C46A; background: rgba(233,196,106,0.10); border-color: rgba(233,196,106,0.24); }
+.add-v2-card[data-pick="real_estate"] .add-v2-icon { color: #C9B3F6; background: rgba(201,179,246,0.10); border-color: rgba(201,179,246,0.22); }
+.add-v2-card.is-disabled .add-v2-icon {
+  color: rgba(220,230,250,0.5);
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.06);
+}
+.add-v2-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.add-v2-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.005em;
+}
+.add-v2-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  white-space: normal;
+}
+.add-v2-soon {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(225,233,255,0.7);
+}
+.add-v2-chevron {
+  font-size: 16px;
+  color: rgba(220,230,250,0.45);
+  line-height: 1;
+}
+
+/* Back button — shows only when Step 2 was entered via the picker. */
+.add-v2-back {
+  display: none;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-right: 2px;
+  transition: color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+.add-v2-back:hover { color: var(--text); background: var(--bg-card-2); }
+.modal[data-from-picker="1"] .add-v2-back { display: inline-flex; }
+
 .modal-body {
   padding: var(--space-5);
   /* MC-7B: scroll the form body, not the whole modal, so the header
