@@ -786,6 +786,7 @@ const T = {
     globalSearchNoResults:    'Sin resultados',
     globalSearchNoResultsHint:'No encontramos coincidencias. Prueba con otro nombre o ticker.',
     gs_add_to_portfolio:      '+ Añadir',
+    gs_view_chart:            'Ver gráfico',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Plantillas',
     ws_assistant_title:      'Asistente de Workspace',
@@ -1403,6 +1404,7 @@ const T = {
     globalSearchNoResults:    'No results',
     globalSearchNoResultsHint:"We couldn't find a match. Try another name or ticker.",
     gs_add_to_portfolio:      '+ Add',
+    gs_view_chart:            'View chart',
     // PR-WP6D: workspace assistant + template panel
     ws_templates_btn:        'Templates',
     ws_assistant_title:      'Workspace Assistant',
@@ -8736,12 +8738,17 @@ function _aurixMktUpdateWatchUI(symbol) {
   btn.textContent = isWatched ? '★' : '☆';
   btn.classList.toggle('is-active', isWatched);
 }
-function _aurixMktOpenSymbol(symbol) {
+function _aurixMktOpenSymbol(symbol, itemOverride) {
   if (!_aurixMktFlag()) return false;
-  if (!symbol) return false;
-  // Locate the market item (price, change24h, name, type, ids).
-  let item = null;
-  try { item = (typeof _findMktItem === 'function') ? _findMktItem(symbol, MARKET_DATA) : null; } catch (_) {}
+  if (!symbol && !itemOverride) return false;
+  // SEARCH-1: callers from outside the Market screen (e.g. global
+  // search results) pass an explicit `itemOverride` because the asset
+  // may not be in MARKET_DATA. When provided, the override carries the
+  // identity + adapter ids (coinId / marketSymbol) already.
+  let item = itemOverride || null;
+  if (!item) {
+    try { item = (typeof _findMktItem === 'function') ? _findMktItem(symbol, MARKET_DATA) : null; } catch (_) {}
+  }
   if (!item) return false;
 
   const overlay = document.getElementById('marketPreviewOverlay');
@@ -15036,9 +15043,9 @@ function _gsInit() {
     if (e.key === 'Escape' && !el.hidden) closeGlobalSearch();
   });
 
-  // Delegated row clicks: only one action — "Add" routes through the
-  // existing Add Asset flow (modal + selectAsset). No "View" button:
-  // the asset detail page isn't ready and we don't ship dead controls.
+  // Delegated row clicks: two actions — "Chart" opens the Market
+  // Preview chart (SEARCH-1, reuses _aurixMktOpenSymbol with an item
+  // override). "Add" routes through the existing Add Asset flow.
   _GLOBAL_SEARCH.results?.addEventListener('click', e => {
     const btn = e.target.closest('[data-gs-action]');
     if (!btn) return;
@@ -15047,14 +15054,32 @@ function _gsInit() {
     const idx  = Number(row.dataset.gsIndex);
     const item = _GLOBAL_SEARCH._lastItems?.[idx];
     if (!item) return;
-    if (btn.dataset.gsAction === 'add') {
-      // MOBILE PASS 1A: save the chosen asset's name/ticker as the
-      // recent — never the partial query the user typed. Length is
-      // still bounded by _gsSaveRecent.
-      const label = (item.name && item.name.trim()) || (item.ticker || '').trim();
-      if (label) _gsSaveRecent(label);
+    const action = btn.dataset.gsAction;
+    // Save chosen asset's label as "recent" before either action so
+    // both surfaces (chart / add) feed the same recent-search history.
+    const label = (item.name && item.name.trim()) || (item.ticker || '').trim();
+    if (label) _gsSaveRecent(label);
+
+    if (action === 'chart') {
+      const mItem = _searchResultToMarketItem(item);
+      if (!mItem) return;
+      // Close search first so the preview overlay is the topmost layer
+      // and the user's focus isn't trapped between two stacked sheets.
+      closeGlobalSearch();
+      const opened = (typeof _aurixMktOpenSymbol === 'function')
+        ? _aurixMktOpenSymbol(mItem.symbol, mItem)
+        : false;
+      if (!opened) {
+        // Graceful degradation: if the preview can't open (missing
+        // adapter ids on the catalog item), fall through to Add Asset.
+        _openAddAssetWithFund(item);
+      }
+      return;
+    }
+    if (action === 'add') {
       closeGlobalSearch();
       _openAddAssetWithFund(item);
+      return;
     }
   });
 
@@ -15198,7 +15223,11 @@ function _gsEscape(s) {
 
 function _gsRenderResults(items) {
   if (!_GLOBAL_SEARCH.results || !items.length) return;
-  const addLabel = t('gs_add_to_portfolio') || '+ Añadir';
+  const addLabel   = t('gs_add_to_portfolio') || '+ Añadir';
+  // SEARCH-1: primary "Ver gráfico" action reuses the existing Market
+  // Preview chart (no new chart engine, no new endpoint). "Añadir"
+  // becomes the secondary glass button.
+  const chartLabel = t('gs_view_chart') || 'Ver gráfico';
   _GLOBAL_SEARCH.results.innerHTML = items.map((item, i) => {
     const b = _gsBadgeFor(item.type);
     return `
@@ -15212,11 +15241,36 @@ function _gsRenderResults(items) {
           <div class="gs-row-meta">—</div>
         </div>
         <div class="gs-row-actions">
-          <button class="gs-row-btn is-primary" type="button" data-gs-action="add">${_gsEscape(addLabel)}</button>
+          <button class="gs-row-btn is-primary"   type="button" data-gs-action="chart">${_gsEscape(chartLabel)}</button>
+          <button class="gs-row-btn is-secondary" type="button" data-gs-action="add">${_gsEscape(addLabel)}</button>
         </div>
       </li>
     `;
   }).join('');
+}
+
+// SEARCH-1: normalize a search result into the item shape the Market
+// Preview expects. The preview reads:
+//   symbol (ticker), name, type, coinId | marketSymbol, current_price,
+//   change24h. Search results already carry most of these — this is
+//   mostly a passthrough that uppercases the symbol and ensures the
+//   adapter ids are surfaced verbatim.
+function _searchResultToMarketItem(result) {
+  if (!result) return null;
+  const ticker = String(result.ticker || result.symbol || '').toUpperCase();
+  if (!ticker) return null;
+  return {
+    symbol:         ticker,
+    ticker,
+    name:           result.name || ticker,
+    type:           String(result.type || 'other').toLowerCase(),
+    coinId:         result.coinId       || null,
+    marketSymbol:   result.marketSymbol || null,
+    currency:       result.currency     || 'USD',
+    current_price:  result.price        ?? result.current_price ?? null,
+    price:          result.price        ?? result.current_price ?? null,
+    change24h:      result.change24h    ?? null,
+  };
 }
 
 // ── Render suggestions ────────────────────────────────────
