@@ -559,17 +559,34 @@
 
     // ── CHART-4C: mobile inspection state machine ───────────────
     // Premium long-press → crosshair/tooltip → release flow. Opt-in
-    // via opts.mobileInspection. Touches pass through the chart
-    // (host pointer-events:none) until a stationary 180ms press; then
-    // we grab capture, dispatch synthetic mouse events at the touch
-    // coordinates so LWC's crosshair lights up (and our existing
-    // subscribeCrosshairMove → tooltip handler fires). Movement ≥10px
-    // before the timer fires cancels the press so accidental drags
-    // never freeze page scroll.
+    // via opts.mobileInspection.
+    //
+    // Two CHART-4C hotfixes:
+    //   1. Listeners attach to the first ancestor whose computed
+    //      pointer-events is NOT 'none'. host.parentNode is the
+    //      caller's container which is pointer-events:none on mobile,
+    //      so listeners attached there never fire (the element isn't
+    //      a hit-test target and the cascade hides descendants too).
+    //   2. We drive the crosshair via chart.setCrosshairPosition() /
+    //      clearCrosshairPosition() — the official LWC API. Synthetic
+    //      MouseEvents don't trigger LWC's touch-mode crosshair.
+    //      setCrosshairPosition fires subscribeCrosshairMove on its
+    //      own, so the existing DOM tooltip handler still lights up.
     let _mInsCleanup = null;
     if (opts.mobileInspection) {
-      const PARENT = host.parentNode;
-      if (PARENT) {
+      // Find the first ancestor that can actually receive touches.
+      let TARGET = host.parentNode;
+      try {
+        let cur = host.parentNode;
+        const docView = (cur && cur.ownerDocument && cur.ownerDocument.defaultView) || window;
+        while (cur && cur instanceof Element) {
+          const cs = docView.getComputedStyle(cur);
+          if (cs && cs.pointerEvents !== 'none') { TARGET = cur; break; }
+          cur = cur.parentNode;
+        }
+      } catch (_) { /* fall back to host.parentNode */ }
+
+      if (TARGET) {
         const MOVE_TOL = 10;
         const PRESS_MS = 180;
         let pressTimer  = 0;
@@ -579,49 +596,74 @@
         let suppressNextClick = false;
 
         const _canvasEl = () => canvasHolder.querySelector('canvas');
-        const _dispatch = (type, x, y) => {
+
+        // Snap an absolute clientX to the nearest data bar and tell
+        // LWC to render its crosshair there. Triggers our existing
+        // subscribeCrosshairMove handler, which positions the tooltip.
+        const _crosshairAt = (clientX) => {
+          if (!Array.isArray(_state.data) || !_state.data.length) return;
           const c = _canvasEl();
           if (!c) return;
+          const rect = c.getBoundingClientRect();
+          const x = clientX - rect.left;
+          if (x < 0 || x > rect.width) return;
+          let tAtX;
+          try { tAtX = chart.timeScale().coordinateToTime(x); } catch (_) { return; }
+          if (tAtX == null) return;
+          const tSec = typeof tAtX === 'number'
+            ? tAtX
+            : Math.floor(Date.parse(tAtX) / 1000);
+          // Linear nearest-neighbour over _state.data (always ≤ a
+          // few hundred points after dedupe — fast enough per touch).
+          let nearest = null, bestDiff = Infinity;
+          for (const p of _state.data) {
+            if (!p || typeof p.time !== 'number' || typeof p.value !== 'number') continue;
+            const pSec = Math.floor(p.time / 1000);
+            const diff = Math.abs(pSec - tSec);
+            if (diff < bestDiff) { bestDiff = diff; nearest = p; }
+          }
+          if (!nearest) return;
           try {
-            c.dispatchEvent(new MouseEvent(type, {
-              bubbles: true, cancelable: true, view: window,
-              clientX: x, clientY: y,
-            }));
+            chart.setCrosshairPosition(nearest.value, Math.floor(nearest.time / 1000), series);
           } catch (_) {}
         };
-        const enter = (x, y) => {
+        const _clearCrosshair = () => {
+          try { chart.clearCrosshairPosition(); } catch (_) {}
+          const tt = host.querySelector('.aurix-chart-tooltip');
+          if (tt) tt.dataset.visible = 'false';
+        };
+
+        const enter = (x) => {
           inspecting = true;
-          // Host stays pointer-events:none — native touches keep
-          // bubbling to the parent state machine. We light up LWC's
-          // crosshair via synthetic mouse events dispatched directly
-          // on the canvas, which bypass pointer-events filtering.
           host.dataset.inspecting = 'true';
-          _dispatch('mouseenter', x, y);
-          _dispatch('mousemove',  x, y);
+          _crosshairAt(x);
         };
         const exit = () => {
           if (!inspecting) return;
           inspecting = false;
           delete host.dataset.inspecting;
-          _dispatch('mouseleave', curX, curY);
-          // Belt-and-braces: hide our DOM tooltip explicitly in case
-          // the crosshair-move callback didn't fire on the exit path.
-          const tt = host.querySelector('.aurix-chart-tooltip');
-          if (tt) tt.dataset.visible = 'false';
+          _clearCrosshair();
         };
 
         const onTouchStart = (e) => {
           if (inspecting) return;
           if (!e.touches || e.touches.length !== 1) return;
           const t = e.touches[0];
+          // Only react when the touch actually started over the
+          // chart host's bounding box. The ancestor target may cover
+          // a larger area (e.g. the whole card) — we don't want a
+          // press on the header / controls to enter inspection.
+          const r = host.getBoundingClientRect();
+          if (t.clientX < r.left || t.clientX > r.right ||
+              t.clientY < r.top  || t.clientY > r.bottom) {
+            return;
+          }
           startX = curX = t.clientX;
           startY = curY = t.clientY;
           clearTimeout(pressTimer);
           pressTimer = setTimeout(() => {
             pressTimer = 0;
-            // Re-check we still have a finger down (the touchend may
-            // have fired during the wait).
-            enter(curX, curY);
+            enter(curX);
           }, PRESS_MS);
         };
         const onTouchMove = (e) => {
@@ -630,12 +672,10 @@
           curX = t.clientX;
           curY = t.clientY;
           if (inspecting) {
-            // Prevent page scroll while the user is dragging the
-            // crosshair. We only block scroll AFTER inspection started
-            // — so the initial swipe through the dashboard slider
-            // remains untouched.
+            // Block page scroll while the finger is driving the
+            // crosshair. Listener is non-passive only for this branch.
             try { e.preventDefault(); } catch (_) {}
-            _dispatch('mousemove', curX, curY);
+            _crosshairAt(curX);
             return;
           }
           if (pressTimer) {
@@ -649,8 +689,6 @@
         const onTouchEnd = () => {
           if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
           if (inspecting) {
-            // Swallow the synthetic click that some browsers fire
-            // after touchend so the page doesn't react to the lift.
             suppressNextClick = true;
             setTimeout(() => { suppressNextClick = false; }, 350);
             exit();
@@ -662,22 +700,20 @@
           }
         };
 
-        // touchmove must be non-passive so we can preventDefault
-        // during inspection. Other listeners stay passive.
-        PARENT.addEventListener('touchstart', onTouchStart, { passive: true });
-        PARENT.addEventListener('touchmove',  onTouchMove,  { passive: false });
-        PARENT.addEventListener('touchend',   onTouchEnd,   { passive: true });
-        PARENT.addEventListener('touchcancel',onTouchEnd,   { passive: true });
-        PARENT.addEventListener('click',      onClickCapture, true);
+        TARGET.addEventListener('touchstart', onTouchStart, { passive: true });
+        TARGET.addEventListener('touchmove',  onTouchMove,  { passive: false });
+        TARGET.addEventListener('touchend',   onTouchEnd,   { passive: true });
+        TARGET.addEventListener('touchcancel',onTouchEnd,   { passive: true });
+        TARGET.addEventListener('click',      onClickCapture, true);
 
         _mInsCleanup = () => {
           try { clearTimeout(pressTimer); } catch (_) {}
           try { exit(); } catch (_) {}
-          PARENT.removeEventListener('touchstart', onTouchStart);
-          PARENT.removeEventListener('touchmove',  onTouchMove);
-          PARENT.removeEventListener('touchend',   onTouchEnd);
-          PARENT.removeEventListener('touchcancel',onTouchEnd);
-          PARENT.removeEventListener('click',      onClickCapture, true);
+          TARGET.removeEventListener('touchstart', onTouchStart);
+          TARGET.removeEventListener('touchmove',  onTouchMove);
+          TARGET.removeEventListener('touchend',   onTouchEnd);
+          TARGET.removeEventListener('touchcancel',onTouchEnd);
+          TARGET.removeEventListener('click',      onClickCapture, true);
         };
       }
     }
