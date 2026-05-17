@@ -7380,6 +7380,13 @@ const PRICE_CACHE = {};
 const PRICE_CACHE_MAX_AGE = 10 * 60 * 1000; // 10 min hard cap on per-symbol fallback
 const _LOADING = {};
 let _marketSearchQuery = '';
+// MARKET-2: explorer controls state — global timeframe + sort. Default
+// timeframe is 24H (the only one with real data today); sort defaults
+// to 24H change descending which preserves the prior implicit order.
+// Both reset on every page load so user mental model stays "right now"
+// rather than carrying over old preferences silently.
+let _aurixMktTimeframe = '24H';   // '24H' | '7D' | '1M' | '1Y' | 'ALL'
+let _aurixMktSortBy    = 'change';// 'watchlist' | 'name' | 'price' | 'change' | 'type'
 function marketLog(...args) { if (false) console.log('[market]', ...args); }
 
 const MARKET_HEADER_CONFIG = {
@@ -8817,6 +8824,17 @@ function _aurixMktOpenSymbol(symbol) {
       const ov = document.getElementById('marketPreviewOverlay');
       if (ov && ov.classList.contains('open')) _aurixMktClose();
     }
+  });
+  // MARKET-2: close the sort dropdown when the user clicks anywhere
+  // outside its wrapper. Registered ONCE on document so re-renders of
+  // the market screen never accumulate duplicate listeners.
+  document.addEventListener('click', e => {
+    const menu = document.getElementById('mktSortMenu');
+    if (!menu || menu.hidden) return;
+    if (e.target.closest && e.target.closest('.mkt-sort-wrap')) return;
+    menu.hidden = true;
+    const toggle = document.querySelector('[data-mkt-sort-toggle]');
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
   });
 })();
 
@@ -12083,6 +12101,42 @@ function renderMarket() {
         renderCurrentMarketView();
         return;
       }
+      // MARKET-2: timeframe pill click → update state and re-render.
+      const tfBtn = e.target.closest('[data-mkt-tf]');
+      if (tfBtn) {
+        e.stopPropagation();
+        const tf = tfBtn.dataset.mktTf;
+        if (tf && tf !== _aurixMktTimeframe) {
+          _aurixMktTimeframe = tf;
+          renderCurrentMarketView();
+        }
+        return;
+      }
+      // MARKET-2: sort dropdown toggle.
+      const sortToggle = e.target.closest('[data-mkt-sort-toggle]');
+      if (sortToggle) {
+        e.stopPropagation();
+        const menu = document.getElementById('mktSortMenu');
+        if (menu) {
+          const willOpen = menu.hidden;
+          menu.hidden = !willOpen;
+          sortToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        }
+        return;
+      }
+      // MARKET-2: sort option click.
+      const sortBtn = e.target.closest('[data-mkt-sort]');
+      if (sortBtn) {
+        e.stopPropagation();
+        const sb = sortBtn.dataset.mktSort;
+        const menu = document.getElementById('mktSortMenu');
+        if (menu) menu.hidden = true;
+        if (sb && sb !== _aurixMktSortBy) {
+          _aurixMktSortBy = sb;
+          renderCurrentMarketView();
+        }
+        return;
+      }
       // MARKET-1B: open the preview overlay on market-row clicks. The
       // helper itself respects the feature flag and falls back to
       // no-op if the engine / item lookup fails.
@@ -12207,16 +12261,23 @@ function renderMyAssetsBlock(data) {
       </div>
     `;
   }
-  const sorted = [...filtered].sort((a, b) => {
-    if (a.change24h == null && b.change24h != null) return 1;
-    if (a.change24h != null && b.change24h == null) return -1;
-    const changeA = Math.abs(a.change24h || 0);
-    const changeB = Math.abs(b.change24h || 0);
-    if (changeB !== changeA) return changeB - changeA;
-    if (b.price !== a.price) return (b.price || 0) - (a.price || 0);
-    return a.symbol.localeCompare(b.symbol);
-  });
-  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${t('marketCol24h')}</div><div></div><div></div></div>`;
+  // MARKET-2: when the explorer flag is on, honour the user's chosen
+  // sort. The legacy default (absolute |change24h| desc → price desc
+  // → ticker) is still used when no flag is on, so existing users
+  // see no behaviour change with the V2 toggle off.
+  const sorted = _aurixMktExpFlag()
+    ? _aurixMktExpSortItems(filtered)
+    : [...filtered].sort((a, b) => {
+        if (a.change24h == null && b.change24h != null) return 1;
+        if (a.change24h != null && b.change24h == null) return -1;
+        const changeA = Math.abs(a.change24h || 0);
+        const changeB = Math.abs(b.change24h || 0);
+        if (changeB !== changeA) return changeB - changeA;
+        if (b.price !== a.price) return (b.price || 0) - (a.price || 0);
+        return a.symbol.localeCompare(b.symbol);
+      });
+  const perfHeader = _aurixMktExpFlag() ? _aurixMktTimeframe : t('marketCol24h');
+  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${perfHeader}</div><div></div><div></div></div>`;
   return `<div class="market-section-header">${t('tab_watchlist')}</div>${tableHeader}${sorted.map(renderMarketItem).join('')}`;
 }
 
@@ -12226,11 +12287,14 @@ function renderAllAssets(data) {
     const key = normalizeSymbol(item.symbol || item.provider_id);
     if (key && !map.has(key)) map.set(key, item);
   }
-  const final = Array.from(map.values());
+  let final = Array.from(map.values());
   if (!final.length) {
     return `<div class="market-empty">${t('market_no_results')}</div>`;
   }
-  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${t('marketCol24h')}</div><div></div><div></div></div>`;
+  // MARKET-2: same sort + header rules as the per-type rendering.
+  final = _aurixMktExpSortItems(final);
+  const perfHeader = _aurixMktExpFlag() ? _aurixMktTimeframe : t('marketCol24h');
+  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${perfHeader}</div><div></div><div></div></div>`;
   return `<div class="market-section-header">${t('tab_all')}</div>${tableHeader}${final.map(renderMarketItem).join('')}`;
 }
 
@@ -12264,6 +12328,74 @@ function _composeAggregateDataset() {
   return Array.from(out.values());
 }
 
+// ── MARKET-2 ──────────────────────────────────────────────────────
+// Premium Market Explorer controls: timeframe pills + sort dropdown
+// + honest-state performance column for ranges with no real data.
+// Behind window.__AURIX_MARKET_EXPLORER_V2 (default ON). When off,
+// the legacy rows + ordering ship unchanged.
+function _aurixMktExpFlag() {
+  return typeof window !== 'undefined' && window.__AURIX_MARKET_EXPLORER_V2 !== false;
+}
+function _aurixMktExpIsRealTimeframe() {
+  return _aurixMktTimeframe === '24H';
+}
+function _aurixMktExpSortItems(items) {
+  if (!Array.isArray(items)) return [];
+  if (!_aurixMktExpFlag()) return items;
+  const sb = _aurixMktSortBy;
+  const sorted = items.slice();
+  if (sb === 'name') {
+    sorted.sort((a, b) => String(a.name || a.symbol || '').localeCompare(String(b.name || b.symbol || '')));
+  } else if (sb === 'price') {
+    sorted.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+  } else if (sb === 'change') {
+    sorted.sort((a, b) => (Number(b.change24h) || 0) - (Number(a.change24h) || 0));
+  } else if (sb === 'type') {
+    sorted.sort((a, b) => String(a.type || '').localeCompare(String(b.type || '')));
+  } else if (sb === 'watchlist') {
+    sorted.sort((a, b) => {
+      const aW = (typeof isInWatchlist === 'function' && isInWatchlist(normalizeSymbol(a.symbol))) ? 0 : 1;
+      const bW = (typeof isInWatchlist === 'function' && isInWatchlist(normalizeSymbol(b.symbol))) ? 0 : 1;
+      if (aW !== bW) return aW - bW;
+      return String(a.symbol || '').localeCompare(String(b.symbol || ''));
+    });
+  }
+  return sorted;
+}
+function _aurixMktExpControlsHtml() {
+  if (!_aurixMktExpFlag()) return '';
+  const isEs = (typeof lang !== 'undefined' && lang === 'es');
+  const TFs = ['24H', '7D', '1M', '1Y', 'ALL'];
+  const tfPills = TFs.map(tf =>
+    `<button type="button" class="mkt-tf-pill${tf === _aurixMktTimeframe ? ' is-active' : ''}" data-mkt-tf="${tf}">${tf}</button>`
+  ).join('');
+  const SORT_OPTS = [
+    { key: 'watchlist', es: 'Seguimiento', en: 'Watchlist' },
+    { key: 'name',      es: 'Nombre',      en: 'Name'      },
+    { key: 'price',     es: 'Precio',      en: 'Price'     },
+    { key: 'change',    es: '24h',         en: '24h'       },
+    { key: 'type',      es: 'Tipo',        en: 'Type'      },
+  ];
+  const current = SORT_OPTS.find(o => o.key === _aurixMktSortBy) || SORT_OPTS[3];
+  const currentLabel = isEs ? current.es : current.en;
+  const sortItems = SORT_OPTS.map(o =>
+    `<button type="button" class="mkt-sort-item${o.key === _aurixMktSortBy ? ' is-active' : ''}" data-mkt-sort="${o.key}">${isEs ? o.es : o.en}</button>`
+  ).join('');
+  return `
+    <div class="mkt-explorer-controls" data-aurix-mkt-controls="1">
+      <div class="mkt-tf-pills" role="tablist" aria-label="${isEs ? 'Periodo' : 'Timeframe'}">${tfPills}</div>
+      <div class="mkt-sort-wrap">
+        <button type="button" class="mkt-sort-toggle" data-mkt-sort-toggle="1" aria-haspopup="listbox" aria-expanded="false">
+          <span class="mkt-sort-label">${isEs ? 'Ordenar' : 'Sort'}</span>
+          <span class="mkt-sort-current">${currentLabel}</span>
+          <span class="mkt-sort-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="mkt-sort-menu" id="mktSortMenu" hidden>${sortItems}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderCurrentMarketView() {
   const el = document.getElementById('marketList');
   if (!el) return;
@@ -12284,11 +12416,14 @@ function renderCurrentMarketView() {
   let html;
   if (_marketSearchQuery) {
     const q = normalizeSymbol(_marketSearchQuery);
-    const results = data.filter(item => {
+    const filtered = data.filter(item => {
       const sym  = normalizeSymbol(item.symbol);
       const name = (item.name || '').toLowerCase();
       return sym.includes(q) || name.includes(_marketSearchQuery);
     }).slice(0, 15);
+    // MARKET-2: apply explorer sort to search results too so the
+    // ordering preference is honored everywhere.
+    const results = _aurixMktExpSortItems(filtered);
     html = results.length
       ? results.map(renderMarketItem).join('')
       : `<div class="market-empty">${t('market_no_results')}</div>`;
@@ -12314,6 +12449,9 @@ function renderCurrentMarketView() {
     const disc = _DISCOVERY_CATALOGS[currentMarketTab] ? _renderDiscoveryCatalog(currentMarketTab) : '';
     html = disc + renderFromCache(activeType, data);
   }
+  // MARKET-2: prepend the explorer controls bar. Empty string when the
+  // V2 flag is off, so the legacy layout ships exactly as before.
+  html = _aurixMktExpControlsHtml() + html;
 
   // Aggregate tabs (All / Watchlist) skip the lastKey short-circuit so
   // every render reflects the freshest composed dataset — the html
@@ -12864,7 +13002,7 @@ function _openAddAssetWithFund(item) {
 
 function renderFromCache(type, data) {
   const normalizedType = String(type).toLowerCase().trim();
-  const items = data.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
+  let items = data.filter(d => String(d.type).toLowerCase().trim() === normalizedType);
   if (!items.length) {
     return `<div class="market-skeleton">${Array.from({ length: 8 }).map(() => `
       <div class="market-row skeleton">
@@ -12875,8 +13013,14 @@ function renderFromCache(type, data) {
         <div class="skeleton-change"></div>
       </div>`).join('')}</div>`;
   }
+  // MARKET-2: honour the explorer sort. No-op when flag is off.
+  items = _aurixMktExpSortItems(items);
   const label = _TYPE_LABEL[normalizedType]?.() ?? normalizedType;
-  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${t('marketCol24h')}</div><div></div><div></div></div>`;
+  // MARKET-2: header's performance-column label tracks the active
+  // timeframe (24H / 7D / 1M / 1Y / ALL). The actual cells render
+  // honest "—" when timeframe data is unavailable.
+  const perfHeader = _aurixMktExpFlag() ? _aurixMktTimeframe : t('marketCol24h');
+  const tableHeader = `<div class="market-table-header"><div>${t('marketColAsset')}</div><div>${t('marketColPrice')}</div><div>${perfHeader}</div><div></div><div></div></div>`;
   return `<div class="market-section-header">${label}</div>${tableHeader}${items.map(renderMarketItem).join('')}`;
 }
 
@@ -13732,8 +13876,10 @@ function renderMarketItem(item) {
         </div>
       </div>
       <div class="col col-price">${safePrice(price)}</div>
-      <div class="col col-change ${chg > 0 ? 'is-up' : chg < 0 ? 'is-down' : ''}">
-        ${safeChange(chg)}
+      <div class="col col-change ${(_aurixMktExpFlag() && !_aurixMktExpIsRealTimeframe()) ? 'is-flat' : (chg > 0 ? 'is-up' : chg < 0 ? 'is-down' : '')}">
+        ${(_aurixMktExpFlag() && !_aurixMktExpIsRealTimeframe())
+            ? '<span class="col-change-empty" aria-label="No data for selected timeframe">—</span>'
+            : safeChange(chg)}
       </div>
       <div class="col col-chart" data-spark-key="${normSym}" data-spark-change="${chg ?? ''}">${chart}</div>
       <div class="col col-action">
