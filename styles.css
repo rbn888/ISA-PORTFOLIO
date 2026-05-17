@@ -12541,3 +12541,161 @@ body.gs-open { overflow: hidden; }
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MARKET-5 — Mobile preview sheet premium fix.
+   Root cause: on mobile the preview sheet was a flex column but
+     a) `.modal-body` kept the legacy 96px padding-bottom from the
+        generic sheet, wasting height that the chart could use, and
+     b) `.modal-cta` carried `position:sticky` + a transparent
+        gradient background — so when the body scrolled past it,
+        content showed through the top edge (the "bleed-through").
+   Fix: scope a sheet block to .modal--mkt-preview on mobile that
+     - locks the sheet to a 3-row flex (header / body / footer)
+     - bounds the chart to a sensible mobile height
+     - replaces the sticky-transparent CTA with a real opaque footer
+   Desktop is untouched — all rules under @media (max-width: 520px).
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 520px) {
+  .modal--mkt-preview {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 8px);
+    max-height: 94svh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(28, 42, 74, 0.18) 0%, rgba(10, 14, 24, 0.0) 40%),
+      rgba(10, 14, 24, 0.97);
+    border: 1px solid var(--aurix-border);
+    border-bottom: 0;
+  }
+  .modal--mkt-preview .sheet-handle {
+    background: rgba(180, 200, 240, 0.30);
+  }
+  .modal--mkt-preview .modal-header {
+    flex-shrink: 0;
+    padding: 4px 14px 12px;
+    border-bottom: 1px solid rgba(138, 166, 255, 0.08);
+    align-items: center;
+  }
+  .modal--mkt-preview .mkt-prv-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    font-size: 13px;
+  }
+  .modal--mkt-preview .mkt-prv-name { font-size: 14.5px; max-width: 56vw; }
+  .modal--mkt-preview .mkt-prv-sub  { font-size: 11px; gap: 6px; }
+  .modal--mkt-preview .modal-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: rgba(20, 30, 56, 0.55);
+    border: 1px solid var(--aurix-border);
+    color: rgba(220, 230, 250, 0.85);
+    z-index: 4;
+  }
+  /* Body: own scroll, no oversized bottom padding (CTA is a sibling) */
+  .modal--mkt-preview .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 16px 14px;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Price block: tight hierarchy */
+  .modal--mkt-preview .mkt-prv-stats {
+    margin-bottom: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: baseline;
+  }
+  .modal--mkt-preview .mkt-prv-price {
+    font-size: clamp(24px, 7vw, 30px);
+    line-height: 1.04;
+  }
+  .modal--mkt-preview .mkt-prv-change { font-size: 13px; }
+  /* Range pills: single line, scrolls horizontally if needed */
+  .modal--mkt-preview .mkt-prv-ranges {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 2px;
+    margin-bottom: 10px;
+  }
+  .modal--mkt-preview .mkt-prv-ranges::-webkit-scrollbar { display: none; }
+  .modal--mkt-preview .mkt-prv-ranges .aurix-chart-range { flex-shrink: 0; }
+  /* Meta label: subtle eyebrow, never competes */
+  .modal--mkt-preview .mkt-prv-meta {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: rgba(180, 200, 240, 0.50);
+    margin: 0 0 8px;
+  }
+  /* Chart: dominant but bounded so the footer is always in view */
+  .modal--mkt-preview .mkt-prv-mount {
+    width: 100%;
+    min-height: 200px;
+    height: clamp(200px, 36svh, 260px);
+    max-height: 280px;
+    margin-bottom: 4px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  /* Footer: opaque glass, real flex item, lifted above body via shadow.
+     Override the legacy `.modal-cta { position:sticky; background:gradient }`
+     so the chart can never visually leak through it. */
+  .modal--mkt-preview .modal-cta.mkt-prv-cta,
+  .modal--mkt-preview .mkt-prv-cta {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    background:
+      linear-gradient(180deg, rgba(28, 42, 74, 0.30) 0%, rgba(10, 14, 24, 0.0) 60%),
+      rgba(10, 14, 24, 0.98);
+    border-top: 1px solid var(--aurix-border);
+    box-shadow: 0 -10px 24px -10px rgba(2, 6, 14, 0.65);
+    z-index: 3;
+  }
+  /* Watchlist square — premium, gold when active */
+  .modal--mkt-preview .mkt-prv-cta .btn-secondary {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: rgba(20, 30, 56, 0.55);
+    border: 1px solid var(--aurix-border);
+    color: rgba(220, 230, 250, 0.72);
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .modal--mkt-preview .mkt-prv-cta .btn-secondary.is-active {
+    color: rgba(244, 196, 90, 0.98);
+    background: rgba(244, 196, 90, 0.08);
+    border-color: rgba(244, 196, 90, 0.42);
+    text-shadow: 0 0 10px rgba(244, 196, 90, 0.32);
+  }
+  /* Add to portfolio — full-width Aurix gradient, strong tap target */
+  .modal--mkt-preview .mkt-prv-cta .btn-submit {
+    flex: 1;
+    padding: 13px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(74, 130, 240, 0.50), rgba(74, 130, 240, 0.26));
+    border: 1px solid rgba(138, 166, 255, 0.50);
+    box-shadow: var(--aurix-glow);
+    color: #fff;
+  }
+  .modal--mkt-preview .mkt-prv-cta .btn-submit:active {
+    transform: scale(0.985);
+    box-shadow: none;
+  }
+}
