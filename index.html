@@ -950,12 +950,14 @@
     <div class="mkt-filter-section">
       <div class="mkt-filter-section-label" data-i18n="mktFilterSortLabel">Ordenar</div>
       <div class="mkt-filter-sort-list" id="mktFilterSortRow">
-        <!-- MARKET-8: trimmed to high-value sort options. Name and Type
-             removed (low signal). Change uses the currently selected
-             timeframe so the sort meaning matches the period pill. -->
-        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="watchlist" data-i18n="mktSortWatchlist">Seguimiento</button>
+        <!-- MARKET-8 + RESET-6: "Destacados" is the post-reset default
+             and the first option. Deterministic ranking via the
+             _aurixMktFeaturedRank map (BTC/AAPL/SPY/XAU/SPX first per
+             type bucket, then alphabetical). -->
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="featured"  data-i18n="mktSortFeatured">Destacados</button>
         <button type="button" class="mkt-filter-sort-item" data-mkt-sort="change"    data-i18n="mktSortChange">Cambio</button>
         <button type="button" class="mkt-filter-sort-item" data-mkt-sort="price"     data-i18n="mktSortPrice">Precio</button>
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="watchlist" data-i18n="mktSortWatchlist">Seguimiento</button>
       </div>
     </div>
   </div>

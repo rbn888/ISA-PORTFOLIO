@@ -931,6 +931,7 @@ const T = {
     mktSortName:              'Nombre',
     mktSortPrice:             'Precio',
     mktSortChange:            'Cambio',
+    mktSortFeatured:          'Destacados',
     mktSort24h:               'Cambio 24H',
     mktSortType:              'Tipo',
     mktSoonShort:             'Próx.',
@@ -1549,6 +1550,7 @@ const T = {
     mktSortName:              'Name',
     mktSortPrice:             'Price',
     mktSortChange:            'Change',
+    mktSortFeatured:          'Featured',
     mktSort24h:               '24H change',
     mktSortType:              'Type',
     mktSoonShort:             'Soon',
@@ -7527,7 +7529,7 @@ let _marketSearchQuery = '';
 // Both reset on every page load so user mental model stays "right now"
 // rather than carrying over old preferences silently.
 let _aurixMktTimeframe = '24H';   // '24H' | '7D' | '1M' | '1Y' | 'ALL'
-let _aurixMktSortBy    = 'change';// 'watchlist' | 'name' | 'price' | 'change' | 'type'
+let _aurixMktSortBy    = 'featured';// 'featured' | 'watchlist' | 'name' | 'price' | 'change' | 'type'
 function marketLog(...args) { if (false) console.log('[market]', ...args); }
 
 const MARKET_HEADER_CONFIG = {
@@ -12624,12 +12626,51 @@ function _aurixMktV4CloseSheet() {
 function _aurixMktExpIsRealTimeframe() {
   return _aurixMktTimeframe === '24H';
 }
+// RESET-6: deterministic "featured" ordering — premium picks per
+// type bucket. Lower number = higher rank. Unknown tickers fall back
+// to a large value so they sort to the end of their type bucket.
+const _AURIX_FEATURED_RANK = (function () {
+  const m = new Map();
+  const add = (list) => list.forEach((t, i) => { if (!m.has(t)) m.set(t, i); });
+  add(['BTC','ETH','SOL','BNB','XRP','USDC','USDT','ADA']);           // crypto
+  add(['AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA','BRK.B']);   // stocks
+  add(['SPY','VOO','QQQ','IVV','VTI','IWDA','VWCE']);                  // ETFs
+  add(['XAU','XAG','SILVER','GOLD','OIL','GAS']);                      // commodities
+  add(['SPX','NDX','DJI','DAX','FTSE']);                               // indices
+  return m;
+})();
+const _AURIX_TYPE_PRIORITY = Object.freeze({
+  crypto: 0, stock: 1, etf: 2, fund: 3, index: 4, commodity: 5, metal: 6, other: 9,
+});
+function _aurixMktFeaturedRank(item) {
+  const sym = String((item && (item.symbol || item.ticker)) || '').toUpperCase();
+  const r   = _AURIX_FEATURED_RANK.get(sym);
+  return Number.isFinite(r) ? r : 999;
+}
+function _aurixMktTypePriority(item) {
+  const tp = String((item && item.type) || 'other').toLowerCase();
+  return Object.prototype.hasOwnProperty.call(_AURIX_TYPE_PRIORITY, tp)
+    ? _AURIX_TYPE_PRIORITY[tp]
+    : _AURIX_TYPE_PRIORITY.other;
+}
+
 function _aurixMktExpSortItems(items) {
   if (!Array.isArray(items)) return [];
   if (!_aurixMktExpFlag()) return items;
   const sb = _aurixMktSortBy;
   const sorted = items.slice();
-  if (sb === 'name') {
+  if (sb === 'featured') {
+    // 1) ranked symbols first; 2) by type priority; 3) by ticker A→Z.
+    sorted.sort((a, b) => {
+      const ra = _aurixMktFeaturedRank(a);
+      const rb = _aurixMktFeaturedRank(b);
+      if (ra !== rb) return ra - rb;
+      const ta = _aurixMktTypePriority(a);
+      const tb = _aurixMktTypePriority(b);
+      if (ta !== tb) return ta - tb;
+      return String(a.symbol || '').localeCompare(String(b.symbol || ''));
+    });
+  } else if (sb === 'name') {
     sorted.sort((a, b) => String(a.name || a.symbol || '').localeCompare(String(b.name || b.symbol || '')));
   } else if (sb === 'price') {
     sorted.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
@@ -12663,16 +12704,16 @@ function _aurixMktExpSortItems(items) {
 function _aurixMktExpControlsHtml() {
   if (!_aurixMktExpFlag()) return '';
   const isEs = (typeof lang !== 'undefined' && lang === 'es');
-  // MARKET-8: SORT_OPTS trimmed to high-value options. Cambio sorts by
-  // whatever timeframe is currently selected (24h change for 24H, 7d
-  // change for 7D, etc.). Chip uses a compact alias so the 3-segment
-  // chip stays readable on mobile.
+  // MARKET-8 + RESET-6: 'featured' is the post-reset default and the
+  // first option shown in the sheet. Deterministic ranking via
+  // _aurixMktFeaturedRank; ties resolve by type priority + ticker.
   const SORT_OPTS = [
-    { key: 'watchlist', es: 'Seguimiento', en: 'Watchlist',  chipEs: 'Seguim.', chipEn: 'Watch'  },
+    { key: 'featured',  es: 'Destacados',  en: 'Featured',   chipEs: 'Destac.', chipEn: 'Feat.'  },
     { key: 'change',    es: 'Cambio',      en: 'Change',     chipEs: 'Cambio',  chipEn: 'Change' },
     { key: 'price',     es: 'Precio',      en: 'Price',      chipEs: 'Precio',  chipEn: 'Price'  },
+    { key: 'watchlist', es: 'Seguimiento', en: 'Watchlist',  chipEs: 'Seguim.', chipEn: 'Watch'  },
   ];
-  const current = SORT_OPTS.find(o => o.key === _aurixMktSortBy) || SORT_OPTS[1];
+  const current = SORT_OPTS.find(o => o.key === _aurixMktSortBy) || SORT_OPTS[0];
   const currentChipLabel = isEs ? current.chipEs : current.chipEn;
 
   // MARKET-4B + MARKET-7: single "Filtros" chip. Premium, compact, opens
@@ -17981,6 +18022,16 @@ if (window.innerWidth <= 768) {
   initMobileSlider();
 }
 
+// RESET-6: tombstone boot guard — if the previous session ended in a
+// reset, restore sane defaults before the first render() so no stale
+// UI prefs leak across the reload. Runs once; effectively a no-op
+// when no tombstone is present.
+try {
+  if (typeof _aurixResetAt === 'function' && _aurixResetAt() > 0) {
+    if (typeof _applyFreshDefaults === 'function') _applyFreshDefaults();
+  }
+} catch (_) {}
+
 fetchExchangeRate().then(() => {
   render();
   // Cold-start: populate derived state + formula cache from localStorage assets
@@ -20960,6 +21011,70 @@ function _aurixIsResetStale(gen) {
   return gen !== _aurixResetGeneration;
 }
 
+// RESET-6: sane defaults restored after a fresh-start reset (and
+// applied at boot when the tombstone is set). Single source of truth
+// so the post-reset state is deterministic across reloads.
+const AURIX_FRESH_DEFAULTS = Object.freeze({
+  dashboardRange:   '24h',
+  dashboardPerfMode:'%',
+  marketTab:        'all',
+  marketTimeframe:  '24H',
+  marketSort:       'featured',
+  marketSearch:     '',
+  selectedCategory: null,
+});
+
+function _applyFreshDefaults() {
+  // Runtime variables — reassign the module-level lets. Each is
+  // wrapped in try/catch because at boot time some may not yet be
+  // initialized (depending on load order via tombstone-guarded path).
+  try { activeRange         = AURIX_FRESH_DEFAULTS.dashboardRange;    } catch (_) {}
+  try { activePerfMode      = AURIX_FRESH_DEFAULTS.dashboardPerfMode; } catch (_) {}
+  try { currentMarketTab    = AURIX_FRESH_DEFAULTS.marketTab;         } catch (_) {}
+  try { _aurixMktTimeframe  = AURIX_FRESH_DEFAULTS.marketTimeframe;   } catch (_) {}
+  try { _aurixMktSortBy     = AURIX_FRESH_DEFAULTS.marketSort;        } catch (_) {}
+  try { _marketSearchQuery  = AURIX_FRESH_DEFAULTS.marketSearch;      } catch (_) {}
+  try { activeCategory      = AURIX_FRESH_DEFAULTS.selectedCategory;  } catch (_) {}
+
+  // DOM sync — keep the range / perf toggle visuals consistent with
+  // the new state. The market screen DOM is rebuilt by render() so
+  // its active classes hydrate automatically from the variables above.
+  try {
+    document.querySelectorAll('.range-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset && b.dataset.range === AURIX_FRESH_DEFAULTS.dashboardRange);
+    });
+    document.querySelectorAll('.perf-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset && b.dataset.perf === AURIX_FRESH_DEFAULTS.dashboardPerfMode);
+    });
+  } catch (_) {}
+
+  // Reset any open filter sheet / market preview / search overlay so
+  // the post-reset UI is a clean slate.
+  try {
+    const filterOv = document.getElementById('mktFilterOverlay');
+    if (filterOv && filterOv.classList.contains('open')) {
+      filterOv.classList.remove('open');
+      setTimeout(() => { if (!filterOv.classList.contains('open')) filterOv.hidden = true; }, 260);
+    }
+  } catch (_) {}
+  try {
+    const previewOv = document.getElementById('marketPreviewOverlay');
+    if (previewOv && previewOv.classList.contains('open')) previewOv.classList.remove('open');
+  } catch (_) {}
+  try {
+    const searchOv = document.getElementById('globalSearchOverlay');
+    if (searchOv && !searchOv.hidden) {
+      if (typeof closeGlobalSearch === 'function') closeGlobalSearch();
+    }
+  } catch (_) {}
+
+  // Clear search input if present.
+  try {
+    const searchInput = document.getElementById('marketSearchInput');
+    if (searchInput) searchInput.value = '';
+  } catch (_) {}
+}
+
 function _aurixResetAt() {
   try { return parseInt(localStorage.getItem(RESET_AT_KEY) || '0', 10) || 0; }
   catch (_) { return 0; }
@@ -21147,7 +21262,14 @@ async function performAtomicFreshStartReset() {
     }
     if (_aurixIsResetStale(gen)) return false; // a newer reset took over
 
-    // 4. Single stable empty-state render after a paint tick. This
+    // 4. RESET-6: apply sane defaults BEFORE the empty-state render
+    //    so dashboard range / perf mode / market tab / sort all reset
+    //    deterministically in the same paint frame.
+    try { _applyFreshDefaults(); } catch (e) {
+      console.warn('[reset] apply defaults failed:', e && e.message);
+    }
+
+    // 5. Single stable empty-state render after a paint tick. This
     //    ensures the assets list, donut, KPIs, and any reactive
     //    derived state all flush together — no half-empty UI.
     await new Promise(r => requestAnimationFrame(() => r()));
