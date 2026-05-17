@@ -566,13 +566,35 @@
       if (tooltip) tooltip.dataset.visible = 'false';
     }
 
+    // CHART-7A: engine-level tooltip lifecycle correctness.
+    //
+    // Bug fixed here: previous CHART-4C guard kept the tooltip alive
+    // when LWC fired subscribeCrosshairMove on desktop pointer-exit
+    // (param.time / point / seriesData ALL undefined). The handler
+    // bailed out before any _hideTooltip() call → stale tooltip.
+    //
+    // Fix model:
+    //   • _inspectionActive flag set by the mobile state machine
+    //     while it owns the tooltip lifecycle (long-press → release).
+    //     subscribeCrosshairMove returns early when this is true so
+    //     mobile rendering is never overridden.
+    //   • When _inspectionActive is false (desktop or mobile-idle),
+    //     ANY invalid payload (no time, no data, no point) hides
+    //     the tooltip immediately. No exit case slips through.
+    //   • Belt-and-braces pointerleave + mouseleave on the host so
+    //     even an LWC build that ever misses the leave callback
+    //     still cleans up via the DOM.
+    //   • destroy() unconditionally hides + clears crosshair so the
+    //     last surface state never leaks past teardown.
+    let _inspectionActive = false;
+
     if (opts.showTooltip && opts.showCrosshair) {
       chart.subscribeCrosshairMove(param => {
-        if (!param || !param.time || !param.seriesData?.size) {
-          // Don't hide here — the mobile state machine may have just
-          // shown the tooltip via _renderTooltip(). Only hide when the
-          // pointer left the chart entirely (point present + no data).
-          if (param && param.point && !param.seriesData?.size) _hideTooltip();
+        // Mobile inspection owns the tooltip — never touch it from
+        // this callback during a programmatic setCrosshairPosition.
+        if (_inspectionActive) return;
+        if (!param || !param.time || !param.point || !param.seriesData?.size) {
+          _hideTooltip();
           return;
         }
         const data = param.seriesData.get(series);
@@ -581,17 +603,29 @@
           return;
         }
         const ms = (typeof param.time === 'number' ? param.time * 1000 : Date.parse(param.time));
-        // Desktop path supplies a real point — use it. Mobile path
-        // has no param.point (setCrosshairPosition is programmatic);
-        // the state machine handles its own _renderTooltip call.
-        if (param.point) {
-          _renderTooltip(data.value, ms, undefined, undefined);  // recompute on host coords
-          // Snap x to the actual pointer when available.
-          const hostRect = host.getBoundingClientRect();
-          tooltip.style.left = Math.max(60, Math.min(hostRect.width - 60, param.point.x)) + 'px';
-          tooltip.style.top  = Math.max(60, param.point.y) + 'px';
-        }
+        _renderTooltip(data.value, ms, undefined, undefined);
+        // Snap x/y to the actual pointer for premium desktop hover.
+        const hostRect = host.getBoundingClientRect();
+        tooltip.style.left = Math.max(60, Math.min(hostRect.width - 60, param.point.x)) + 'px';
+        tooltip.style.top  = Math.max(60, param.point.y) + 'px';
       });
+    }
+
+    // Belt-and-braces leave handlers. Cover the case where LWC's
+    // subscribeCrosshairMove doesn't fire (or fires too late) on a
+    // fast pointer exit, a modal close that detaches the host, or a
+    // window blur. Both events are needed: pointerleave for modern
+    // browsers, mouseleave as a fallback for any environment that
+    // doesn't synthesize pointer events for a particular input.
+    let _onHostLeave = null;
+    if (opts.showTooltip) {
+      _onHostLeave = () => {
+        if (_inspectionActive) return;  // mobile owns its own teardown
+        _hideTooltip();
+        try { if (typeof chart.clearCrosshairPosition === 'function') chart.clearCrosshairPosition(); } catch (_) {}
+      };
+      host.addEventListener('pointerleave', _onHostLeave);
+      host.addEventListener('mouseleave',   _onHostLeave);
     }
 
     // ── CHART-4C: mobile inspection state machine ───────────────
@@ -692,6 +726,10 @@
 
         const enter = (x) => {
           inspecting = true;
+          // CHART-7A: flip the engine-wide inspection flag so the
+          // subscribeCrosshairMove handler stops touching the tooltip
+          // while mobile is in charge.
+          _inspectionActive = true;
           host.dataset.inspecting = 'true';
           // Mark the dashboard slider root so any external listener
           // (and our touch-action CSS guard below) can lock swipe.
@@ -701,6 +739,7 @@
         const exit = () => {
           if (!inspecting) return;
           inspecting = false;
+          _inspectionActive = false;
           delete host.dataset.inspecting;
           if (sliderRoot) sliderRoot.removeAttribute('data-chart-inspecting');
           _clearCrosshair();
@@ -912,6 +951,20 @@
         try { chart.timeScale().fitContent(); } catch (_) {}
       },
       destroy() {
+        // CHART-7A: tooltip + crosshair must be hidden BEFORE the host
+        // detaches, even when the controller is destroyed mid-hover
+        // (e.g. the asset detail modal closes while the cursor is over
+        // the chart). _mInsCleanup also calls exit() which clears
+        // mobile inspection state, but desktop hover state lives in
+        // the engine itself and needs an explicit close here.
+        try { _hideTooltip(); } catch (_) {}
+        try { if (typeof chart.clearCrosshairPosition === 'function') chart.clearCrosshairPosition(); } catch (_) {}
+        try {
+          if (_onHostLeave) {
+            host.removeEventListener('pointerleave', _onHostLeave);
+            host.removeEventListener('mouseleave',   _onHostLeave);
+          }
+        } catch (_) {}
         try { if (_mInsCleanup) _mInsCleanup(); } catch (_) {}
         try { if (_resizeRafId) cancelAnimationFrame(_resizeRafId); } catch (_) {}
         try { if (_ro) _ro.disconnect(); } catch (_) {}
