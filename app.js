@@ -8078,7 +8078,9 @@ function _aurixSparkMountAll(container) {
       cell.innerHTML = '';
       const ctrl = window.AurixCharts.createSparkline(cell, {
         colorMode: tone,
-        height:    28,
+        // MARKET-1A: 32px matches the new .col-chart min-height so the
+        // V2 sparkline fills the cell without compression.
+        height:    32,
       });
       // Build the same synthetic walk the legacy generateSparkline
       // uses, mapped onto a monotonic time axis for the engine.
@@ -12166,12 +12168,16 @@ const _CRYPTO_CATALOG = [
   // MC-11C.2: "Top" first — large-cap names with CoinGecko ids so they
   // route through fetchLivePrices like every other crypto in the app.
   { id:'top', items:[
+    // MARKET-1A: 8-card "Top" — fills the auto-fit grid completely on
+    // common laptop widths and still wraps cleanly on narrow screens.
     { ticker:'BTC',  name:'Bitcoin',  manager:'L1',     type:'crypto', marketSymbol:'BTC',  coinId:'bitcoin',     currency:'USD' },
     { ticker:'ETH',  name:'Ethereum', manager:'L1',     type:'crypto', marketSymbol:'ETH',  coinId:'ethereum',    currency:'USD' },
     { ticker:'SOL',  name:'Solana',   manager:'L1',     type:'crypto', marketSymbol:'SOL',  coinId:'solana',      currency:'USD' },
     { ticker:'BNB',  name:'BNB',      manager:'L1',     type:'crypto', marketSymbol:'BNB',  coinId:'binancecoin', currency:'USD' },
     { ticker:'XRP',  name:'XRP',      manager:'L1',     type:'crypto', marketSymbol:'XRP',  coinId:'ripple',      currency:'USD' },
     { ticker:'USDT', name:'Tether',   manager:'Stable', type:'crypto', marketSymbol:'USDT', coinId:'tether',      currency:'USD' },
+    { ticker:'USDC', name:'USD Coin', manager:'Stable', type:'crypto', marketSymbol:'USDC', coinId:'usd-coin',    currency:'USD' },
+    { ticker:'ADA',  name:'Cardano',  manager:'L1',     type:'crypto', marketSymbol:'ADA',  coinId:'cardano',     currency:'USD' },
   ]},
   { id:'layer_1', items:[
     { ticker:'BTC',  name:'Bitcoin',       manager:'L1', type:'crypto', marketSymbol:'BTC',  coinId:'bitcoin',      currency:'USD' },

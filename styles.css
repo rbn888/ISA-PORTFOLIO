@@ -7263,14 +7263,18 @@ main { padding-bottom: 72px; }
 }
 .funds-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  /* MARKET-1A: auto-fit (was auto-fill) collapses unused tracks when
+     there are fewer cards than columns, so 6–7 cards never leave
+     ghost holes at the end of the row. */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
 }
 .funds-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px;
+  gap: 5px;
+  /* MARKET-1A: ~12% tighter — premium-compact, not cramped. */
+  padding: 12px 14px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px;
@@ -7279,7 +7283,7 @@ main { padding-bottom: 72px; }
   cursor: pointer;
   font-family: inherit;
   transition: background 120ms ease, border-color 120ms ease, transform 120ms ease, box-shadow 160ms ease;
-  min-height: 96px;
+  min-height: 84px;
 }
 .funds-card:hover {
   background: rgba(255,255,255,0.06);
@@ -10021,13 +10025,17 @@ body.workspace-active .header {
   vertical-align: 0.06em;
 }
 
-/* Sparkline consistent sizing & subtle opacity (data unchanged) */
+/* Sparkline consistent sizing & subtle opacity (data unchanged).
+   MARKET-1A: bumped 28→32px so the V2 line breathes — the column was
+   feeling compressed against the price/change/star cells. The legacy
+   SVG fallback also uses 32px so flag-off renders identically. */
 .col-chart {
   opacity: 0.85;
-  min-height: 28px;
+  min-height: 32px;
+  padding-left: 6px;
 }
 .col-chart svg {
-  height: 28px;
+  height: 32px;
   width: auto;
   max-width: 100%;
 }
