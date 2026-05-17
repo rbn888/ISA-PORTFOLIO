@@ -1755,6 +1755,13 @@ const TYPE_META = {
 
 const HISTORY_KEY  = 'portfolio_history';
 let portfolioHistory = loadHistory();
+// CHART-7C: per-category history. Same canonical USD basis as
+// portfolioHistory + same cadence + same retention. Empty array when
+// the user opens the app for the first time after this lands — no
+// fake backfill, real history accumulates as portfolio refreshes
+// fire over time. Rendering arrives in CHART-7D.
+const CATEGORY_HISTORY_KEY = 'category_history';
+let categoryHistory = loadCategoryHistory();
 let lastSnapshotMs   = 0;
 let lastRefreshAt    = null;   // timestamp of last successful price refresh
 let activeRange      = '24h';
@@ -2363,6 +2370,113 @@ function saveHistory() {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(portfolioHistory));
 }
 
+// ── CHART-7C: category history storage ──────────────────────────────
+// Persists per-bucket USD totals at every portfolio snapshot. Buckets
+// match the existing TYPE_META taxonomy; values flow through the same
+// canonical `assetValueUSD()` valuation path, so no new pricing math
+// or provider call ever fires from here.
+//
+// Shape per point:
+//   {
+//     ts: epochMs,
+//     total: number,
+//     crypto, stock, etf, fund, metal, real_estate, liquidity, other
+//   }
+//
+// Retention + dedup mirror portfolioHistory exactly: 365-day cap,
+// 5-second upsert window. Storage is local-only (localStorage) and
+// the legacy `portfolio_history` key is never read or rewritten.
+function loadCategoryHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CATEGORY_HISTORY_KEY));
+    if (!Array.isArray(raw)) return [];
+    const valid = raw.filter(p =>
+      p && typeof p.ts === 'number' && typeof p.total === 'number' &&
+      isFinite(p.total) && p.total >= 0
+    );
+    const deduped = Object.values(
+      valid.reduce((acc, p) => { acc[p.ts] = p; return acc; }, {})
+    );
+    return deduped.sort((a, b) => a.ts - b.ts);
+  } catch (_) { return []; }
+}
+
+function saveCategoryHistory() {
+  try {
+    localStorage.setItem(CATEGORY_HISTORY_KEY, JSON.stringify(categoryHistory));
+  } catch (_) { /* quota / private-mode safe */ }
+}
+
+function _aurixCategoryBucket(asset) {
+  const t = String((asset && asset.type) || '').toLowerCase();
+  if (t === 'crypto')                       return 'crypto';
+  if (t === 'stock')                        return 'stock';
+  if (t === 'etf')                          return 'etf';
+  if (t === 'fund')                         return 'fund';
+  if (t === 'metal' || t === 'commodity')   return 'metal';
+  if (t === 'real_estate')                  return 'real_estate';
+  if (t === 'cash')                         return 'liquidity';
+  return 'other';
+}
+
+function recordCategorySnapshot() {
+  if (!Array.isArray(assets) || !assets.length) return;
+  const buckets = {
+    crypto: 0, stock: 0, etf: 0, fund: 0, metal: 0,
+    real_estate: 0, liquidity: 0, other: 0,
+  };
+  let total = 0;
+  for (const a of assets) {
+    if (!a) continue;
+    let v = 0;
+    try { v = Number(assetValueUSD(a)); } catch (_) { v = 0; }
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const key = _aurixCategoryBucket(a);
+    buckets[key] = (buckets[key] || 0) + v;
+    total += v;
+  }
+  if (total <= 0) return;
+
+  const now = Date.now();
+  const newPoint = {
+    ts:          now,
+    total:       +total.toFixed(2),
+    crypto:      +buckets.crypto.toFixed(2),
+    stock:       +buckets.stock.toFixed(2),
+    etf:         +buckets.etf.toFixed(2),
+    fund:        +buckets.fund.toFixed(2),
+    metal:       +buckets.metal.toFixed(2),
+    real_estate: +buckets.real_estate.toFixed(2),
+    liquidity:   +buckets.liquidity.toFixed(2),
+    other:       +buckets.other.toFixed(2),
+  };
+
+  // 5-second upsert mirrors portfolioHistory so the two series stay
+  // perfectly aligned timestamp-for-timestamp.
+  const last = categoryHistory[categoryHistory.length - 1];
+  const base = (last && now - last.ts < 5_000)
+    ? categoryHistory.slice(0, -1)
+    : categoryHistory;
+
+  const cutoff = now - 365 * 86_400_000;
+  categoryHistory = [...base, newPoint].filter(p => p.ts >= cutoff);
+  saveCategoryHistory();
+}
+
+// Console diagnostics. Read-only summary — no DOM, no UI surface.
+if (typeof window !== 'undefined') {
+  window.__aurixCategoryHistoryDebug = function () {
+    const last = categoryHistory[categoryHistory.length - 1] || null;
+    return {
+      count: categoryHistory.length,
+      last:  last,
+      keys:  ['crypto', 'stock', 'etf', 'fund', 'metal', 'real_estate', 'liquidity', 'other'],
+      firstAt: categoryHistory.length ? new Date(categoryHistory[0].ts).toISOString() : null,
+      lastAt:  last ? new Date(last.ts).toISOString() : null,
+    };
+  };
+}
+
 function generateSimulatedHistory(currentVal) {
   if (currentVal <= 0) return [];
   const now  = Date.now();
@@ -2408,6 +2522,11 @@ function recordSnapshot() {
   portfolioHistory = [...base, newPoint].filter(p => p.ts >= cutoff);
   lastSnapshotMs = now;
   saveHistory();
+  // CHART-7C: piggy-back a category snapshot on the same cadence so
+  // the two series stay perfectly aligned timestamp-for-timestamp.
+  // Wrapped in try/catch so any future bug in category bucketing can
+  // never break the legacy portfolio-history write above.
+  try { recordCategorySnapshot(); } catch (e) { console.warn('[category-snapshot] fail:', e && e.message); }
 
   console.log('[snapshot]', { ts: now, total: totalValueBase(), historyLength: portfolioHistory.length });
 }
