@@ -70,6 +70,8 @@
             <button class="menu-curr-btn" data-currency="EUR" role="menuitem">€ EUR</button>
           </div>
           <div class="menu-divider"></div>
+          <button id="menuGeneral" class="menu-item menu-item--general" data-i18n="settingsGeneral" role="menuitem">⚙ General</button>
+          <div class="menu-divider"></div>
           <button id="menuExit" class="menu-item menu-item--danger" data-i18n="exit" role="menuitem">Salir</button>
         </div>
       </div>
@@ -986,6 +988,132 @@
     <div class="modal-cta mkt-prv-cta">
       <button type="button" class="btn-secondary" id="mktPrvWatchBtn">★</button>
       <button type="button" class="btn-submit"    id="mktPrvAddBtn"   data-i18n="addToPortfolio">Añadir a cartera</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS-1: General settings overlay. Body-level placement keeps it
+     free of screen re-render churn. Sections: account, plan, data, prefs. -->
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal modal--settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-header">
+      <h3 id="settingsTitle" data-i18n="settingsTitle">General</h3>
+      <button class="modal-close" id="settingsClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body settings-body">
+
+      <section class="settings-section" id="settingsSectionAccount">
+        <h4 class="settings-section-title" data-i18n="settingsAccount">Cuenta</h4>
+        <div class="settings-row">
+          <span class="settings-row-label" data-i18n="settingsEmail">Email</span>
+          <span class="settings-row-value" id="settingsAccountEmail">—</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label" data-i18n="settingsStatus">Estado</span>
+          <span class="settings-row-value" id="settingsAccountStatus" data-i18n="settingsStatusLocal">Local · sin sesión</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label" data-i18n="settingsBuild">Build</span>
+          <span class="settings-row-value" id="settingsBuildVersion">v1.0 · 2026.05</span>
+        </div>
+      </section>
+
+      <section class="settings-section" id="settingsSectionPlan">
+        <h4 class="settings-section-title" data-i18n="settingsPlanTitle">Plan</h4>
+        <div class="plan-card" id="planCardCurrent">
+          <div class="plan-card-head">
+            <span class="plan-card-tier" id="planTierName">Aurix Free</span>
+            <span class="plan-card-badge" id="planTierBadge" data-i18n="settingsPlanCurrent">Plan actual</span>
+          </div>
+          <div class="plan-card-body">
+            <div class="plan-usage">
+              <span class="plan-usage-label" data-i18n="settingsAssetsUsed">Activos usados</span>
+              <span class="plan-usage-value" id="planAssetsUsed">0 / 10</span>
+            </div>
+            <div class="plan-usage-bar"><span class="plan-usage-bar-fill" id="planUsageFill" style="width:0%"></span></div>
+            <div class="plan-usage-warn" id="planUsageWarn" hidden data-i18n="settingsAssetsSoftWarn">Estás cerca del límite del plan Free.</div>
+          </div>
+        </div>
+
+        <div class="plan-card plan-card--offer" id="planCardOffer">
+          <div class="plan-card-head">
+            <span class="plan-card-tier" data-i18n="settingsFounderName">Aurix Founder</span>
+            <span class="plan-card-price" id="planFounderPrice" data-i18n="settingsFounderPrice">14,99€ / año</span>
+          </div>
+          <div class="plan-card-body">
+            <p class="plan-card-desc" data-i18n="settingsFounderDesc">Acceso anticipado. Sin límite de activos. Precio fundador de por vida.</p>
+            <button type="button" class="btn-submit btn-submit--plan" id="planFounderCta" data-i18n="settingsFounderCta" disabled>Mejorar a Founder</button>
+            <p class="plan-card-note" data-i18n="settingsFounderSoon">Próximamente</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section" id="settingsSectionData">
+        <h4 class="settings-section-title" data-i18n="settingsData">Datos</h4>
+        <div class="settings-actions">
+          <button type="button" class="settings-action" id="settingsExportBtn">
+            <span class="settings-action-label" data-i18n="settingsExport">Exportar datos</span>
+            <span class="settings-action-sub" data-i18n="settingsExportSub">Descarga un JSON con toda tu cartera</span>
+          </button>
+          <button type="button" class="settings-action" id="settingsImportBtn" disabled>
+            <span class="settings-action-label" data-i18n="settingsImport">Importar datos</span>
+            <span class="settings-action-sub" data-i18n="settingsImportSub">Próximamente</span>
+          </button>
+          <button type="button" class="settings-action settings-action--danger" id="settingsResetBtn">
+            <span class="settings-action-label" data-i18n="settingsReset">Resetear cartera</span>
+            <span class="settings-action-sub" data-i18n="settingsResetSub">Borra activos, historial y seguimiento</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="settings-section" id="settingsSectionPrefs">
+        <h4 class="settings-section-title" data-i18n="settingsPrefs">Preferencias</h4>
+        <div class="settings-prefs-list">
+          <div class="settings-pref-item">
+            <span class="settings-pref-label" data-i18n="settingsLang">Idioma</span>
+            <span class="settings-pref-value" id="settingsLangValue">—</span>
+          </div>
+          <div class="settings-pref-item">
+            <span class="settings-pref-label" data-i18n="settingsCurrency">Moneda base</span>
+            <span class="settings-pref-value" id="settingsCurrencyValue">—</span>
+          </div>
+          <div class="settings-pref-item settings-pref-item--placeholder">
+            <span class="settings-pref-label" data-i18n="settingsPrivacy">Privacidad</span>
+            <span class="settings-pref-value settings-pref-soon" data-i18n="settingsSoon">Próximamente</span>
+          </div>
+          <div class="settings-pref-item settings-pref-item--placeholder">
+            <span class="settings-pref-label" data-i18n="settingsSupport">Soporte</span>
+            <span class="settings-pref-value settings-pref-soon" data-i18n="settingsSoon">Próximamente</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS-1: reset confirmation. Requires typing the matching token
+     so destructive action is never one accidental tap away. -->
+<div class="modal-overlay" id="resetConfirmOverlay">
+  <div class="modal modal--reset" role="dialog" aria-modal="true" aria-labelledby="resetConfirmTitle">
+    <div class="modal-header">
+      <h3 id="resetConfirmTitle" data-i18n="resetTitle">Resetear cartera</h3>
+      <button class="modal-close" id="resetConfirmClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="reset-warn-lead" data-i18n="resetWarnLead">Esta acción no se puede deshacer.</p>
+      <ul class="reset-list">
+        <li data-i18n="resetItemAssets">Activos</li>
+        <li data-i18n="resetItemTx">Transacciones</li>
+        <li data-i18n="resetItemHistory">Historial de cartera</li>
+        <li data-i18n="resetItemCategory">Historial por categoría</li>
+        <li data-i18n="resetItemWatch">Seguimiento</li>
+        <li data-i18n="resetItemDemo">Datos de prueba</li>
+      </ul>
+      <p class="reset-keep" data-i18n="resetKeep">Se conservan tu idioma, moneda base y plan.</p>
+      <label class="reset-confirm-label" for="resetConfirmInput" data-i18n="resetTypeLabel">Escribe RESET para confirmar</label>
+      <input type="text" class="reset-confirm-input" id="resetConfirmInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="RESET">
+      <button type="button" class="btn-submit btn-submit--danger" id="resetConfirmBtn" disabled data-i18n="resetDeleteBtn">Eliminar datos y empezar de cero</button>
     </div>
   </div>
 </div>

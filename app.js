@@ -851,6 +851,49 @@ const T = {
     wsTplAnnualContrib:      'Aportación anual',
     wsTplExpectedReturn:     'Rentabilidad esperada %',
     wsTplFutureValue:        'Valor futuro',
+    // SETTINGS-1
+    settingsGeneral:          '⚙ General',
+    settingsTitle:            'General',
+    settingsAccount:          'Cuenta',
+    settingsEmail:            'Email',
+    settingsStatus:           'Estado',
+    settingsStatusLocal:      'Local · sin sesión',
+    settingsBuild:            'Build',
+    settingsPlanTitle:        'Plan',
+    settingsPlanCurrent:      'Plan actual',
+    settingsAssetsUsed:       'Activos usados',
+    settingsAssetsSoftWarn:   'Estás cerca del límite del plan Free.',
+    settingsFounderName:      'Aurix Founder',
+    settingsFounderPrice:     '14,99€ / año',
+    settingsFounderDesc:      'Acceso anticipado. Sin límite de activos. Precio fundador de por vida.',
+    settingsFounderCta:       'Mejorar a Founder',
+    settingsFounderSoon:      'Próximamente',
+    settingsData:             'Datos',
+    settingsExport:           'Exportar datos',
+    settingsExportSub:        'Descarga un JSON con toda tu cartera',
+    settingsImport:           'Importar datos',
+    settingsImportSub:        'Próximamente',
+    settingsReset:            'Resetear cartera',
+    settingsResetSub:         'Borra activos, historial y seguimiento',
+    settingsPrefs:            'Preferencias',
+    settingsLang:             'Idioma',
+    settingsCurrency:         'Moneda base',
+    settingsPrivacy:          'Privacidad',
+    settingsSupport:          'Soporte',
+    settingsSoon:             'Próximamente',
+    resetTitle:               'Resetear cartera',
+    resetWarnLead:            'Esta acción no se puede deshacer.',
+    resetItemAssets:          'Activos',
+    resetItemTx:              'Transacciones',
+    resetItemHistory:         'Historial de cartera',
+    resetItemCategory:        'Historial por categoría',
+    resetItemWatch:           'Seguimiento',
+    resetItemDemo:            'Datos de prueba',
+    resetKeep:                'Se conservan tu idioma, moneda base y plan.',
+    resetTypeLabel:           'Escribe RESET para confirmar',
+    resetDeleteBtn:           'Eliminar datos y empezar de cero',
+    resetDoneToast:           'Cartera restablecida',
+    exportDoneToast:          'Backup descargado',
     // Beta screen
     exit: 'Salir',
   },
@@ -1412,6 +1455,49 @@ const T = {
     wsTplAnnualContrib:      'Annual Contribution',
     wsTplExpectedReturn:     'Expected Return %',
     wsTplFutureValue:        'Future Value',
+    // SETTINGS-1
+    settingsGeneral:          '⚙ General',
+    settingsTitle:            'General',
+    settingsAccount:          'Account',
+    settingsEmail:            'Email',
+    settingsStatus:           'Status',
+    settingsStatusLocal:      'Local · no session',
+    settingsBuild:            'Build',
+    settingsPlanTitle:        'Plan',
+    settingsPlanCurrent:      'Current plan',
+    settingsAssetsUsed:       'Assets used',
+    settingsAssetsSoftWarn:   "You're close to the Free plan limit.",
+    settingsFounderName:      'Aurix Founder',
+    settingsFounderPrice:     '€14.99 / year',
+    settingsFounderDesc:      'Early access. Unlimited assets. Founder price for life.',
+    settingsFounderCta:       'Upgrade to Founder',
+    settingsFounderSoon:      'Coming soon',
+    settingsData:             'Data',
+    settingsExport:           'Export data',
+    settingsExportSub:        'Download a JSON file with your portfolio',
+    settingsImport:           'Import data',
+    settingsImportSub:        'Coming soon',
+    settingsReset:            'Reset portfolio',
+    settingsResetSub:         'Erase assets, history and watchlist',
+    settingsPrefs:            'Preferences',
+    settingsLang:             'Language',
+    settingsCurrency:         'Base currency',
+    settingsPrivacy:          'Privacy',
+    settingsSupport:          'Support',
+    settingsSoon:             'Coming soon',
+    resetTitle:               'Reset portfolio',
+    resetWarnLead:            'This action cannot be undone.',
+    resetItemAssets:          'Assets',
+    resetItemTx:              'Transactions',
+    resetItemHistory:         'Portfolio history',
+    resetItemCategory:        'Category history',
+    resetItemWatch:           'Watchlist',
+    resetItemDemo:            'Demo / test data',
+    resetKeep:                'Your language, base currency and plan are preserved.',
+    resetTypeLabel:           'Type RESET to confirm',
+    resetDeleteBtn:           'Delete data and start over',
+    resetDoneToast:           'Portfolio reset',
+    exportDoneToast:          'Backup downloaded',
     // Beta screen
     exit: 'Exit',
   },
@@ -20264,4 +20350,282 @@ if (IS_DEV) {
   console.log('[DEBUG] SUPABASE_URL:', typeof SUPABASE_URL);
   console.log('[DEBUG] supabase object:', typeof window.supabase);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   SETTINGS-1 — General panel, plan foundation, safe reset, export.
+   ══════════════════════════════════════════════════════════════════ */
+
+// ── Plan foundation (display only — no enforcement yet) ───────────
+const PLAN_KEY = 'aurix_plan';
+const PLAN_LIMITS = Object.freeze({
+  free:    { maxAssets: 10 },
+  founder: { maxAssets: Infinity },
+  pro:     { maxAssets: Infinity },
+});
+
+function _planDefault() {
+  return {
+    tier: 'free',
+    startedAt: Date.now(),
+    trialEndsAt: null,
+    founderEligible: true,
+  };
+}
+function loadPlan() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null');
+    if (raw && typeof raw === 'object' && typeof raw.tier === 'string') {
+      return Object.assign(_planDefault(), raw);
+    }
+  } catch (_) {}
+  const fresh = _planDefault();
+  try { localStorage.setItem(PLAN_KEY, JSON.stringify(fresh)); } catch (_) {}
+  return fresh;
+}
+function getPlan() { return loadPlan(); }
+function planTierName(tier) {
+  if (tier === 'founder') return 'Aurix Founder';
+  if (tier === 'pro')     return 'Aurix Pro';
+  return 'Aurix Free';
+}
+
+// ── Settings panel open / close + populate ────────────────────────
+function _settingsT(key) {
+  try { return (T && T[lang] && T[lang][key]) || key; } catch (_) { return key; }
+}
+function _settingsFormatAssetUsage(plan, count) {
+  const limit = (PLAN_LIMITS[plan.tier] || PLAN_LIMITS.free).maxAssets;
+  if (!Number.isFinite(limit)) return `${count} / ∞`;
+  return `${count} / ${limit}`;
+}
+function _settingsPopulate() {
+  const plan  = getPlan();
+  const count = Array.isArray(assets) ? assets.length : 0;
+
+  const tierEl   = document.getElementById('planTierName');
+  const usedEl   = document.getElementById('planAssetsUsed');
+  const fillEl   = document.getElementById('planUsageFill');
+  const warnEl   = document.getElementById('planUsageWarn');
+  const langEl   = document.getElementById('settingsLangValue');
+  const currEl   = document.getElementById('settingsCurrencyValue');
+  const emailEl  = document.getElementById('settingsAccountEmail');
+
+  if (tierEl) tierEl.textContent = planTierName(plan.tier);
+  if (usedEl) usedEl.textContent = _settingsFormatAssetUsage(plan, count);
+
+  const limit = (PLAN_LIMITS[plan.tier] || PLAN_LIMITS.free).maxAssets;
+  if (fillEl) {
+    const pct = !Number.isFinite(limit) ? 12 : Math.max(0, Math.min(100, (count / limit) * 100));
+    fillEl.style.width = pct.toFixed(1) + '%';
+    fillEl.classList.toggle('is-over', Number.isFinite(limit) && count > limit);
+  }
+  if (warnEl) {
+    const showWarn = plan.tier === 'free' && Number.isFinite(limit) && count >= limit;
+    warnEl.hidden = !showWarn;
+  }
+  if (langEl) langEl.textContent = lang === 'es' ? 'Español' : 'English';
+  if (currEl) currEl.textContent = baseCurrency === 'EUR' ? '€ EUR' : '$ USD';
+
+  if (emailEl) {
+    let email = '';
+    try {
+      const session = (typeof window !== 'undefined' && window.__aurixSession) || null;
+      if (session && session.email) email = session.email;
+    } catch (_) {}
+    emailEl.textContent = email || (lang === 'es' ? 'Sin sesión' : 'No session');
+  }
+}
+function openSettingsPanel() {
+  const ov = document.getElementById('settingsOverlay');
+  if (!ov) return;
+  _settingsPopulate();
+  ov.classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function closeSettingsPanel() {
+  const ov = document.getElementById('settingsOverlay');
+  if (!ov) return;
+  ov.classList.remove('open');
+  // Only release body lock if the reset confirm overlay isn't itself open.
+  const reset = document.getElementById('resetConfirmOverlay');
+  if (!reset || !reset.classList.contains('open')) {
+    document.body.classList.remove('modal-open');
+  }
+}
+
+// ── Reset confirm overlay ─────────────────────────────────────────
+function openResetConfirm() {
+  const ov = document.getElementById('resetConfirmOverlay');
+  const input = document.getElementById('resetConfirmInput');
+  const btn   = document.getElementById('resetConfirmBtn');
+  if (!ov) return;
+  if (input) input.value = '';
+  if (btn)   btn.disabled = true;
+  ov.classList.add('open');
+  document.body.classList.add('modal-open');
+  setTimeout(() => { try { input && input.focus(); } catch (_) {} }, 60);
+}
+function closeResetConfirm() {
+  const ov = document.getElementById('resetConfirmOverlay');
+  if (!ov) return;
+  ov.classList.remove('open');
+  const settings = document.getElementById('settingsOverlay');
+  if (!settings || !settings.classList.contains('open')) {
+    document.body.classList.remove('modal-open');
+  }
+}
+
+// ── Safe reset ────────────────────────────────────────────────────
+// Clears portfolio-related state only. Preserves: language, base
+// currency, and the plan placeholder. Idempotent — safe to call twice.
+function performSafeReset() {
+  const PORTFOLIO_KEYS = [
+    'portfolio_assets',
+    'portfolio_history',
+    'category_history',
+    'portfolio_card_order',
+    'portfolio_cat_order',
+    'aurix_watchlist',
+    'aurix_assets',
+    'aurix_holdings',
+    'aurix.workspace.v1',
+    'aurix_insights_memory',
+    'aurix_user_profile',
+    'aurix_behavior',
+    'aurix_decisions',
+    'aurix_data_backup',
+  ];
+  PORTFOLIO_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+
+  try { assets = []; } catch (_) {}
+  try { portfolioHistory = []; } catch (_) {}
+  try { categoryHistory  = []; } catch (_) {}
+  try { _cardOrder = []; } catch (_) {}
+  try { _catOrder  = []; } catch (_) {}
+  try { activeCategory = null; } catch (_) {}
+
+  // Persist the empty state via the canonical save path so the
+  // schema-version flag and migration vars stay consistent.
+  try { if (typeof save === 'function') save(); } catch (_) {}
+
+  // Re-render dashboard so the donut, KPIs and asset list all
+  // reflect the empty state immediately.
+  try { if (typeof recomputeDerivedFinancialState === 'function') recomputeDerivedFinancialState('reset'); } catch (_) {}
+  try { if (typeof render === 'function') render(); } catch (_) {}
+
+  // Notify watchlist subscribers (sparkline mounts, market UI) so
+  // they refresh without a reload.
+  try {
+    if (typeof watchlistStore !== 'undefined' && watchlistStore && typeof watchlistStore.getWatchlist === 'function') {
+      const cur = watchlistStore.getWatchlist();
+      cur.forEach(k => watchlistStore.remove(k));
+    }
+  } catch (_) {}
+}
+
+// ── Export data (download as JSON file) ───────────────────────────
+function _todayStamp() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function exportPortfolioBackup() {
+  const payload = {
+    schema:        'aurix.backup.v1',
+    exportedAt:    new Date().toISOString(),
+    baseCurrency:  baseCurrency,
+    lang:          lang,
+    plan:          getPlan(),
+    assets:        Array.isArray(assets) ? assets : [],
+    portfolioHistory: Array.isArray(portfolioHistory) ? portfolioHistory : [],
+    categoryHistory:  Array.isArray(categoryHistory)  ? categoryHistory  : [],
+    watchlist:     (typeof getWatchlist === 'function') ? getWatchlist() : [],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `aurix-backup-${_todayStamp()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { try { URL.revokeObjectURL(url); a.remove(); } catch (_) {} }, 0);
+}
+
+// ── Wiring: open from menu, close, reset, export, type-RESET gate ─
+(function _initSettingsPanel() {
+  // Menu entry
+  document.addEventListener('click', e => {
+    const trigger = e.target.closest && e.target.closest('#menuGeneral');
+    if (trigger) {
+      e.stopPropagation();
+      // Close hamburger menu if open
+      const panel = document.getElementById('menuPanel');
+      const toggle = document.getElementById('menuToggle');
+      if (panel && panel.classList.contains('open')) panel.classList.remove('open');
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      openSettingsPanel();
+    }
+  });
+
+  // Settings overlay interactions (close, export, reset)
+  document.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('#settingsClose')) {
+      closeSettingsPanel();
+      return;
+    }
+    // Backdrop click on settings overlay closes it (clicking outside the modal box).
+    const settingsOv = document.getElementById('settingsOverlay');
+    if (settingsOv && settingsOv.classList.contains('open') &&
+        e.target === settingsOv) {
+      closeSettingsPanel();
+      return;
+    }
+    if (e.target.closest && e.target.closest('#settingsExportBtn')) {
+      try { exportPortfolioBackup(); } catch (err) { console.warn('[settings] export fail:', err && err.message); }
+      return;
+    }
+    if (e.target.closest && e.target.closest('#settingsResetBtn')) {
+      openResetConfirm();
+      return;
+    }
+
+    // Reset confirm overlay
+    if (e.target.closest && e.target.closest('#resetConfirmClose')) {
+      closeResetConfirm();
+      return;
+    }
+    const resetOv = document.getElementById('resetConfirmOverlay');
+    if (resetOv && resetOv.classList.contains('open') && e.target === resetOv) {
+      closeResetConfirm();
+      return;
+    }
+    if (e.target.closest && e.target.closest('#resetConfirmBtn')) {
+      const btn = document.getElementById('resetConfirmBtn');
+      if (btn && btn.disabled) return;
+      try { performSafeReset(); } catch (err) { console.warn('[settings] reset fail:', err && err.message); }
+      closeResetConfirm();
+      closeSettingsPanel();
+      return;
+    }
+  });
+
+  // Type-RESET gate
+  document.addEventListener('input', e => {
+    if (!e.target || e.target.id !== 'resetConfirmInput') return;
+    const v   = String(e.target.value || '').trim().toUpperCase();
+    const btn = document.getElementById('resetConfirmBtn');
+    if (btn) btn.disabled = (v !== 'RESET');
+  });
+
+  // Escape closes the topmost open overlay
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const resetOv    = document.getElementById('resetConfirmOverlay');
+    const settingsOv = document.getElementById('settingsOverlay');
+    if (resetOv && resetOv.classList.contains('open'))      { closeResetConfirm();   return; }
+    if (settingsOv && settingsOv.classList.contains('open')) { closeSettingsPanel(); return; }
+  });
+})();
 
