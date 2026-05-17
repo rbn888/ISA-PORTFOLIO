@@ -5656,12 +5656,29 @@ img {
 /* MARKET-1B: market asset preview modal — premium glass panel that
    opens on row click. Inherits .modal-overlay / .modal chrome (radius,
    shadow, blur, safe-area). Self-contained sub-tree below. */
-.modal--mkt-preview { max-width: 520px; }
+.modal--mkt-preview { max-width: 540px; }
+/* MARKET-1C: bigger hit area on the modal close button. The legacy
+   32×32 is fine on desktop but punishing on touch; 40×40 stays
+   premium-compact while doubling the tap target. Scoped to this
+   modal so no global change. */
+.modal--mkt-preview .modal-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+.modal--mkt-preview .modal-header {
+  padding: 18px 20px;
+}
+.modal--mkt-preview .modal-body {
+  padding: 14px 20px 20px;
+}
 .mkt-prv-head {
   display: flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 .mkt-prv-icon {
   width: 40px;

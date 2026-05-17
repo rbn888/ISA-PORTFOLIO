@@ -8509,24 +8509,23 @@ function _aurixMktPickAdapter(item) {
   return { kind: 'yahoo', args: { symbol: String(sym).toUpperCase() } };
 }
 function _aurixMktMetaLine(item, adapter, meta) {
+  // MARKET-1C: friendly market language instead of provider names.
+  // The user doesn't care that the data came from CoinGecko vs Yahoo;
+  // they want a human label of what they're looking at.
   try {
     const isEs = (typeof lang !== 'undefined' && lang === 'es');
     const tp = String((item && item.type) || '').toLowerCase();
-    const g  = (meta && meta.granularity) || '';
     if (tp === 'fund') return isEs ? 'NAV diario' : 'Daily NAV';
     if (item && item.symbol && /XAU/i.test(item.symbol)) {
-      return (isEs ? 'Oro spot' : 'Gold spot') + ' · ' +
-             (isEs ? 'Referencia de mercado' : 'Market reference');
+      return isEs ? 'Referencia de oro' : 'Gold reference';
     }
-    const parts = [];
-    if (adapter && adapter.kind === 'crypto') parts.push('CoinGecko');
-    else if (adapter && adapter.kind === 'yahoo') parts.push('Yahoo');
-    if      (g === '1d')  parts.push(isEs ? 'Diario'  : 'Daily');
-    else if (g === '5m')  parts.push('5m');
-    else if (g === '15m') parts.push('15m');
-    else if (g === '1h')  parts.push('1h');
-    else if (g === '1wk') parts.push(isEs ? 'Semanal' : 'Weekly');
-    return parts.join(' · ');
+    if (adapter && adapter.kind === 'crypto') {
+      return isEs ? 'Histórico cripto' : 'Crypto history';
+    }
+    if (adapter && adapter.kind === 'yahoo') {
+      return isEs ? 'Histórico de mercado' : 'Market history';
+    }
+    return '';
   } catch (_) { return ''; }
 }
 function _aurixMktSetMeta(line) {
@@ -8751,44 +8750,68 @@ function _aurixMktOpenSymbol(symbol) {
   return true;
 }
 
-// Wire overlay close + CTA buttons once. Idempotent: guarded by a
-// flag on window so the bindings survive multiple market re-renders.
-(function _aurixMktBindOnce() {
+// MARKET-1C: document-level delegation for ALL preview controls.
+//
+// MARKET-1B used element-specific bindings inside an IIFE that ran
+// synchronously during app.js parsing. But index.html loads app.js
+// 87 lines BEFORE the #marketPreviewOverlay markup, so every
+// getElementById() inside the IIFE returned null and the addEventListener
+// guards short-circuited — close / backdrop / watchlist / add CTA all
+// silently failed to bind. Escape kept working because it bound to
+// `document` directly.
+//
+// Fix: every interactive control is dispatched through a single
+// document-level click handler that uses `closest()`. This is
+// parse-order-immune (the listener exists from the moment app.js
+// runs; clicks anywhere in the DOM bubble up to document at any
+// later time) and immune to chart-engine event capture (chart hover
+// / long-press never call preventDefault on `click`, and the
+// inspection state machine's click-capture only suppresses synthetic
+// clicks INSIDE the chart bounds for 350 ms after touchend).
+(function _aurixMktBindGlobal() {
   if (typeof window === 'undefined' || window.__aurixMktBound) return;
   window.__aurixMktBound = true;
-  const closeBtn = document.getElementById('mktPrvClose');
-  const overlay  = document.getElementById('marketPreviewOverlay');
-  if (closeBtn) closeBtn.addEventListener('click', _aurixMktClose);
-  if (overlay) overlay.addEventListener('click', e => {
-    if (e.target === overlay) _aurixMktClose();
-  });
-  const watchBtn = document.getElementById('mktPrvWatchBtn');
-  if (watchBtn) {
-    watchBtn.addEventListener('click', () => {
+
+  document.addEventListener('click', e => {
+    // Close (X) button — anywhere it lives in the DOM.
+    if (e.target.closest && e.target.closest('#mktPrvClose')) {
+      _aurixMktClose();
+      return;
+    }
+    // Backdrop click — the target must BE the overlay (not a child).
+    const overlay = document.getElementById('marketPreviewOverlay');
+    if (overlay && e.target === overlay) {
+      _aurixMktClose();
+      return;
+    }
+    // Watchlist toggle.
+    if (e.target.closest && e.target.closest('#mktPrvWatchBtn')) {
       if (!_aurixMktItem) return;
       const sym = String(_aurixMktItem.symbol || '').toUpperCase();
       if (!sym) return;
       try { if (typeof toggleWatchlist === 'function') toggleWatchlist(sym); } catch (_) {}
       _aurixMktUpdateWatchUI(sym);
-      // Mirror the legacy market row update so stars on the screen
-      // behind the modal also refresh.
-      try { document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
-        const isAdded = (typeof isInWatchlist === 'function') ? isInWatchlist(sym) : false;
-        b.textContent = isAdded ? '★' : '☆';
-        b.classList.toggle('active', isAdded);
-      }); } catch (_) {}
-    });
-  }
-  const addBtn = document.getElementById('mktPrvAddBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
+      // Mirror to every star on the market screen behind the modal.
+      try {
+        document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
+          const isAdded = (typeof isInWatchlist === 'function') ? isInWatchlist(sym) : false;
+          b.textContent = isAdded ? '★' : '☆';
+          b.classList.toggle('active', isAdded);
+        });
+      } catch (_) {}
+      return;
+    }
+    // Add to portfolio CTA.
+    if (e.target.closest && e.target.closest('#mktPrvAddBtn')) {
       const item = _aurixMktItem;
       _aurixMktClose();
       if (item && typeof _openAddAssetWithFund === 'function') {
         _openAddAssetWithFund(item);
       }
-    });
-  }
+      return;
+    }
+  });
+
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       const ov = document.getElementById('marketPreviewOverlay');
@@ -12796,7 +12819,28 @@ function _initFundsCatalogDelegation() {
       if (!reg) return;
       const cat = reg.catalog.find(c => c.id === reg.get()) || reg.catalog[0];
       const item = cat.items.find(i => i.ticker === ticker);
-      if (item) _openAddAssetWithFund(item);
+      if (!item) return;
+      // MARKET-1C: split body click vs CTA. Clicking the "+ Añadir"
+      // CTA keeps the existing add-to-portfolio behaviour; clicking
+      // elsewhere on the card opens the market preview chart. The
+      // preview itself has its own "Añadir a cartera" CTA — same
+      // end state via a more premium discovery flow.
+      const onCta = !!(e.target.closest && e.target.closest('.funds-card-cta'));
+      if (onCta) {
+        _openAddAssetWithFund(item);
+      } else if (typeof _aurixMktOpenSymbol === 'function' &&
+                 typeof _aurixMktFlag === 'function' && _aurixMktFlag()) {
+        // The preview helper looks the asset up in MARKET_DATA so the
+        // live price / 24h change are accurate; the catalog ticker is
+        // the join key.
+        if (!_aurixMktOpenSymbol(ticker)) {
+          // Fallback: if the preview can't open (no MARKET_DATA hit,
+          // engine not ready, etc.), preserve legacy behaviour.
+          _openAddAssetWithFund(item);
+        }
+      } else {
+        _openAddAssetWithFund(item);
+      }
     }
   });
 }
