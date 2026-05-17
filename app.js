@@ -1763,6 +1763,14 @@ let _inlineEditId    = null;   // id of asset currently open in inline edit stri
 let _inlineEditMode  = null;   // 'add' | 'reduce'
 let portfolioChart   = null;
 let portfolioChartMobile = null;  // mobile slider instance — null on desktop
+// CHART-4: Aurix V2 dashboard overlay controllers, one per surface.
+// Stay null unless window.__AURIX_CHART_V2 is true AND the engine
+// successfully mounts on top of the legacy Chart.js canvas. The
+// legacy charts above remain authoritative — V2 is a sibling overlay
+// that hides the canvas via visibility:hidden, preserving layout so
+// any fallback restores the legacy pixel-for-pixel.
+let _aurixDashDesktop = null;
+let _aurixDashMobile  = null;
 let _detailChart     = null;  // Chart.js instance for category detail sparkline
 let _detailChartType = null;  // which category the sparkline was last rendered for
 let _chartRevealProgress = 1; // 0–1 clip for left-to-right line reveal
@@ -7656,6 +7664,176 @@ function updateChartTooltip(context) {
   tooltipEl.classList.add('chart-tooltip--visible');
 }
 
+// ── CHART-4 ──────────────────────────────────────────────────────
+// Feature-flagged dashboard chart V2. The legacy Chart.js path is
+// authoritative — V2 mounts as an absolute-positioned sibling div on
+// top of the existing canvas (which is kept in layout via
+// visibility:hidden). Any failure tears down the V2 overlay and
+// restores the canvas, so the legacy chart resumes pixel-for-pixel.
+//
+// Enable from the console:    window.__AURIX_CHART_V2 = true
+// Disable instantly:          window.__AURIX_CHART_V2 = false
+//
+// No business logic touched. Series consumed from the same
+// portfolioHistory the legacy path reads, base-currency converted at
+// render time exactly as getChartData() does for parity.
+function _aurixDashFlag() {
+  return typeof window !== 'undefined' && !!window.__AURIX_CHART_V2;
+}
+function _aurixDashReady() {
+  return typeof window !== 'undefined'
+      && typeof window.AurixCharts === 'object'
+      && typeof window.AurixCharts.createChart === 'function'
+      && typeof window.AurixCharts.isReady === 'function'
+      && window.AurixCharts.isReady();
+}
+
+const _AURIX_DASH_SPAN = Object.freeze({
+  '24h': 24 * 3600 * 1000,
+  '7d':  7  * 86400 * 1000,
+  '30d': 30 * 86400 * 1000,
+  '1y':  365 * 86400 * 1000,
+  'all': 0,
+});
+
+// Build a normalized series for Aurix in BASE currency, mirroring
+// getChartData()'s render-time toBase() conversion. We never alter
+// portfolioHistory itself.
+function _aurixDashSeries(range) {
+  if (!Array.isArray(portfolioHistory) || portfolioHistory.length < 2) return [];
+  const now    = Date.now();
+  const span   = _AURIX_DASH_SPAN[range];
+  const cutoff = (range === 'all' || span === 0) ? 0 : now - span;
+  const out = [];
+  for (const p of portfolioHistory) {
+    if (!p) continue;
+    const t = Number(p.ts);
+    const v = Number(p.value);
+    if (!Number.isFinite(t) || !Number.isFinite(v) || v <= 0) continue;
+    if (t < cutoff) continue;
+    out.push({ time: t, value: toBase(v, 'USD') });
+  }
+  out.sort((a, b) => a.time - b.time);
+  return out;
+}
+
+function _aurixDashTeardown(surface) {
+  const ctrl     = surface === 'desktop' ? _aurixDashDesktop : _aurixDashMobile;
+  const canvasId = surface === 'desktop' ? 'portfolioChart'  : 'portfolioChartMobile';
+  if (ctrl) {
+    try { ctrl.destroy(); } catch (_) {}
+  }
+  if (surface === 'desktop') _aurixDashDesktop = null;
+  else                       _aurixDashMobile  = null;
+  // Restore the legacy canvas to the visible layout flow.
+  const canvas = document.getElementById(canvasId);
+  if (canvas) canvas.style.visibility = '';
+  // Remove any stranded host node (defensive — destroy() already does it).
+  const stray = document.querySelector(`[data-aurix-dash="${surface}"]`);
+  if (stray && stray.parentNode) {
+    try { stray.parentNode.removeChild(stray); } catch (_) {}
+  }
+}
+
+function _aurixDashMount(surface) {
+  if (!_aurixDashFlag())  return null;
+  if (!_aurixDashReady()) return null;
+  const canvasId = surface === 'desktop' ? 'portfolioChart' : 'portfolioChartMobile';
+  const canvas   = document.getElementById(canvasId);
+  if (!canvas)        return null;
+  const parent = canvas.parentNode;
+  if (!parent)        return null;
+  // Idempotent: tear any prior V2 instance for this surface before mounting.
+  _aurixDashTeardown(surface);
+  try {
+    // The parent (.chart-wrap or .mobile-chart-wrap) is already
+    // position:relative with explicit dimensions per styles.css.
+    // Belt-and-braces in case a future CSS regression strips it.
+    const cs = parent.ownerDocument && parent.ownerDocument.defaultView
+      ? parent.ownerDocument.defaultView.getComputedStyle(parent)
+      : { position: '' };
+    if (cs.position === 'static') parent.style.position = 'relative';
+
+    const host = document.createElement('div');
+    host.dataset.aurixDash = surface;
+    host.style.position = 'absolute';
+    host.style.inset = '0';
+    // Mobile: never absorb touch — page swipe through the slider must
+    // continue to work; the chart is informational-only there.
+    host.style.pointerEvents = surface === 'mobile' ? 'none' : 'auto';
+    parent.appendChild(host);
+
+    // Hide the legacy canvas via visibility (preserves layout, lets
+    // Chart.js continue painting offscreen so fallback is instant).
+    canvas.style.visibility = 'hidden';
+
+    const isDesktop = surface === 'desktop';
+    const ctrl = window.AurixCharts.createChart(host, {
+      variant:        'portfolio',
+      colorMode:      'auto',
+      showCrosshair:  isDesktop,
+      showTooltip:    isDesktop,
+      showTimeScale:  isDesktop,
+      showPriceScale: isDesktop,
+      currency:       baseCurrency || 'USD',
+      range:          activeRange,
+      // Inherit the parent box explicitly so any container reflow
+      // (window resize, mobile slider transitions) is handled by the
+      // engine's own ResizeObserver — see services/aurix-chart-core.js.
+      height:         parent.clientHeight || (isDesktop ? 190 : 220),
+    });
+
+    if (isDesktop) _aurixDashDesktop = ctrl;
+    else           _aurixDashMobile  = ctrl;
+
+    // Push initial data + range to the new controller.
+    _aurixDashSync(surface);
+    return ctrl;
+  } catch (err) {
+    console.warn('[chart-v2] mount failed for', surface, err && err.message ? err.message : err);
+    _aurixDashTeardown(surface);
+    return null;
+  }
+}
+
+// Instant rollback helper — exposed on window so a user can disable
+// V2 from the console without reloading:
+//   window.__AURIX_CHART_V2 = false;
+//   window.__aurixDashDisable();
+// The legacy Chart.js chart resumes immediately, since its canvas was
+// kept in layout (visibility:hidden) and its instance kept up-to-date.
+if (typeof window !== 'undefined') {
+  window.__aurixDashDisable = function () {
+    _aurixDashTeardown('desktop');
+    _aurixDashTeardown('mobile');
+  };
+}
+
+function _aurixDashSync(surface) {
+  const ctrl = surface === 'desktop' ? _aurixDashDesktop : _aurixDashMobile;
+  if (!ctrl) return;
+  try {
+    ctrl.setRange(activeRange);
+    ctrl.setCurrency(baseCurrency || 'USD');
+    const series = _aurixDashSeries(activeRange);
+    if (!series.length) {
+      ctrl.setData([]);
+      return;
+    }
+    ctrl.setData(series, {
+      source:       'local-snapshot',
+      currency:     baseCurrency || 'USD',
+      granularity:  '5m',
+      isSynthetic:  false,
+      completeness: 1,
+      asOf:         Date.now(),
+    });
+  } catch (err) {
+    console.warn('[chart-v2] sync failed for', surface, err && err.message ? err.message : err);
+    _aurixDashTeardown(surface);
+  }
+}
+
 function initChart() {
   const canvas = document.getElementById('portfolioChart');
   if (!canvas || portfolioChart) return;
@@ -7734,6 +7912,11 @@ function initChart() {
   };
   canvas.addEventListener('mouseleave', _hideTooltip);
   canvas.addEventListener('touchend',   _hideTooltip, { passive: true });
+
+  // CHART-4: attempt to overlay the Aurix V2 chart on top of this
+  // canvas. The flag default is false → no-op. Any failure inside
+  // _aurixDashMount falls back to the legacy chart automatically.
+  try { _aurixDashMount('desktop'); } catch (_) {}
 }
 
 // ── Per-range display-point limits ───────────────────────────────────────
@@ -7953,6 +8136,12 @@ function updateChart(animate = false) {
     portfolioChartMobile.data.datasets[0].data = data.values;
     portfolioChartMobile.update('none');
   }
+
+  // CHART-4: keep any live Aurix V2 overlays in lockstep with the
+  // legacy chart. _aurixDashSync is a no-op when the controllers
+  // aren't mounted, and recovers via teardown if it throws.
+  if (_aurixDashDesktop) _aurixDashSync('desktop');
+  if (_aurixDashMobile)  _aurixDashSync('mobile');
 }
 
 function onPortfolioChange(animate = false) {
@@ -16027,6 +16216,11 @@ function initMobileCharts() {
       },
     });
   }
+
+  // CHART-4: mobile dashboard chart V2 overlay. Same safety contract
+  // as the desktop hook above — flag off → no-op, mount failure → the
+  // legacy mobile chart resumes (its canvas is kept in layout).
+  try { _aurixDashMount('mobile'); } catch (_) {}
 }
 
 function initMobileSlider() {
