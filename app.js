@@ -8517,18 +8517,17 @@ function _aurixMktPickAdapter(item) {
   return { kind: 'yahoo', args: { symbol: String(sym).toUpperCase() } };
 }
 function _aurixMktMetaLine(item, adapter, meta) {
-  // MARKET-1C: friendly market language instead of provider names.
-  // The user doesn't care that the data came from CoinGecko vs Yahoo;
-  // they want a human label of what they're looking at.
+  // MARKET-1C → MARKET-4B: human-language labels only — never expose
+  // provider names or granularity tokens. Premium copy below.
   try {
     const isEs = (typeof lang !== 'undefined' && lang === 'es');
     const tp = String((item && item.type) || '').toLowerCase();
     if (tp === 'fund') return isEs ? 'NAV diario' : 'Daily NAV';
     if (item && item.symbol && /XAU/i.test(item.symbol)) {
-      return isEs ? 'Referencia de oro' : 'Gold reference';
+      return isEs ? 'Referencia de mercado' : 'Market reference';
     }
     if (adapter && adapter.kind === 'crypto') {
-      return isEs ? 'Histórico cripto' : 'Crypto history';
+      return isEs ? 'Histórico del activo' : 'Asset history';
     }
     if (adapter && adapter.kind === 'yahoo') {
       return isEs ? 'Histórico de mercado' : 'Market history';
@@ -8836,6 +8835,57 @@ function _aurixMktOpenSymbol(symbol) {
     menu.hidden = true;
     const toggle = document.querySelector('[data-mkt-sort-toggle]');
     if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  });
+
+  // MARKET-4B: filter sheet delegation. Lives on document because the
+  // sheet is at body level (not inside .market-screen), and the chip
+  // that opens it is inside #marketList — needing both ends covered.
+  document.addEventListener('click', e => {
+    if (!e.target.closest) return;
+    // Open
+    if (e.target.closest('[data-mkt-filter-open]')) {
+      _aurixMktV4OpenSheet();
+      return;
+    }
+    // Close (×) or backdrop
+    if (e.target.closest('[data-mkt-filter-close]')) {
+      _aurixMktV4CloseSheet();
+      return;
+    }
+    const ov = document.getElementById('mktFilterOverlay');
+    if (ov && !ov.hidden && e.target === ov) {
+      _aurixMktV4CloseSheet();
+      return;
+    }
+    // Timeframe pill inside the sheet
+    const tfBtn = e.target.closest('#mktFilterSheet [data-mkt-tf]');
+    if (tfBtn) {
+      const tf = tfBtn.dataset.mktTf;
+      if (tf && tf !== _aurixMktTimeframe) {
+        _aurixMktTimeframe = tf;
+        _aurixMktV4SyncSheet();
+        renderCurrentMarketView();
+      }
+      return;
+    }
+    // Sort item inside the sheet
+    const sortBtn = e.target.closest('#mktFilterSheet [data-mkt-sort]');
+    if (sortBtn) {
+      const sb = sortBtn.dataset.mktSort;
+      if (sb && sb !== _aurixMktSortBy) {
+        _aurixMktSortBy = sb;
+        _aurixMktV4SyncSheet();
+        renderCurrentMarketView();
+      }
+      return;
+    }
+  });
+  // Escape closes the filter sheet too.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const ov = document.getElementById('mktFilterOverlay');
+      if (ov && !ov.hidden && ov.classList.contains('open')) _aurixMktV4CloseSheet();
+    }
   });
 })();
 
@@ -12345,6 +12395,45 @@ function _aurixMktExpFlag() {
 function _aurixMktV3Flag() {
   return typeof window !== 'undefined' && window.__AURIX_MARKET_EXPLORER_V3 !== false;
 }
+// ── MARKET-4B ─────────────────────────────────────────────────────
+// Premium rebuild: dedicated mobile row layout (no more squeezed
+// desktop), sparkline restored on mobile, single Filters chip + sheet
+// (timeframe + sort in one premium overlay), tighter top-nav rhythm.
+// Layered via `.is-v4` on #marketList; CSS-scoped, no destructive
+// changes to MARKET-2 / MARKET-3 which still ship when the flag is off.
+function _aurixMktV4Flag() {
+  return typeof window !== 'undefined' && window.__AURIX_MARKET_V4 !== false;
+}
+function _aurixMktV4SyncSheet() {
+  document.querySelectorAll('#mktFilterSheet [data-mkt-tf]').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.mktTf === _aurixMktTimeframe);
+  });
+  document.querySelectorAll('#mktFilterSheet [data-mkt-sort]').forEach(b => {
+    b.classList.toggle('is-active', b.dataset.mktSort === _aurixMktSortBy);
+  });
+  const helper = document.getElementById('mktFilterHelper');
+  if (helper) helper.hidden = _aurixMktTimeframe === '24H';
+}
+function _aurixMktV4OpenSheet() {
+  const ov = document.getElementById('mktFilterOverlay');
+  if (!ov) return;
+  _aurixMktV4SyncSheet();
+  ov.hidden = false;
+  // Trigger a reflow before adding `open` so the slide-in animation
+  // fires from the off-screen start state.
+  void ov.offsetWidth;
+  ov.classList.add('open');
+  document.body.classList.add('modal-open');
+}
+function _aurixMktV4CloseSheet() {
+  const ov = document.getElementById('mktFilterOverlay');
+  if (!ov) return;
+  ov.classList.remove('open');
+  document.body.classList.remove('modal-open');
+  // Hide via attribute after the transition so the overlay is fully
+  // inert when not in use (no accidental focus capture).
+  setTimeout(() => { if (!ov.classList.contains('open')) ov.hidden = true; }, 260);
+}
 function _aurixMktExpIsRealTimeframe() {
   return _aurixMktTimeframe === '24H';
 }
@@ -12374,10 +12463,6 @@ function _aurixMktExpSortItems(items) {
 function _aurixMktExpControlsHtml() {
   if (!_aurixMktExpFlag()) return '';
   const isEs = (typeof lang !== 'undefined' && lang === 'es');
-  const TFs = ['24H', '7D', '1M', '1Y', 'ALL'];
-  const tfPills = TFs.map(tf =>
-    `<button type="button" class="mkt-tf-pill${tf === _aurixMktTimeframe ? ' is-active' : ''}" data-mkt-tf="${tf}">${tf}</button>`
-  ).join('');
   const SORT_OPTS = [
     { key: 'watchlist', es: 'Seguimiento', en: 'Watchlist' },
     { key: 'name',      es: 'Nombre',      en: 'Name'      },
@@ -12387,6 +12472,33 @@ function _aurixMktExpControlsHtml() {
   ];
   const current = SORT_OPTS.find(o => o.key === _aurixMktSortBy) || SORT_OPTS[3];
   const currentLabel = isEs ? current.es : current.en;
+
+  // MARKET-4B: single "Filtros" chip replaces the pill-row + sort
+  // dropdown. Premium, compact, opens a body-level sheet via
+  // _aurixMktV4OpenSheet. The current selection is summarized inline
+  // on the chip so users see active state at a glance.
+  if (_aurixMktV4Flag()) {
+    const summary = `${_aurixMktTimeframe} · ${currentLabel}`;
+    const helperHtml = _aurixMktTimeframe !== '24H'
+      ? `<div class="mkt-tf-helper">${isEs ? 'Datos históricos completos próximamente' : 'Extended historical data coming soon'}</div>`
+      : '';
+    return `
+      <div class="mkt-explorer-controls is-v4" data-aurix-mkt-controls="1">
+        <button type="button" class="mkt-filter-chip" data-mkt-filter-open aria-haspopup="dialog">
+          <span class="mkt-filter-chip-icon" aria-hidden="true">⚙</span>
+          <span class="mkt-filter-chip-label">${isEs ? 'Filtros' : 'Filters'}</span>
+          <span class="mkt-filter-chip-current">${summary}</span>
+        </button>
+      </div>
+      ${helperHtml}
+    `;
+  }
+
+  // MARKET-2/3 fall-through: pill row + sort dropdown.
+  const TFs = ['24H', '7D', '1M', '1Y', 'ALL'];
+  const tfPills = TFs.map(tf =>
+    `<button type="button" class="mkt-tf-pill${tf === _aurixMktTimeframe ? ' is-active' : ''}" data-mkt-tf="${tf}">${tf}</button>`
+  ).join('');
   const sortItems = SORT_OPTS.map(o =>
     `<button type="button" class="mkt-sort-item${o.key === _aurixMktSortBy ? ' is-active' : ''}" data-mkt-sort="${o.key}">${isEs ? o.es : o.en}</button>`
   ).join('');
@@ -12482,6 +12594,8 @@ function renderCurrentMarketView() {
   // list container. Re-applied every render so flag flips mid-session
   // converge on the next paint.
   el.classList.toggle('is-v3', _aurixMktV3Flag());
+  // MARKET-4B: V4 is layered on V3 (overrides mobile row + controls).
+  el.classList.toggle('is-v4', _aurixMktV4Flag());
   // CHART-5: mount Aurix sparkline V2 on every row's `.col-chart` cell.
   // No-op when the flag is off or the engine is still loading; the
   // legacy SVG that was rendered inside the cell remains visible in

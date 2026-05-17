@@ -921,6 +921,39 @@
   <button class="fab-option" data-action="liquidity" data-i18n="fabAddLiquidity">Añadir liquidez</button>
 </div>
 
+<!-- MARKET-4B: unified filters sheet (timeframe + sort). Bottom sheet
+     on mobile, centered popover on desktop via CSS. Body-level placement
+     keeps it free of market-screen re-render churn. -->
+<div class="mkt-filter-overlay" id="mktFilterOverlay" hidden>
+  <div class="mkt-filter-sheet" id="mktFilterSheet" role="dialog" aria-modal="true" aria-labelledby="mktFilterTitle">
+    <div class="mkt-filter-head">
+      <h3 class="mkt-filter-title" id="mktFilterTitle" data-i18n="mktFilterTitle">Filtros</h3>
+      <button type="button" class="mkt-filter-close" data-mkt-filter-close aria-label="Close">✕</button>
+    </div>
+    <div class="mkt-filter-section">
+      <div class="mkt-filter-section-label" data-i18n="mktFilterPeriod">Periodo</div>
+      <div class="mkt-filter-pills" id="mktFilterTfRow">
+        <button type="button" class="mkt-filter-pill" data-mkt-tf="24H">24H</button>
+        <button type="button" class="mkt-filter-pill" data-mkt-tf="7D">7D</button>
+        <button type="button" class="mkt-filter-pill" data-mkt-tf="1M">1M</button>
+        <button type="button" class="mkt-filter-pill" data-mkt-tf="1Y">1Y</button>
+        <button type="button" class="mkt-filter-pill" data-mkt-tf="ALL">ALL</button>
+      </div>
+      <div class="mkt-filter-helper" id="mktFilterHelper" hidden data-i18n="mktFilterHelperExtended">Datos históricos completos próximamente</div>
+    </div>
+    <div class="mkt-filter-section">
+      <div class="mkt-filter-section-label" data-i18n="mktFilterSortLabel">Ordenar por</div>
+      <div class="mkt-filter-sort-list" id="mktFilterSortRow">
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="watchlist" data-i18n="mktSortWatchlist">Seguimiento</button>
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="name"      data-i18n="mktSortName">Nombre</button>
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="price"     data-i18n="mktSortPrice">Precio</button>
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="change"    data-i18n="mktSort24h">24H</button>
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="type"      data-i18n="mktSortType">Tipo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MARKET-1B: market asset preview overlay. Opens on row click when
      the feature flag is on. Reuses the .modal-overlay / .modal chrome
      (radius, sheet behaviour, safe-area) shared by the rest of the app
