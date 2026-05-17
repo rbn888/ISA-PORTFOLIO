@@ -13264,12 +13264,22 @@ function _gsLoadRecent() {
     const raw = localStorage.getItem(_GS_RECENT_KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.filter(s => typeof s === 'string').slice(0, _GS_RECENT_MAX) : [];
+    if (!Array.isArray(arr)) return [];
+    // MOBILE PASS 1A: drop fragments left over from the old behavior
+    // (every typing-burst was saved). Anything below 3 characters is
+    // almost certainly a partial keystroke, not a real selection.
+    return arr
+      .filter(s => typeof s === 'string')
+      .map(s => s.trim())
+      .filter(s => s.length >= 3)
+      .slice(0, _GS_RECENT_MAX);
   } catch (_) { return []; }
 }
 function _gsSaveRecent(q) {
   const v = String(q || '').trim();
-  if (!v || v.length > _GS_RECENT_MAX_LEN) return;
+  // MOBILE PASS 1A: enforce a 3-char minimum so partial keystrokes
+  // never enter the store, matching the load-time filter.
+  if (!v || v.length < 3 || v.length > _GS_RECENT_MAX_LEN) return;
   try {
     const cur = _gsLoadRecent();
     const next = [v, ...cur.filter(x => x.toLowerCase() !== v.toLowerCase())].slice(0, _GS_RECENT_MAX);
@@ -13333,6 +13343,11 @@ function _gsInit() {
     const item = _GLOBAL_SEARCH._lastItems?.[idx];
     if (!item) return;
     if (btn.dataset.gsAction === 'add') {
+      // MOBILE PASS 1A: save the chosen asset's name/ticker as the
+      // recent — never the partial query the user typed. Length is
+      // still bounded by _gsSaveRecent.
+      const label = (item.name && item.name.trim()) || (item.ticker || '').trim();
+      if (label) _gsSaveRecent(label);
       closeGlobalSearch();
       _openAddAssetWithFund(item);
     }
@@ -13438,9 +13453,11 @@ async function _gsRunSearch() {
     _gsSetState('noresults');
     return;
   }
-  // Persist the query as a "recent" so the next open surfaces it.
-  // Only on success (≥1 result) to avoid polluting the row with typos.
-  _gsSaveRecent(q);
+  // MOBILE PASS 1A: do NOT persist the raw query here — that captured
+  // every keystroke that returned ≥1 result (Or, Mstr, Go, etc.). We
+  // now save only when the user explicitly clicks a result row, via
+  // the delegated click handler below. The saved value is the picked
+  // asset's ticker or name — a meaningful, completed selection.
   _gsSetState('results');
   _gsRenderResults(items);
 
@@ -14074,6 +14091,9 @@ function openModal(opts) {
   renderedSuggestions  = [];
   activeSearchFilter   = 'all';
   focusedSuggIdx       = -1;
+  // ADD-V4.2 hotfix: reset the modal's filter attribute every open so
+  // a previous session's filter never leaks into the ISIN visibility.
+  if (typeof _addV42UpdateFilterAttr === 'function') _addV42UpdateFilterAttr('all');
   if (karatGroupEl)    karatGroupEl.style.display    = 'none';
   if (goldUnitGroupEl) goldUnitGroupEl.style.display = 'none';
   const _gsEl = document.getElementById('goldSection');
@@ -14138,6 +14158,21 @@ function closeModal() {
   closeSuggestions();
 }
 
+// ADD-V4.2 hotfix: ISIN advanced is only meaningful for traditional
+// securities (stocks, ETFs, funds). Mirror the active filter on the
+// modal so the CSS can hide the toggle and collapse the disclosure
+// for crypto / metal / RE without touching the search backend.
+function _addV42UpdateFilterAttr(filter) {
+  const modal = document.querySelector('#modalOverlay .modal');
+  if (modal) modal.dataset.searchFilter = filter || 'all';
+  const ISIN_OK = new Set(['all', 'stock', 'etf']);
+  if (!ISIN_OK.has(filter) && typeof _setIsinRevealed === 'function') {
+    // If the user had the disclosure open and switches to a filter
+    // where ISIN doesn't apply, collapse it cleanly.
+    _setIsinRevealed(false);
+  }
+}
+
 // ── Filter bar ─────────────────────────────────────────────
 filterBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -14148,6 +14183,7 @@ filterBtns.forEach(btn => {
     // Real estate: switch to manual form — no live search needed
     if (newFilter === 'real_estate') {
       activeSearchFilter = 'real_estate';
+      _addV42UpdateFilterAttr('real_estate');
       enterRealEstateMode();
       return;
     }
@@ -14156,6 +14192,7 @@ filterBtns.forEach(btn => {
     if (isRealEstateMode) enterSearchMode();
 
     activeSearchFilter = newFilter;
+    _addV42UpdateFilterAttr(newFilter);
 
     // Update placeholder
     searchInput.placeholder = T[lang].searchPH[activeSearchFilter] || T[lang].searchPH.all;

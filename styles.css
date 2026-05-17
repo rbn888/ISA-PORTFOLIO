@@ -1814,6 +1814,35 @@ body.modal-open {
   border: 1px solid rgba(255,255,255,0.06);
 }
 
+/* MOBILE PASS 1A: complete the ISIN disclosure across all viewports.
+   When the toggle is collapsed, the label / input / divider / spacing
+   must all be hidden — no vertical dead space underneath. The legacy
+   rule lived only inside the mobile media query; this layer promotes
+   it so desktop behaves the same way. */
+.modal[data-mode="asset"] #searchWrap #isinOrWrap {
+  display: none;
+}
+.modal[data-mode="asset"] #searchWrap.isin-revealed #isinOrWrap {
+  display: block;
+}
+.modal[data-mode="asset"] #searchWrap .form-or-divider {
+  display: none;
+}
+
+/* MOBILE PASS 1A: ISIN is irrelevant for crypto / metals / real
+   estate — hide the toggle AND the disclosure for those filters so
+   the user never sees a label/input that doesn't apply. The JS side
+   also force-collapses the disclosure on filter switch via
+   _addV42UpdateFilterAttr, so the state stays clean either way. */
+.modal[data-mode="asset"][data-search-filter="crypto"] #isinToggleMobile,
+.modal[data-mode="asset"][data-search-filter="metal"]  #isinToggleMobile,
+.modal[data-mode="asset"][data-search-filter="real_estate"] #isinToggleMobile,
+.modal[data-mode="asset"][data-search-filter="crypto"] #isinOrWrap,
+.modal[data-mode="asset"][data-search-filter="metal"]  #isinOrWrap,
+.modal[data-mode="asset"][data-search-filter="real_estate"] #isinOrWrap {
+  display: none !important;
+}
+
 .modal-body {
   padding: var(--space-5);
   /* MC-7B: scroll the form body, not the whole modal, so the header
@@ -10076,13 +10105,17 @@ body.workspace-active .header {
 
   /* (3) Top market-tabs: ensure inner padding ends inside the scroller
      so the first and last pills are fully reachable. Soft fade on both
-     edges signals "scroll for more" without clipping the active tab. */
+     edges signals "scroll for more" without clipping the active tab.
+     MOBILE PASS 1A: bumped left/right padding to 22px and shifted the
+     mask inwards so the first tab ("Seguimiento") is never partially
+     clipped by the fade gradient, and scrollIntoView({inline:'center'})
+     has enough scroll-padding to keep the active pill fully visible. */
   .market-tabs {
-    padding-left: 16px;
-    padding-right: 20px;
-    scroll-padding-inline: 16px;
+    padding-left: 22px;
+    padding-right: 22px;
+    scroll-padding-inline: 22px;
     -webkit-overflow-scrolling: touch;
-    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 18px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
   }
   .market-tab { padding: 7px 13px; font-size: 12.5px; }
 
