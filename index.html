@@ -833,6 +833,9 @@
        AurixChartCore checks readiness before using it. -->
   <script defer src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <script defer src="services/aurix-chart-core.js"></script>
+  <!-- CHART-3: historical data adapter layer. Pure infra — no UI consumer.
+       Loads `defer` so boot stays uninterrupted; safe even if absent. -->
+  <script defer src="services/chart-adapters.js"></script>
   <script src="services/market.js"></script>
   <script src="ai/insightEngine.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
