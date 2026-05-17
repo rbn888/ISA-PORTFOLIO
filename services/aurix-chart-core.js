@@ -164,6 +164,17 @@
       }
       .aurix-chart-tooltip-pct.is-up   { color: #3FBF7F; }
       .aurix-chart-tooltip-pct.is-down { color: #E05A5A; }
+      /* CHART-CORE: subtle "smoothed point" indicator, only when the
+         active crosshair sits over a visually normalized point. */
+      .aurix-chart-tooltip-note {
+        margin-top: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(220,230,250,0.50);
+      }
+      .aurix-chart-tooltip-note[hidden] { display: none; }
       /* CHART-4B: belt-and-braces watermark suppression. The 4.x
          attributionLogo:false option is the primary defence; this
          covers any LWC build that ignores it or any DOM element the
@@ -284,6 +295,105 @@
     };
   }
 
+  // ── CHART-CORE: visual series normalizer ───────────────────────
+  // Detects isolated spikes via rolling MAD + spike-revert check and
+  // optionally light-smooths the long-range series. Pure visual layer:
+  // NEVER mutates the caller's raw data — operates on a defensive copy
+  // and exposes `normalizedTimes` so the tooltip can flag suavizado
+  // points and the badge can read "Vista optimizada" when at least one
+  // outlier was corrected.
+  //
+  // Sustained moves (deposits / withdrawals / regime changes) are
+  // preserved: the spike-revert rule only triggers when BOTH neighbors
+  // are close to the rolling median. First and last points are never
+  // altered so the chart endpoint always matches the live KPI.
+  const _SMOOTH_WIN_BY_RANGE = Object.freeze({
+    '24h': 0,
+    '7d':  1,
+    '30d': 1,
+    '3m':  2,
+    '1y':  3,
+    'all': 3,
+  });
+  function _normalizeSeries(rawPoints, cfg, range) {
+    const summary = { outliers: 0, smoothed: 0 };
+    const normalizedTimes = new Set();
+    if (!Array.isArray(rawPoints) || rawPoints.length < 6 || !cfg) {
+      return { visual: rawPoints || [], normalizedTimes, summary };
+    }
+
+    // Defensive copy so the caller's array is never mutated.
+    let visual = rawPoints.map(p => ({ time: p.time, value: p.value }));
+    const N = visual.length;
+
+    // ── Pass 1: outlier detection + interpolation ─────────────────
+    if (cfg.outlierFilter !== false) {
+      const WIN = 4;  // 4 neighbours on each side → up to 9-point window
+      const vals = visual.map(p => p.value);
+      for (let i = 1; i < N - 1; i++) {
+        const lo = Math.max(0, i - WIN);
+        const hi = Math.min(N, i + WIN + 1);
+        // Exclude the candidate itself from its own window.
+        const window = [];
+        for (let k = lo; k < hi; k++) {
+          if (k !== i) window.push(vals[k]);
+        }
+        if (window.length < 4) continue;
+        const sorted = window.slice().sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        if (!Number.isFinite(median) || median <= 0) continue;
+        // Median absolute deviation around the median.
+        const devs = sorted.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+        const mad = devs[Math.floor(devs.length / 2)] || 0;
+        // Threshold floors at 8% of median to avoid flagging normal
+        // small wiggles; MAD floor handles low-volatility ranges.
+        const threshold = Math.max(mad * 6, median * 0.08);
+
+        const v = vals[i];
+        const devCur = Math.abs(v - median);
+        if (devCur <= threshold) continue;
+
+        // Spike-revert check: both neighbours must be CLOSE to the
+        // rolling median for the candidate to count as isolated.
+        // A sustained jump (deposit, regime change) will see at least
+        // one neighbour also far from the old median → kept.
+        const prev = vals[i - 1];
+        const next = vals[i + 1];
+        const prevDev = Math.abs(prev - median);
+        const nextDev = Math.abs(next - median);
+        if (prevDev >= threshold * 0.7 || nextDev >= threshold * 0.7) continue;
+
+        // Interpolate. Keep the same `time` so LWC's x-axis is intact.
+        const interpolated = (prev + next) / 2;
+        visual[i] = { time: visual[i].time, value: interpolated };
+        normalizedTimes.add(visual[i].time);
+        vals[i] = interpolated;  // so subsequent windows see the cleaned value
+        summary.outliers++;
+      }
+    }
+
+    // ── Pass 2: conservative smoothing ─────────────────────────────
+    if (cfg.smoothing !== false) {
+      const win = _SMOOTH_WIN_BY_RANGE[range || '7d'] || 0;
+      if (win > 0 && visual.length >= win * 2 + 3) {
+        const smoothed = visual.map((p, i) => {
+          // Anchor first + last exactly (no end-distortion, chart
+          // endpoint must equal the actual current value).
+          if (i === 0 || i === visual.length - 1) return p;
+          const lo = Math.max(0, i - win);
+          const hi = Math.min(visual.length, i + win + 1);
+          let sum = 0, count = 0;
+          for (let k = lo; k < hi; k++) { sum += visual[k].value; count++; }
+          return { time: p.time, value: count ? (sum / count) : p.value };
+        });
+        summary.smoothed = visual.length - 2;
+        visual = smoothed;
+      }
+    }
+
+    return { visual, normalizedTimes, summary };
+  }
+
   // ── Internal helpers ───────────────────────────────────────────
   function _msToSec(ms) { return Math.floor(ms / 1000); }
 
@@ -332,6 +442,11 @@
       // ~180ms; then a crosshair + tooltip activate while the finger
       // drags. Release returns to inert (page scroll/swipe normal).
       mobileInspection: false,
+      // CHART-CORE: visual normalization (outlier filter + smoothing).
+      // Opt-in per surface — disabled by default so existing callers
+      // (asset detail, demo, sandbox) keep their current behaviour.
+      // The dashboard portfolio surface opts in via _aurixDashMount.
+      visualNormalization: null,
     }, options || {});
 
     if (!container || !(container instanceof HTMLElement)) {
@@ -521,16 +636,34 @@
       ? (tooltip.innerHTML =
           '<div class="aurix-chart-tooltip-time"></div>' +
           '<div class="aurix-chart-tooltip-value"></div>' +
-          '<div class="aurix-chart-tooltip-pct"></div>',
+          '<div class="aurix-chart-tooltip-pct"></div>' +
+          // CHART-CORE: appears only when the active point was visually
+          // normalized (interpolated over an outlier). Premium, muted,
+          // never alarming.
+          '<div class="aurix-chart-tooltip-note" hidden></div>',
          tooltip.querySelector('.aurix-chart-tooltip-time'))
       : null;
     const _ttValEl = opts.showTooltip ? tooltip.querySelector('.aurix-chart-tooltip-value') : null;
     const _ttPctEl = opts.showTooltip ? tooltip.querySelector('.aurix-chart-tooltip-pct')   : null;
+    const _ttNoteEl= opts.showTooltip ? tooltip.querySelector('.aurix-chart-tooltip-note')  : null;
 
     function _renderTooltip(value, timeMs, xClient, yClient) {
       if (!opts.showTooltip || !_ttTimeEl || !_ttValEl) return;
       _ttTimeEl.textContent = _formatTooltipTime(timeMs, _state.range);
       _ttValEl.textContent  = _formatTooltipValue(value, _state.currency);
+      // CHART-CORE: note line if this exact timestamp was visually
+      // normalized. Set hidden=true (not text='') so future logic can
+      // hide via the attribute alone.
+      if (_ttNoteEl) {
+        const isNormalized = _state.normalizedTimes &&
+                             _state.normalizedTimes.has(timeMs);
+        if (isNormalized) {
+          _ttNoteEl.textContent = _isLangEs() ? 'Dato suavizado' : 'Smoothed data';
+          _ttNoteEl.hidden = false;
+        } else {
+          _ttNoteEl.hidden = true;
+        }
+      }
       const first = _state.data[0]?.value;
       const dir = first == null
         ? 'flat'
@@ -889,26 +1022,59 @@
           deduped.push(p);
           lastT = p.time;
         }
-        series.setData(deduped);
-        // CHART-4B: prefer the explicit direction hint when provided in
-        // meta. This lets the dashboard pass its own KPI direction
-        // (computed from totalValueBase vs series[0]) so the line color
-        // never disagrees with the displayed performance indicator.
+        // CHART-CORE: visual normalization layer. Runs only when the
+        // caller opts in via opts.visualNormalization.enabled and the
+        // series has enough points. Operates on a copy of `deduped`
+        // (which is itself a copy of the caller's raw series) so no
+        // upstream data is mutated. Direction colour + ready badge
+        // still derive from the VISUAL endpoints — by design, because
+        // those are what the user sees.
+        const useNorm = opts.visualNormalization && opts.visualNormalization.enabled;
+        let visualSeries = deduped;
+        let normTimes = null;
+        let normSummary = { outliers: 0, smoothed: 0 };
+        if (useNorm) {
+          try {
+            const result = _normalizeSeries(deduped, opts.visualNormalization, _state.range);
+            // Re-format for LWC (sec-grained, ascending). Times stay
+            // identical to the input so the LWC bar grid is preserved.
+            visualSeries = result.visual;
+            normTimes    = result.normalizedTimes;
+            normSummary  = result.summary;
+          } catch (err) {
+            console.warn('[aurix-chart] normalization fail:', err && err.message);
+            visualSeries = deduped;
+            normTimes    = null;
+          }
+        }
+        // Some LWC builds reject duplicate times — the dedupe above
+        // already guarantees uniqueness, but normalization can
+        // theoretically produce equal values; it never changes time.
+        series.setData(visualSeries);
+        // Direction (colour) inferred from the VISUAL series so the
+        // chart line + label-area gradient match what the user sees.
         const hinted = meta && (meta.direction || meta.directionHint);
         const resolved = _resolveDirection(hinted);
         if (resolved) {
           _applyColor(resolved === 'neutral' ? 'neutral' : resolved);
         } else if (opts.colorMode === 'auto') {
-          const first = deduped[0].value;
-          const last  = deduped[deduped.length - 1].value;
+          const first = visualSeries[0].value;
+          const last  = visualSeries[visualSeries.length - 1].value;
           _applyColor(last >= first ? 'positive' : 'negative');
         }
         _state.data = arr;
         _state.meta = meta || null;
-        // Synthetic badge
+        _state.normalizedTimes  = normTimes;
+        _state.normalizationSummary = normSummary;
+        _state.rawSnapshot = deduped;  // pre-normalization, sec-grained
+        // Badge precedence: synthetic > optimized > none. Synthetic
+        // is the stronger honesty signal so it wins.
         if (meta && meta.isSynthetic) {
           badge.hidden = false;
           badge.textContent = _isLangEs() ? 'Estimación' : 'Estimate';
+        } else if (useNorm && normSummary.outliers > 0) {
+          badge.hidden = false;
+          badge.textContent = _isLangEs() ? 'Vista optimizada' : 'Optimized view';
         } else {
           badge.hidden = true;
         }
@@ -938,6 +1104,20 @@
       setDirection(direction) {
         const resolved = _resolveDirection(direction);
         if (resolved) _applyColor(resolved === 'neutral' ? 'neutral' : resolved);
+      },
+      // CHART-CORE: console-only diagnostics. Returns a snapshot of
+      // the last normalization pass — useful to verify outlier counts
+      // without DOM digging.
+      getDebugInfo() {
+        return {
+          variant:          opts.variant,
+          range:            _state.range,
+          originalPoints:   Array.isArray(_state.rawSnapshot) ? _state.rawSnapshot.length : 0,
+          visualPoints:     Array.isArray(_state.data) ? _state.data.length : 0,
+          outliersDetected: _state.normalizationSummary ? _state.normalizationSummary.outliers : 0,
+          smoothingApplied: !!(_state.normalizationSummary && _state.normalizationSummary.smoothed > 0),
+          isSynthetic:      !!(_state.meta && _state.meta.isSynthetic),
+        };
       },
       setState(state) {
         const valid = new Set(['loading', 'empty', 'error', 'ready']);
@@ -1174,4 +1354,29 @@
     destroyAll,
     THEME,
   });
+
+  // CHART-CORE: console-only debug surface. Read-only summary across
+  // every live controller — power-user inspection, not UI.
+  window.__aurixChartDebug = {
+    instances() {
+      const out = [];
+      _instances.forEach(c => {
+        if (typeof c.getDebugInfo === 'function') {
+          try { out.push(c.getDebugInfo()); } catch (_) {}
+        }
+      });
+      return out;
+    },
+    get lastNormalization() {
+      let last = null;
+      _instances.forEach(c => {
+        if (typeof c.getDebugInfo !== 'function') return;
+        try {
+          const info = c.getDebugInfo();
+          if (info && (info.outliersDetected || info.smoothingApplied)) last = info;
+        } catch (_) {}
+      });
+      return last;
+    },
+  };
 })();

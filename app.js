@@ -7958,6 +7958,18 @@ function _aurixDashMount(surface) {
       // (window resize, mobile slider transitions) is handled by the
       // engine's own ResizeObserver — see services/aurix-chart-core.js.
       height:         parent.clientHeight || (isDesktop ? 190 : 220),
+      // CHART-CORE: dashboard opts into visual normalization so a
+      // bad historical snapshot, a single-bar pricing glitch, or a
+      // currency anomaly can't dominate the line on long ranges. Raw
+      // values in portfolioHistory are NEVER mutated — this lives at
+      // the render layer only.
+      visualNormalization: {
+        enabled:       true,
+        outlierFilter: true,
+        smoothing:     true,
+        robustScale:   true,
+        mode:          'portfolio',
+      },
     });
 
     if (isDesktop) _aurixDashDesktop = ctrl;
