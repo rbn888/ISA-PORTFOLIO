@@ -7854,6 +7854,22 @@ function _aurixDashSync(surface) {
       ctrl.setData([]);
       return;
     }
+    // CHART-4B: derive the chart's tonal direction from the SAME source
+    // the visible dashboard performance KPI uses (legacy updateChart
+    // computes `pct = (totalValueBase() - series[0]) / series[0]`).
+    // Passing it explicitly keeps the line color in lockstep with the
+    // KPI text even when the last persisted snapshot lags slightly
+    // behind the live total.
+    let direction = null;
+    try {
+      const start = Number(series[0]?.value);
+      const now   = (typeof totalValueBase === 'function') ? Number(totalValueBase()) : NaN;
+      if (Number.isFinite(start) && start > 0 && Number.isFinite(now)) {
+        const pct = ((now - start) / start) * 100;
+        direction = pct > 0.005 ? 'up' : pct < -0.005 ? 'down' : 'flat';
+      }
+    } catch (_) { /* leave direction null → auto first/last */ }
+
     ctrl.setData(series, {
       source:       'local-snapshot',
       currency:     baseCurrency || 'USD',
@@ -7861,6 +7877,7 @@ function _aurixDashSync(surface) {
       isSynthetic:  false,
       completeness: 1,
       asOf:         Date.now(),
+      direction:    direction,
     });
   } catch (err) {
     console.warn('[chart-v2] sync failed for', surface, err && err.message ? err.message : err);

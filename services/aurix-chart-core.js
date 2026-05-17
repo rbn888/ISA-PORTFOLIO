@@ -154,6 +154,27 @@
       }
       .aurix-chart-tooltip-value.is-up   { color: #3FBF7F; }
       .aurix-chart-tooltip-value.is-down { color: #E05A5A; }
+      .aurix-chart-tooltip-pct {
+        margin-top: 2px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        font-variant-numeric: tabular-nums;
+        color: rgba(220,230,250,0.55);
+      }
+      .aurix-chart-tooltip-pct.is-up   { color: #3FBF7F; }
+      .aurix-chart-tooltip-pct.is-down { color: #E05A5A; }
+      /* CHART-4B: belt-and-braces watermark suppression. The 4.x
+         attributionLogo:false option is the primary defence; this
+         covers any LWC build that ignores it or any DOM element the
+         library injects with a recognisable id/href. Scoped strictly
+         inside .aurix-chart-host so no global selector is touched. */
+      .aurix-chart-host a[href*="tradingview"],
+      .aurix-chart-host #tv-attr-logo,
+      .aurix-chart-host [id^="tv-attr"] {
+        display: none !important;
+        pointer-events: none !important;
+      }
       .aurix-chart-ranges {
         display: flex;
         gap: 6px;
@@ -376,6 +397,22 @@
 
     // ── Build the Lightweight Charts instance ───────────────────
     const LWC = window.LightweightCharts;
+    // CHART-4B: premium compact currency formatter for the right axis
+    // and any LWC-driven numeric output. State is kept in a closure so
+    // setCurrency() rebinds it without recreating the chart.
+    let _formatterCurrency = (opts.currency || 'USD').toUpperCase();
+    const _compactCurrency = (value, currency) => {
+      const sym = (currency || _formatterCurrency) === 'EUR' ? '€' : '$';
+      if (!Number.isFinite(value)) return '';
+      const abs = Math.abs(value);
+      if (abs >= 1_000_000) return sym + (value / 1_000_000).toFixed(2) + 'M';
+      if (abs >= 10_000)    return sym + (value / 1_000).toFixed(1) + 'K';
+      if (abs >= 1_000)     return sym + (value / 1_000).toFixed(2) + 'K';
+      if (abs >= 100)       return sym + value.toFixed(0);
+      return sym + value.toFixed(2);
+    };
+    const _priceFormatter = v => _compactCurrency(v, _formatterCurrency);
+
     const chart = LWC.createChart(canvasHolder, {
       width:  canvasHolder.clientWidth  || 320,
       height: canvasHolder.clientHeight || 240,
@@ -384,6 +421,17 @@
         textColor:  THEME.text,
         fontFamily: 'inherit',
         fontSize:   11,
+        // CHART-4B: suppress the Lightweight Charts attribution logo so
+        // the surface reads as Aurix-native. Library supports this in
+        // 4.x; older builds silently ignore the option and we'll catch
+        // them via the scoped CSS guard below.
+        attributionLogo: false,
+      },
+      // CHART-4B: pass the compact currency formatter into the chart's
+      // localization layer. Right axis ticks and any LWC-default tooltip
+      // (we override with our own DOM tooltip) will use it.
+      localization: {
+        priceFormatter: _priceFormatter,
       },
       grid: {
         vertLines: { color: opts.showPriceScale ? THEME.grid : 'rgba(0,0,0,0)' },
@@ -421,9 +469,12 @@
       lastValueVisible: opts.variant !== 'sparkline',
       crosshairMarkerVisible: opts.variant !== 'sparkline',
       crosshairMarkerRadius:  3,
+      // CHART-4B: custom series-level price format so the price scale
+      // marker label (the floating chip next to the crosshair) also
+      // uses Aurix compact currency, not Lightweight Charts' default.
       priceFormat: {
-        type: 'price',
-        precision: 2,
+        type: 'custom',
+        formatter: _priceFormatter,
         minMove: 0.01,
       },
     });
@@ -445,8 +496,15 @@
     };
 
     if (opts.showTooltip && opts.showCrosshair) {
-      const timeEl  = tooltip.querySelector('.aurix-chart-tooltip-time');
-      const valEl   = tooltip.querySelector('.aurix-chart-tooltip-value');
+      // CHART-4B: premium tooltip — date/time muted, value prominent,
+      // optional % change vs first visible point in a tabular line.
+      tooltip.innerHTML =
+        '<div class="aurix-chart-tooltip-time"></div>' +
+        '<div class="aurix-chart-tooltip-value"></div>' +
+        '<div class="aurix-chart-tooltip-pct"></div>';
+      const timeEl = tooltip.querySelector('.aurix-chart-tooltip-time');
+      const valEl  = tooltip.querySelector('.aurix-chart-tooltip-value');
+      const pctEl  = tooltip.querySelector('.aurix-chart-tooltip-pct');
       chart.subscribeCrosshairMove(param => {
         if (!param || !param.point || !param.time || !param.seriesData?.size) {
           tooltip.dataset.visible = 'false';
@@ -460,18 +518,34 @@
         const ms = (typeof param.time === 'number' ? param.time * 1000 : Date.parse(param.time));
         timeEl.textContent = _formatTooltipTime(ms, _state.range);
         valEl.textContent  = _formatTooltipValue(data.value, _state.currency);
-        // Direction class — derive vs first visible point.
+        // Direction class — prefer explicit hint when present (e.g.
+        // dashboard KPI direction); otherwise derive vs first visible.
         const first = _state.data[0]?.value;
-        const dir   = first == null ? 'flat' : (data.value > first ? 'up' : (data.value < first ? 'down' : 'flat'));
-        valEl.classList.toggle('is-up',   dir === 'up');
-        valEl.classList.toggle('is-down', dir === 'down');
-        // Position
+        const seriesDir = first == null
+          ? 'flat'
+          : (data.value > first ? 'up' : (data.value < first ? 'down' : 'flat'));
+        valEl.classList.toggle('is-up',   seriesDir === 'up');
+        valEl.classList.toggle('is-down', seriesDir === 'down');
+        // % change line vs first visible point.
+        if (pctEl) {
+          if (first != null && first > 0) {
+            const pct = ((data.value - first) / first) * 100;
+            const sign = pct >= 0 ? '+' : '';
+            pctEl.textContent = `${sign}${pct.toFixed(2)}%`;
+            pctEl.classList.toggle('is-up',   pct > 0.005);
+            pctEl.classList.toggle('is-down', pct < -0.005);
+          } else {
+            pctEl.textContent = '';
+          }
+        }
+        // Position — clamp inside host so the tooltip never escapes.
         const x = param.point.x;
         const y = param.point.y;
         const hostRect = host.getBoundingClientRect();
         const ttW = tooltip.offsetWidth  || 120;
+        const ttH = tooltip.offsetHeight || 48;
         let left = Math.max(ttW / 2 + 6, Math.min(hostRect.width - ttW / 2 - 6, x));
-        let top  = Math.max(0, y);
+        let top  = Math.max(ttH + 6, y);
         tooltip.style.left = left + 'px';
         tooltip.style.top  = top  + 'px';
         tooltip.dataset.visible = 'true';
@@ -479,17 +553,41 @@
     }
 
     // ── ResizeObserver (responsive sizing) ─────────────────────
+    // CHART-4B: throttle via requestAnimationFrame so a torrent of
+    // resize events (drag-resizing the window, mobile slider
+    // transitions) coalesces into a single applyOptions + fitContent
+    // per frame. Prevents the brief clip / lag observed before.
     let _ro = null;
+    let _resizeRafId = 0;
+    const _doResize = () => {
+      _resizeRafId = 0;
+      const w = canvasHolder.clientWidth  || 0;
+      const h = canvasHolder.clientHeight || 0;
+      if (!w || !h) return;
+      try { chart.applyOptions({ width: w, height: h }); } catch (_) {}
+      try { chart.timeScale().fitContent(); } catch (_) {}
+    };
     if (typeof ResizeObserver === 'function') {
       _ro = new ResizeObserver(() => {
-        const w = canvasHolder.clientWidth  || 0;
-        const h = canvasHolder.clientHeight || 0;
-        if (w && h) chart.applyOptions({ width: w, height: h });
+        if (_resizeRafId) return;
+        _resizeRafId = requestAnimationFrame(_doResize);
       });
       _ro.observe(canvasHolder);
     }
 
     // ── Controller ──────────────────────────────────────────────
+    // CHART-4B: helper that resolves a directional intent into the
+    // colorMode the area series understands. Returns null if the hint
+    // is unrecognised, so the caller falls back to 'auto' (first/last).
+    function _resolveDirection(hint) {
+      if (!hint) return null;
+      const h = String(hint).toLowerCase();
+      if (h === 'up'   || h === 'positive' || h === '+') return 'positive';
+      if (h === 'down' || h === 'negative' || h === '-') return 'negative';
+      if (h === 'flat' || h === 'neutral'  || h === '0') return 'neutral';
+      return null;
+    }
+
     const controller = {
       host,
       setData(seriesData, meta) {
@@ -518,7 +616,15 @@
           lastT = p.time;
         }
         series.setData(deduped);
-        if (opts.colorMode === 'auto') {
+        // CHART-4B: prefer the explicit direction hint when provided in
+        // meta. This lets the dashboard pass its own KPI direction
+        // (computed from totalValueBase vs series[0]) so the line color
+        // never disagrees with the displayed performance indicator.
+        const hinted = meta && (meta.direction || meta.directionHint);
+        const resolved = _resolveDirection(hinted);
+        if (resolved) {
+          _applyColor(resolved === 'neutral' ? 'neutral' : resolved);
+        } else if (opts.colorMode === 'auto') {
           const first = deduped[0].value;
           const last  = deduped[deduped.length - 1].value;
           _applyColor(last >= first ? 'positive' : 'negative');
@@ -539,7 +645,25 @@
         _state.range = String(range || '7d');
       },
       setCurrency(currency) {
-        _state.currency = String(currency || 'USD').toUpperCase();
+        const next = String(currency || 'USD').toUpperCase();
+        _state.currency = next;
+        _formatterCurrency = next;
+        // Re-apply localization so the right-axis re-formats with the
+        // new currency symbol. Lightweight Charts re-runs the
+        // priceFormatter on next tick after applyOptions.
+        try {
+          chart.applyOptions({
+            localization: { priceFormatter: _priceFormatter },
+          });
+        } catch (_) {}
+      },
+      // CHART-4B: explicit color direction setter — callable by
+      // consumers that compute their own KPI direction (e.g. the
+      // dashboard). Idempotent; pass null/'' to revert to auto on the
+      // next setData call.
+      setDirection(direction) {
+        const resolved = _resolveDirection(direction);
+        if (resolved) _applyColor(resolved === 'neutral' ? 'neutral' : resolved);
       },
       setState(state) {
         const valid = new Set(['loading', 'empty', 'error', 'ready']);
@@ -548,9 +672,12 @@
       resize() {
         const w = canvasHolder.clientWidth  || 0;
         const h = canvasHolder.clientHeight || 0;
-        if (w && h) chart.applyOptions({ width: w, height: h });
+        if (!w || !h) return;
+        try { chart.applyOptions({ width: w, height: h }); } catch (_) {}
+        try { chart.timeScale().fitContent(); } catch (_) {}
       },
       destroy() {
+        try { if (_resizeRafId) cancelAnimationFrame(_resizeRafId); } catch (_) {}
         try { if (_ro) _ro.disconnect(); } catch (_) {}
         try { chart.remove(); } catch (_) {}
         if (host.parentNode) host.parentNode.removeChild(host);
