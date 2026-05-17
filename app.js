@@ -894,6 +894,18 @@ const T = {
     resetDeleteBtn:           'Eliminar datos y empezar de cero',
     resetDoneToast:           'Cartera restablecida',
     exportDoneToast:          'Backup descargado',
+    // MARKET-7: filter sheet copy + soon-state strings
+    mktFilterTitle:           'Filtros',
+    mktFilterRendimiento:     'Rendimiento',
+    mktFilterSortLabel:       'Ordenar',
+    mktFilterHelperExtended:  'Más periodos estarán disponibles cuando activemos histórico avanzado.',
+    mktSortWatchlist:         'Seguimiento',
+    mktSortName:              'Nombre',
+    mktSortPrice:             'Precio',
+    mktSort24h:               'Cambio 24H',
+    mktSortType:              'Tipo',
+    mktSoonShort:             'Próx.',
+    mktTimeframeSoon:         'Periodo disponible próximamente',
     // Beta screen
     exit: 'Salir',
   },
@@ -1498,6 +1510,18 @@ const T = {
     resetDeleteBtn:           'Delete data and start over',
     resetDoneToast:           'Portfolio reset',
     exportDoneToast:          'Backup downloaded',
+    // MARKET-7: filter sheet copy + soon-state strings
+    mktFilterTitle:           'Filters',
+    mktFilterRendimiento:     'Performance',
+    mktFilterSortLabel:       'Sort',
+    mktFilterHelperExtended:  'More periods will unlock when advanced history is enabled.',
+    mktSortWatchlist:         'Watchlist',
+    mktSortName:              'Name',
+    mktSortPrice:             'Price',
+    mktSort24h:               '24H change',
+    mktSortType:              'Type',
+    mktSoonShort:             'Soon',
+    mktTimeframeSoon:         'Period coming soon',
     // Beta screen
     exit: 'Exit',
   },
@@ -8946,6 +8970,20 @@ function _aurixMktOpenSymbol(symbol) {
     // Timeframe pill inside the sheet
     const tfBtn = e.target.closest('#mktFilterSheet [data-mkt-tf]');
     if (tfBtn) {
+      // MARKET-7: disabled periods (7D/1M/1Y/ALL) carry data-mkt-tf-soon.
+      // We never mutate _aurixMktTimeframe for those — instead we pulse
+      // the helper text so the user gets feedback without entering a
+      // fake "no data" state.
+      if (tfBtn.dataset.mktTfSoon === '1') {
+        const helper = document.getElementById('mktFilterHelper');
+        if (helper) {
+          helper.classList.remove('mkt-helper-pulse');
+          // Force reflow so the same class re-triggers the animation.
+          void helper.offsetWidth;
+          helper.classList.add('mkt-helper-pulse');
+        }
+        return;
+      }
       const tf = tfBtn.dataset.mktTf;
       if (tf && tf !== _aurixMktTimeframe) {
         _aurixMktTimeframe = tf;
@@ -12242,6 +12280,9 @@ function renderMarket() {
       const tfBtn = e.target.closest('[data-mkt-tf]');
       if (tfBtn) {
         e.stopPropagation();
+        // MARKET-7: ignore disabled period pills (7D/1M/1Y/ALL) so the
+        // V3 fallback path stays in sync with the V4 sheet behaviour.
+        if (tfBtn.dataset.mktTfSoon === '1') return;
         const tf = tfBtn.dataset.mktTf;
         if (tf && tf !== _aurixMktTimeframe) {
           _aurixMktTimeframe = tf;
@@ -12497,8 +12538,14 @@ function _aurixMktV4SyncSheet() {
   document.querySelectorAll('#mktFilterSheet [data-mkt-sort]').forEach(b => {
     b.classList.toggle('is-active', b.dataset.mktSort === _aurixMktSortBy);
   });
+  // MARKET-7: helper is always visible — it explains why 4 of the 5 period
+  // pills are muted. The pulse class is removed on every sync so it can
+  // re-trigger on the next disabled-pill tap.
   const helper = document.getElementById('mktFilterHelper');
-  if (helper) helper.hidden = _aurixMktTimeframe === '24H';
+  if (helper) {
+    helper.hidden = false;
+    helper.classList.remove('mkt-helper-pulse');
+  }
 }
 function _aurixMktV4OpenSheet() {
   const ov = document.getElementById('mktFilterOverlay');
@@ -12520,6 +12567,12 @@ function _aurixMktV4CloseSheet() {
   // inert when not in use (no accidental focus capture).
   setTimeout(() => { if (!ov.classList.contains('open')) ov.hidden = true; }, 260);
 }
+// MARKET-7: future-ready guard. Currently unused because 7D/1M/1Y/ALL
+// are disabled at the UI layer (data-mkt-tf-soon) — so _aurixMktTimeframe
+// can only ever be '24H'. When the period-history pipeline lands, the
+// disabled markers will be lifted and consumers can re-introduce this
+// check (e.g. for an empty-state cell when a period's data is still
+// loading). Kept as named export to avoid a rename when that day comes.
 function _aurixMktExpIsRealTimeframe() {
   return _aurixMktTimeframe === '24H';
 }
@@ -12549,28 +12602,26 @@ function _aurixMktExpSortItems(items) {
 function _aurixMktExpControlsHtml() {
   if (!_aurixMktExpFlag()) return '';
   const isEs = (typeof lang !== 'undefined' && lang === 'es');
+  // MARKET-7: SORT_OPTS carries a long label (sheet) + a short chip alias.
+  // The chip space is tight; "Cambio 24H" is fine in the sheet row but
+  // too verbose in a 3-segment chip. `chipEs/chipEn` is the compact form
+  // shown after the badge.
   const SORT_OPTS = [
-    { key: 'watchlist', es: 'Seguimiento', en: 'Watchlist' },
-    { key: 'name',      es: 'Nombre',      en: 'Name'      },
-    { key: 'price',     es: 'Precio',      en: 'Price'     },
-    { key: 'change',    es: '24h',         en: '24h'       },
-    { key: 'type',      es: 'Tipo',        en: 'Type'      },
+    { key: 'watchlist', es: 'Seguimiento', en: 'Watchlist',  chipEs: 'Seguim.', chipEn: 'Watch'  },
+    { key: 'name',      es: 'Nombre',      en: 'Name',       chipEs: 'Nombre',  chipEn: 'Name'   },
+    { key: 'price',     es: 'Precio',      en: 'Price',      chipEs: 'Precio',  chipEn: 'Price'  },
+    { key: 'change',    es: 'Cambio 24H',  en: '24H change', chipEs: 'Cambio',  chipEn: 'Change' },
+    { key: 'type',      es: 'Tipo',        en: 'Type',       chipEs: 'Tipo',    chipEn: 'Type'   },
   ];
   const current = SORT_OPTS.find(o => o.key === _aurixMktSortBy) || SORT_OPTS[3];
-  const currentLabel = isEs ? current.es : current.en;
+  const currentChipLabel = isEs ? current.chipEs : current.chipEn;
 
-  // MARKET-4B: single "Filtros" chip replaces the pill-row + sort
-  // dropdown. Premium, compact, opens a body-level sheet via
-  // _aurixMktV4OpenSheet. The current selection is summarized inline
-  // on the chip so users see active state at a glance.
+  // MARKET-4B + MARKET-7: single "Filtros" chip. Premium, compact, opens
+  // a body-level sheet via _aurixMktV4OpenSheet. Until period history
+  // lands, the badge is always 24H (the only real-data period); the chip
+  // never advertises a disabled period. The current sort uses the short
+  // chip alias so the three segments stay readable on mobile.
   if (_aurixMktV4Flag()) {
-    const orderLabel = `${isEs ? 'Orden' : 'Sort'} ${currentLabel}`;
-    const helperHtml = _aurixMktTimeframe !== '24H'
-      ? `<div class="mkt-tf-helper">${isEs ? 'Datos históricos completos próximamente' : 'Extended historical data coming soon'}</div>`
-      : '';
-    // UI-POLISH-1: chip exposes three layers — primary label, prominent
-    // timeframe badge (Aurix blue), and quieter sort summary — so the
-    // active state is legible at a glance without a single muted blob.
     return `
       <div class="mkt-explorer-controls is-v4" data-aurix-mkt-controls="1">
         <button type="button" class="mkt-filter-chip" data-mkt-filter-open aria-haspopup="dialog">
@@ -12579,28 +12630,29 @@ function _aurixMktExpControlsHtml() {
           </span>
           <span class="mkt-filter-chip-label">${isEs ? 'Filtros' : 'Filters'}</span>
           <span class="mkt-filter-chip-badge">${_aurixMktTimeframe}</span>
-          <span class="mkt-filter-chip-sort">${orderLabel}</span>
+          <span class="mkt-filter-chip-sort">${currentChipLabel}</span>
         </button>
       </div>
-      ${helperHtml}
     `;
   }
 
-  // MARKET-2/3 fall-through: pill row + sort dropdown.
+  // MARKET-2/3 fall-through: pill row + sort dropdown. MARKET-7 adds
+  // soon-state markers to non-24H pills so the V3 path is honest too.
   const TFs = ['24H', '7D', '1M', '1Y', 'ALL'];
-  const tfPills = TFs.map(tf =>
-    `<button type="button" class="mkt-tf-pill${tf === _aurixMktTimeframe ? ' is-active' : ''}" data-mkt-tf="${tf}">${tf}</button>`
-  ).join('');
+  const tfPills = TFs.map(tf => {
+    const isSoon = tf !== '24H';
+    const cls = `mkt-tf-pill${tf === _aurixMktTimeframe ? ' is-active' : ''}${isSoon ? ' is-soon' : ''}`;
+    const soonBadge = isSoon ? `<span class="mkt-tf-pill-soon">${isEs ? 'Próx.' : 'Soon'}</span>` : '';
+    const soonAttr  = isSoon ? ' data-mkt-tf-soon="1" aria-disabled="true"' : '';
+    return `<button type="button" class="${cls}" data-mkt-tf="${tf}"${soonAttr}>${tf}${soonBadge}</button>`;
+  }).join('');
   const sortItems = SORT_OPTS.map(o =>
     `<button type="button" class="mkt-sort-item${o.key === _aurixMktSortBy ? ' is-active' : ''}" data-mkt-sort="${o.key}">${isEs ? o.es : o.en}</button>`
   ).join('');
-  // MARKET-3: honest helper text under the controls when the user
-  // selects a timeframe with no real data yet. Visible only on the V3
-  // flag — V2-only setups don't show it (the perf cell already reads
-  // "—" so the row itself is honest).
-  const showHelper = _aurixMktV3Flag() && _aurixMktTimeframe !== '24H';
-  const helperHtml = showHelper
-    ? `<div class="mkt-tf-helper">${isEs ? 'Histórico por periodo próximamente' : 'Period history coming soon'}</div>`
+  // MARKET-7: helper line under V3 pill row, always visible — explains
+  // why 4 of the 5 pills are muted. Honest and quiet.
+  const helperHtml = _aurixMktV3Flag()
+    ? `<div class="mkt-tf-helper">${isEs ? 'Más periodos estarán disponibles cuando activemos histórico avanzado.' : 'More periods will unlock when advanced history is enabled.'}</div>`
     : '';
   return `
     <div class="mkt-explorer-controls" data-aurix-mkt-controls="1">
@@ -14104,10 +14156,8 @@ function renderMarketItem(item) {
         </div>
       </div>
       <div class="col col-price">${safePrice(price)}</div>
-      <div class="col col-change ${(_aurixMktExpFlag() && !_aurixMktExpIsRealTimeframe()) ? 'is-flat' : (chg > 0 ? 'is-up' : chg < 0 ? 'is-down' : '')}">
-        ${(_aurixMktExpFlag() && !_aurixMktExpIsRealTimeframe())
-            ? '<span class="col-change-empty" aria-label="No data for selected timeframe">—</span>'
-            : safeChange(chg)}
+      <div class="col col-change ${chg > 0 ? 'is-up' : chg < 0 ? 'is-down' : ''}">
+        ${safeChange(chg)}
       </div>
       <div class="col col-chart" data-spark-key="${normSym}" data-spark-change="${chg ?? ''}">${chart}</div>
       <div class="col col-action">

@@ -12793,3 +12793,85 @@ body.gs-open { overflow: hidden; }
     }
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MARKET-7 — Filter logic UX: disabled period pills + helper polish.
+   Applies to both the V4 sheet pills (.mkt-filter-pill.is-soon) and
+   the V3 fallback pill row (.mkt-tf-pill.is-soon). Scoped strictly to
+   .is-soon and the helper, so enabled-state styling stays intact.
+   ══════════════════════════════════════════════════════════════════ */
+.mkt-filter-pill.is-soon,
+.mkt-tf-pill.is-soon {
+  position: relative;
+  cursor: not-allowed;
+  color: rgba(220, 230, 250, 0.36);
+  background: rgba(20, 30, 56, 0.30);
+  border-color: rgba(138, 166, 255, 0.06);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mkt-filter-pill.is-soon:hover,
+.mkt-tf-pill.is-soon:hover {
+  /* No real hover affordance — taps are intentionally inert. */
+  background: rgba(20, 30, 56, 0.34);
+  border-color: rgba(138, 166, 255, 0.10);
+  color: rgba(220, 230, 250, 0.44);
+  box-shadow: none;
+  transform: none;
+}
+.mkt-filter-pill-soon,
+.mkt-tf-pill-soon {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(138, 166, 255, 0.10);
+  border: 1px solid rgba(138, 166, 255, 0.14);
+  color: rgba(180, 200, 240, 0.62);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* Helper text — always visible (subtle), explains the muted pills. */
+.mkt-filter-helper,
+.mkt-tf-helper {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(180, 200, 240, 0.50);
+  font-style: normal;
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+.mkt-filter-helper[hidden] { display: none; }
+
+/* Pulse: tap on a disabled pill briefly flashes the helper text into
+   focus so the user sees the explanation. Single-shot, ~700ms. */
+@keyframes mktHelperPulse {
+  0%   { color: rgba(180, 200, 240, 0.50); transform: translateX(0); }
+  20%  { color: rgba(244, 196, 90, 0.95);  transform: translateX(2px); }
+  60%  { color: rgba(244, 196, 90, 0.85);  transform: translateX(0); }
+  100% { color: rgba(180, 200, 240, 0.50); transform: translateX(0); }
+}
+.mkt-filter-helper.mkt-helper-pulse,
+.mkt-tf-helper.mkt-helper-pulse {
+  animation: mktHelperPulse 720ms var(--ease-premium);
+}
+
+/* Mobile-only tweak: pill-soon badge stays compact next to the period
+   token, never wraps. */
+@media (max-width: 520px) {
+  .mkt-filter-pill,
+  .mkt-tf-pill {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .mkt-filter-pill-soon,
+  .mkt-tf-pill-soon {
+    font-size: 8.5px;
+    padding: 1px 5px;
+  }
+}

@@ -933,23 +933,27 @@
       <button type="button" class="mkt-filter-close" data-mkt-filter-close aria-label="Close">✕</button>
     </div>
     <div class="mkt-filter-section">
-      <div class="mkt-filter-section-label" data-i18n="mktFilterPeriod">Periodo</div>
+      <div class="mkt-filter-section-label" data-i18n="mktFilterRendimiento">Rendimiento</div>
       <div class="mkt-filter-pills" id="mktFilterTfRow">
         <button type="button" class="mkt-filter-pill" data-mkt-tf="24H">24H</button>
-        <button type="button" class="mkt-filter-pill" data-mkt-tf="7D">7D</button>
-        <button type="button" class="mkt-filter-pill" data-mkt-tf="1M">1M</button>
-        <button type="button" class="mkt-filter-pill" data-mkt-tf="1Y">1Y</button>
-        <button type="button" class="mkt-filter-pill" data-mkt-tf="ALL">ALL</button>
+        <!-- MARKET-7: 7D/1M/1Y/ALL marked as data-mkt-tf-soon — the sheet
+             click handler ignores these so the active timeframe stays 24H
+             until the period-history pipeline lands. Visual treatment is
+             muted-glass with a "Próx." sub-badge. -->
+        <button type="button" class="mkt-filter-pill is-soon" data-mkt-tf="7D"  data-mkt-tf-soon="1" aria-disabled="true">7D<span class="mkt-filter-pill-soon" data-i18n="mktSoonShort">Próx.</span></button>
+        <button type="button" class="mkt-filter-pill is-soon" data-mkt-tf="1M"  data-mkt-tf-soon="1" aria-disabled="true">1M<span class="mkt-filter-pill-soon" data-i18n="mktSoonShort">Próx.</span></button>
+        <button type="button" class="mkt-filter-pill is-soon" data-mkt-tf="1Y"  data-mkt-tf-soon="1" aria-disabled="true">1Y<span class="mkt-filter-pill-soon" data-i18n="mktSoonShort">Próx.</span></button>
+        <button type="button" class="mkt-filter-pill is-soon" data-mkt-tf="ALL" data-mkt-tf-soon="1" aria-disabled="true">ALL<span class="mkt-filter-pill-soon" data-i18n="mktSoonShort">Próx.</span></button>
       </div>
-      <div class="mkt-filter-helper" id="mktFilterHelper" hidden data-i18n="mktFilterHelperExtended">Datos históricos completos próximamente</div>
+      <div class="mkt-filter-helper" id="mktFilterHelper" data-i18n="mktFilterHelperExtended">Más periodos estarán disponibles cuando activemos histórico avanzado.</div>
     </div>
     <div class="mkt-filter-section">
-      <div class="mkt-filter-section-label" data-i18n="mktFilterSortLabel">Ordenar por</div>
+      <div class="mkt-filter-section-label" data-i18n="mktFilterSortLabel">Ordenar</div>
       <div class="mkt-filter-sort-list" id="mktFilterSortRow">
         <button type="button" class="mkt-filter-sort-item" data-mkt-sort="watchlist" data-i18n="mktSortWatchlist">Seguimiento</button>
         <button type="button" class="mkt-filter-sort-item" data-mkt-sort="name"      data-i18n="mktSortName">Nombre</button>
         <button type="button" class="mkt-filter-sort-item" data-mkt-sort="price"     data-i18n="mktSortPrice">Precio</button>
-        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="change"    data-i18n="mktSort24h">24H</button>
+        <button type="button" class="mkt-filter-sort-item" data-mkt-sort="change"    data-i18n="mktSort24h">Cambio 24H</button>
         <button type="button" class="mkt-filter-sort-item" data-mkt-sort="type"      data-i18n="mktSortType">Tipo</button>
       </div>
     </div>
