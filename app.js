@@ -7798,10 +7798,15 @@ function _aurixDashMount(surface) {
     const ctrl = window.AurixCharts.createChart(host, {
       variant:        'portfolio',
       colorMode:      'auto',
-      showCrosshair:  isDesktop,
-      showTooltip:    isDesktop,
+      // CHART-4C: mobile uses long-press inspection. Crosshair +
+      // tooltip DOM are created (so the engine can light them up
+      // during inspection); the host stays pointer-events:none until
+      // the press threshold fires, so page scroll/swipe are normal.
+      showCrosshair:  true,
+      showTooltip:    true,
       showTimeScale:  isDesktop,
       showPriceScale: isDesktop,
+      mobileInspection: !isDesktop,
       currency:       baseCurrency || 'USD',
       range:          activeRange,
       // Inherit the parent box explicitly so any container reflow

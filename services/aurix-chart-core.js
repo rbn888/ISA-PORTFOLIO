@@ -317,6 +317,11 @@
       colorMode:      'auto',       // 'auto' | 'positive' | 'negative' | 'neutral'
       compact:        false,
       range:          '7d',
+      // CHART-4C: opt-in long-press inspection for mobile. When true,
+      // the chart stays touch-inert until a stationary press of
+      // ~180ms; then a crosshair + tooltip activate while the finger
+      // drags. Release returns to inert (page scroll/swipe normal).
+      mobileInspection: false,
     }, options || {});
 
     if (!container || !(container instanceof HTMLElement)) {
@@ -552,6 +557,131 @@
       });
     }
 
+    // ── CHART-4C: mobile inspection state machine ───────────────
+    // Premium long-press → crosshair/tooltip → release flow. Opt-in
+    // via opts.mobileInspection. Touches pass through the chart
+    // (host pointer-events:none) until a stationary 180ms press; then
+    // we grab capture, dispatch synthetic mouse events at the touch
+    // coordinates so LWC's crosshair lights up (and our existing
+    // subscribeCrosshairMove → tooltip handler fires). Movement ≥10px
+    // before the timer fires cancels the press so accidental drags
+    // never freeze page scroll.
+    let _mInsCleanup = null;
+    if (opts.mobileInspection) {
+      const PARENT = host.parentNode;
+      if (PARENT) {
+        const MOVE_TOL = 10;
+        const PRESS_MS = 180;
+        let pressTimer  = 0;
+        let startX = 0, startY = 0;
+        let curX = 0,   curY = 0;
+        let inspecting = false;
+        let suppressNextClick = false;
+
+        const _canvasEl = () => canvasHolder.querySelector('canvas');
+        const _dispatch = (type, x, y) => {
+          const c = _canvasEl();
+          if (!c) return;
+          try {
+            c.dispatchEvent(new MouseEvent(type, {
+              bubbles: true, cancelable: true, view: window,
+              clientX: x, clientY: y,
+            }));
+          } catch (_) {}
+        };
+        const enter = (x, y) => {
+          inspecting = true;
+          // Host stays pointer-events:none — native touches keep
+          // bubbling to the parent state machine. We light up LWC's
+          // crosshair via synthetic mouse events dispatched directly
+          // on the canvas, which bypass pointer-events filtering.
+          host.dataset.inspecting = 'true';
+          _dispatch('mouseenter', x, y);
+          _dispatch('mousemove',  x, y);
+        };
+        const exit = () => {
+          if (!inspecting) return;
+          inspecting = false;
+          delete host.dataset.inspecting;
+          _dispatch('mouseleave', curX, curY);
+          // Belt-and-braces: hide our DOM tooltip explicitly in case
+          // the crosshair-move callback didn't fire on the exit path.
+          const tt = host.querySelector('.aurix-chart-tooltip');
+          if (tt) tt.dataset.visible = 'false';
+        };
+
+        const onTouchStart = (e) => {
+          if (inspecting) return;
+          if (!e.touches || e.touches.length !== 1) return;
+          const t = e.touches[0];
+          startX = curX = t.clientX;
+          startY = curY = t.clientY;
+          clearTimeout(pressTimer);
+          pressTimer = setTimeout(() => {
+            pressTimer = 0;
+            // Re-check we still have a finger down (the touchend may
+            // have fired during the wait).
+            enter(curX, curY);
+          }, PRESS_MS);
+        };
+        const onTouchMove = (e) => {
+          if (!e.touches || e.touches.length === 0) return;
+          const t = e.touches[0];
+          curX = t.clientX;
+          curY = t.clientY;
+          if (inspecting) {
+            // Prevent page scroll while the user is dragging the
+            // crosshair. We only block scroll AFTER inspection started
+            // — so the initial swipe through the dashboard slider
+            // remains untouched.
+            try { e.preventDefault(); } catch (_) {}
+            _dispatch('mousemove', curX, curY);
+            return;
+          }
+          if (pressTimer) {
+            if (Math.abs(curX - startX) > MOVE_TOL ||
+                Math.abs(curY - startY) > MOVE_TOL) {
+              clearTimeout(pressTimer);
+              pressTimer = 0;
+            }
+          }
+        };
+        const onTouchEnd = () => {
+          if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
+          if (inspecting) {
+            // Swallow the synthetic click that some browsers fire
+            // after touchend so the page doesn't react to the lift.
+            suppressNextClick = true;
+            setTimeout(() => { suppressNextClick = false; }, 350);
+            exit();
+          }
+        };
+        const onClickCapture = (e) => {
+          if (suppressNextClick) {
+            try { e.stopPropagation(); e.preventDefault(); } catch (_) {}
+          }
+        };
+
+        // touchmove must be non-passive so we can preventDefault
+        // during inspection. Other listeners stay passive.
+        PARENT.addEventListener('touchstart', onTouchStart, { passive: true });
+        PARENT.addEventListener('touchmove',  onTouchMove,  { passive: false });
+        PARENT.addEventListener('touchend',   onTouchEnd,   { passive: true });
+        PARENT.addEventListener('touchcancel',onTouchEnd,   { passive: true });
+        PARENT.addEventListener('click',      onClickCapture, true);
+
+        _mInsCleanup = () => {
+          try { clearTimeout(pressTimer); } catch (_) {}
+          try { exit(); } catch (_) {}
+          PARENT.removeEventListener('touchstart', onTouchStart);
+          PARENT.removeEventListener('touchmove',  onTouchMove);
+          PARENT.removeEventListener('touchend',   onTouchEnd);
+          PARENT.removeEventListener('touchcancel',onTouchEnd);
+          PARENT.removeEventListener('click',      onClickCapture, true);
+        };
+      }
+    }
+
     // ── ResizeObserver (responsive sizing) ─────────────────────
     // CHART-4B: throttle via requestAnimationFrame so a torrent of
     // resize events (drag-resizing the window, mobile slider
@@ -677,6 +807,7 @@
         try { chart.timeScale().fitContent(); } catch (_) {}
       },
       destroy() {
+        try { if (_mInsCleanup) _mInsCleanup(); } catch (_) {}
         try { if (_resizeRafId) cancelAnimationFrame(_resizeRafId); } catch (_) {}
         try { if (_ro) _ro.disconnect(); } catch (_) {}
         try { chart.remove(); } catch (_) {}
