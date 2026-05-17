@@ -921,5 +921,41 @@
   <button class="fab-option" data-action="liquidity" data-i18n="fabAddLiquidity">Añadir liquidez</button>
 </div>
 
+<!-- MARKET-1B: market asset preview overlay. Opens on row click when
+     the feature flag is on. Reuses the .modal-overlay / .modal chrome
+     (radius, sheet behaviour, safe-area) shared by the rest of the app
+     so this surface inherits all prior MA-1/CHART-7A polish. -->
+<div class="modal-overlay" id="marketPreviewOverlay">
+  <div class="modal modal--mkt-preview">
+    <span class="sheet-handle" aria-hidden="true"></span>
+    <div class="modal-header">
+      <div class="mkt-prv-head">
+        <span class="mkt-prv-icon" id="mktPrvIcon"></span>
+        <div class="mkt-prv-id">
+          <div class="mkt-prv-name" id="mktPrvName">—</div>
+          <div class="mkt-prv-sub">
+            <span class="mkt-prv-symbol" id="mktPrvSymbol">—</span>
+            <span class="mkt-prv-badge" id="mktPrvBadge"></span>
+          </div>
+        </div>
+      </div>
+      <button class="modal-close" id="mktPrvClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mkt-prv-stats">
+        <div class="mkt-prv-price" id="mktPrvPrice">—</div>
+        <div class="mkt-prv-change" id="mktPrvChange"></div>
+      </div>
+      <div class="mkt-prv-ranges" id="mktPrvRanges"></div>
+      <div class="mkt-prv-meta"   id="mktPrvMeta" hidden></div>
+      <div class="mkt-prv-mount"  id="mktPrvMount"></div>
+    </div>
+    <div class="modal-cta mkt-prv-cta">
+      <button type="button" class="btn-secondary" id="mktPrvWatchBtn">★</button>
+      <button type="button" class="btn-submit"    id="mktPrvAddBtn"   data-i18n="addToPortfolio">Añadir a cartera</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

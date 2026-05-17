@@ -1796,6 +1796,14 @@ let _aurixAssetAsset  = null;
 // synthetic chart still ships unchanged when the flag is off, so the
 // V2 path is opt-in transparency, not a regression).
 let _aurixCategoryEntry = null;
+// MARKET-1B: market asset preview controller state. Independent from
+// the dashboard / asset-detail / category V2 controllers — a market
+// row click opens its own modal with its own chart instance.
+let _aurixMktCtrl   = null;
+let _aurixMktRanges = null;
+let _aurixMktAbort  = null;
+let _aurixMktRange  = '30d';
+let _aurixMktItem   = null;
 let _detailChart     = null;  // Chart.js instance for category detail sparkline
 let _detailChartType = null;  // which category the sparkline was last rendered for
 let _chartRevealProgress = 1; // 0–1 clip for left-to-right line reveal
@@ -8452,6 +8460,331 @@ function _aurixCategoryMount(canvas) {
   }
 }
 
+// ── MARKET-1B ─────────────────────────────────────────────────────
+// Premium Market asset preview. Clicking a market row opens a modal
+// with the asset's identity, live price/change, real history chart
+// via the existing adapter layer, and CTAs that route back through
+// the existing Add Asset flow + watchlist toggle. Behind a flag so
+// the entire path is a single console toggle away from rollback.
+const _AURIX_MKT_RANGE_MAP = Object.freeze({
+  '24H':'24h', '1W':'7d', '1M':'30d', '1Y':'1y', 'ALL':'all',
+});
+function _aurixMktFlag() {
+  return typeof window !== 'undefined' && window.__AURIX_MARKET_PREVIEW_V1 !== false;
+}
+function _aurixMktReady() {
+  return typeof window !== 'undefined'
+      && typeof window.AurixCharts === 'object'
+      && typeof window.AurixCharts.createChart === 'function'
+      && typeof window.AurixCharts.isReady === 'function'
+      && window.AurixCharts.isReady();
+}
+function _aurixMktAdaptersReady() {
+  return typeof window !== 'undefined'
+      && typeof window.AurixChartAdapters === 'object'
+      && typeof window.AurixChartAdapters.yahooHistoryAdapter === 'function'
+      && typeof window.AurixChartAdapters.cryptoHistoryAdapter === 'function';
+}
+function _aurixMktPickAdapter(item) {
+  const it = item || {};
+  const tp = String(it.type || '').toLowerCase();
+  if (tp === 'crypto' && it.coinId) {
+    return { kind: 'crypto', args: { coinId: String(it.coinId) } };
+  }
+  let sym = it.marketSymbol || it.symbol || it.ticker || '';
+  if ((tp === 'metal' || tp === 'commodity') && (sym === 'XAU' || sym === 'XAU/USD')) sym = 'GC=F';
+  if (!sym) return null;
+  return { kind: 'yahoo', args: { symbol: String(sym).toUpperCase() } };
+}
+function _aurixMktMetaLine(item, adapter, meta) {
+  try {
+    const isEs = (typeof lang !== 'undefined' && lang === 'es');
+    const tp = String((item && item.type) || '').toLowerCase();
+    const g  = (meta && meta.granularity) || '';
+    if (tp === 'fund') return isEs ? 'NAV diario' : 'Daily NAV';
+    if (item && item.symbol && /XAU/i.test(item.symbol)) {
+      return (isEs ? 'Oro spot' : 'Gold spot') + ' · ' +
+             (isEs ? 'Referencia de mercado' : 'Market reference');
+    }
+    const parts = [];
+    if (adapter && adapter.kind === 'crypto') parts.push('CoinGecko');
+    else if (adapter && adapter.kind === 'yahoo') parts.push('Yahoo');
+    if      (g === '1d')  parts.push(isEs ? 'Diario'  : 'Daily');
+    else if (g === '5m')  parts.push('5m');
+    else if (g === '15m') parts.push('15m');
+    else if (g === '1h')  parts.push('1h');
+    else if (g === '1wk') parts.push(isEs ? 'Semanal' : 'Weekly');
+    return parts.join(' · ');
+  } catch (_) { return ''; }
+}
+function _aurixMktSetMeta(line) {
+  const el = document.getElementById('mktPrvMeta');
+  if (!el) return;
+  if (line) { el.textContent = line; el.hidden = false; }
+  else      { el.textContent = '';   el.hidden = true;  }
+}
+function _aurixMktTeardown() {
+  if (_aurixMktAbort)  { try { _aurixMktAbort.abort(); } catch (_) {} _aurixMktAbort = null; }
+  if (_aurixMktRanges) { try { _aurixMktRanges.destroy(); } catch (_) {} _aurixMktRanges = null; }
+  if (_aurixMktCtrl)   { try { _aurixMktCtrl.destroy();   } catch (_) {} _aurixMktCtrl   = null; }
+  const rangesHost = document.getElementById('mktPrvRanges');
+  if (rangesHost) rangesHost.innerHTML = '';
+  _aurixMktSetMeta('');
+  _aurixMktItem = null;
+}
+function _aurixMktClose() {
+  _aurixMktTeardown();
+  const overlay = document.getElementById('marketPreviewOverlay');
+  if (overlay) overlay.classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+async function _aurixMktLoad(item, adapter) {
+  const ctrl = _aurixMktCtrl;
+  if (!ctrl) return;
+  if (!_aurixMktAdaptersReady()) {
+    try { ctrl.setState('error'); } catch (_) {}
+    _aurixMktSetMeta('');
+    return;
+  }
+  try { ctrl.setState('loading'); } catch (_) {}
+  if (_aurixMktAbort) { try { _aurixMktAbort.abort(); } catch (_) {} }
+  _aurixMktAbort = (typeof AbortController === 'function') ? new AbortController() : null;
+  const args = Object.assign({}, adapter.args, {
+    range:  _aurixMktRange,
+    signal: _aurixMktAbort ? _aurixMktAbort.signal : undefined,
+  });
+  try {
+    const fn = adapter.kind === 'crypto'
+      ? window.AurixChartAdapters.cryptoHistoryAdapter
+      : window.AurixChartAdapters.yahooHistoryAdapter;
+    const result = await fn(args);
+    if (ctrl !== _aurixMktCtrl) return;
+    if (item !== _aurixMktItem) return;
+    if (!result || !Array.isArray(result.series) || !result.series.length) {
+      ctrl.setData([]);
+      _aurixMktSetMeta(_aurixMktMetaLine(item, adapter, result && result.meta));
+      return;
+    }
+    const fromCurr = (result.meta && result.meta.currency) || 'USD';
+    const series = result.series.map(p => ({
+      time:  p.time,
+      value: toBase(p.value, fromCurr),
+    }));
+    try { ctrl.setCurrency(baseCurrency || 'USD'); } catch (_) {}
+    try { ctrl.setRange(_aurixMktRange); } catch (_) {}
+    ctrl.setData(series, {
+      source:       (result.meta && result.meta.source) || 'unknown',
+      currency:     baseCurrency || 'USD',
+      granularity:  (result.meta && result.meta.granularity) || '1d',
+      isSynthetic:  !!(result.meta && result.meta.isSynthetic),
+      completeness: (result.meta && result.meta.completeness) || 1,
+      asOf:         Date.now(),
+    });
+    _aurixMktSetMeta(_aurixMktMetaLine(item, adapter, result.meta));
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    console.warn('[market-preview] load fail', err && err.message ? err.message : err);
+    try { ctrl.setState('error'); } catch (_) {}
+    _aurixMktSetMeta('');
+  }
+}
+function _aurixMktUpdateWatchUI(symbol) {
+  const btn = document.getElementById('mktPrvWatchBtn');
+  if (!btn) return;
+  const isWatched = (typeof isInWatchlist === 'function') ? isInWatchlist(symbol) : false;
+  btn.textContent = isWatched ? '★' : '☆';
+  btn.classList.toggle('is-active', isWatched);
+}
+function _aurixMktOpenSymbol(symbol) {
+  if (!_aurixMktFlag()) return false;
+  if (!symbol) return false;
+  // Locate the market item (price, change24h, name, type, ids).
+  let item = null;
+  try { item = (typeof _findMktItem === 'function') ? _findMktItem(symbol, MARKET_DATA) : null; } catch (_) {}
+  if (!item) return false;
+
+  const overlay = document.getElementById('marketPreviewOverlay');
+  if (!overlay) return false;
+  const mount   = document.getElementById('mktPrvMount');
+  if (!mount) return false;
+
+  // Tear down any prior instance before opening a new one.
+  _aurixMktTeardown();
+
+  // Populate identity / price block.
+  const sym = String(item.symbol || symbol || '').toUpperCase();
+  const nameEl    = document.getElementById('mktPrvName');
+  const symEl     = document.getElementById('mktPrvSymbol');
+  const iconEl    = document.getElementById('mktPrvIcon');
+  const badgeEl   = document.getElementById('mktPrvBadge');
+  const priceEl   = document.getElementById('mktPrvPrice');
+  const changeEl  = document.getElementById('mktPrvChange');
+  if (nameEl)   nameEl.textContent   = item.name || sym;
+  if (symEl)    symEl.textContent    = sym;
+  if (iconEl)   iconEl.textContent   = sym.slice(0, 4);
+  if (badgeEl) {
+    const tp = String(item.type || '').toLowerCase();
+    const KIND_KEY = { crypto:'market_badge_crypto', stock:'market_badge_stock', etf:'market_badge_etf', index:'market_badge_index', commodity:'market_badge_commodity', fund:'market_badge_fund', metal:'market_badge_metal' };
+    const labelKey = KIND_KEY[tp];
+    badgeEl.textContent = labelKey ? (typeof t === 'function' ? t(labelKey) : '') : '';
+  }
+  if (priceEl) {
+    const p = (typeof item.current_price === 'number' && Number.isFinite(item.current_price)) ? item.current_price
+            : (typeof item.price         === 'number' && Number.isFinite(item.price))         ? item.price
+            : null;
+    priceEl.textContent = (p != null && typeof safePrice === 'function') ? safePrice(p) : '—';
+  }
+  if (changeEl) {
+    const chg = (typeof item.change24h === 'number') ? item.change24h
+              : (typeof item.change    === 'number') ? item.change
+              : null;
+    if (chg != null && typeof safeChange === 'function') {
+      changeEl.textContent = safeChange(chg);
+      changeEl.className = 'mkt-prv-change ' + (chg > 0.005 ? 'is-up' : chg < -0.005 ? 'is-down' : 'is-flat');
+    } else {
+      changeEl.textContent = '';
+      changeEl.className = 'mkt-prv-change';
+    }
+  }
+
+  _aurixMktUpdateWatchUI(sym);
+
+  // Open the overlay BEFORE mounting so layout can compute dimensions.
+  overlay.classList.add('open');
+  document.body.classList.add('modal-open');
+
+  if (!_aurixMktReady()) {
+    // One-shot retry once the deferred CDN finishes — same pattern as
+    // the dashboard chart hook.
+    setTimeout(() => { _aurixMktOpenSymbol(symbol); }, 150);
+    return true;
+  }
+
+  const adapter = _aurixMktPickAdapter(item);
+  if (!adapter) {
+    // No reliable address for this asset's history — show the
+    // identity panel, hide the chart slot via empty state.
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    mount.style.height = (isMobile ? 200 : 220) + 'px';
+    try {
+      _aurixMktCtrl = window.AurixCharts.createChart(mount, {
+        variant:        'asset',
+        colorMode:      'neutral',
+        showCrosshair:  false,
+        showTooltip:    false,
+        showTimeScale:  false,
+        showPriceScale: false,
+        height:         isMobile ? 200 : 220,
+      });
+      _aurixMktCtrl.setData([]);
+    } catch (_) {}
+    _aurixMktItem  = item;
+    _aurixMktRange = '30d';
+    return true;
+  }
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  mount.style.height = (isMobile ? 200 : 240) + 'px';
+  _aurixMktRange = '30d';
+  _aurixMktItem  = item;
+  try {
+    _aurixMktCtrl = window.AurixCharts.createChart(mount, {
+      variant:          'asset',
+      colorMode:        'auto',
+      currency:         baseCurrency || 'USD',
+      showCrosshair:    true,
+      showTooltip:      true,
+      showTimeScale:    !isMobile,
+      showPriceScale:   !isMobile,
+      mobileInspection: isMobile,
+      height:           isMobile ? 200 : 240,
+      range:            _aurixMktRange,
+    });
+  } catch (err) {
+    console.warn('[market-preview] mount fail', err && err.message ? err.message : err);
+    _aurixMktTeardown();
+    overlay.classList.remove('open');
+    document.body.classList.remove('modal-open');
+    return false;
+  }
+
+  // Range pills.
+  const rangesHost = document.getElementById('mktPrvRanges');
+  if (rangesHost && typeof window.AurixCharts.createRangePills === 'function') {
+    try {
+      _aurixMktRanges = window.AurixCharts.createRangePills(rangesHost, {
+        ranges:  ['24H','1W','1M','1Y','ALL'],
+        initial: '1M',
+        onChange: label => {
+          const r = _AURIX_MKT_RANGE_MAP[label] || '30d';
+          if (r === _aurixMktRange) return;
+          _aurixMktRange = r;
+          _aurixMktLoad(_aurixMktItem, adapter);
+        },
+      });
+    } catch (_) {}
+  }
+
+  // Asset-specific empty-state copy (same pattern as CHART-6B).
+  try {
+    const emptyEl = mount.querySelector('.aurix-chart-state--empty');
+    if (emptyEl) {
+      emptyEl.textContent = (typeof lang !== 'undefined' && lang === 'es')
+        ? 'No hay histórico disponible para este activo.'
+        : 'No historical data available for this asset.';
+    }
+  } catch (_) {}
+
+  _aurixMktLoad(item, adapter);
+  return true;
+}
+
+// Wire overlay close + CTA buttons once. Idempotent: guarded by a
+// flag on window so the bindings survive multiple market re-renders.
+(function _aurixMktBindOnce() {
+  if (typeof window === 'undefined' || window.__aurixMktBound) return;
+  window.__aurixMktBound = true;
+  const closeBtn = document.getElementById('mktPrvClose');
+  const overlay  = document.getElementById('marketPreviewOverlay');
+  if (closeBtn) closeBtn.addEventListener('click', _aurixMktClose);
+  if (overlay) overlay.addEventListener('click', e => {
+    if (e.target === overlay) _aurixMktClose();
+  });
+  const watchBtn = document.getElementById('mktPrvWatchBtn');
+  if (watchBtn) {
+    watchBtn.addEventListener('click', () => {
+      if (!_aurixMktItem) return;
+      const sym = String(_aurixMktItem.symbol || '').toUpperCase();
+      if (!sym) return;
+      try { if (typeof toggleWatchlist === 'function') toggleWatchlist(sym); } catch (_) {}
+      _aurixMktUpdateWatchUI(sym);
+      // Mirror the legacy market row update so stars on the screen
+      // behind the modal also refresh.
+      try { document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
+        const isAdded = (typeof isInWatchlist === 'function') ? isInWatchlist(sym) : false;
+        b.textContent = isAdded ? '★' : '☆';
+        b.classList.toggle('active', isAdded);
+      }); } catch (_) {}
+    });
+  }
+  const addBtn = document.getElementById('mktPrvAddBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const item = _aurixMktItem;
+      _aurixMktClose();
+      if (item && typeof _openAddAssetWithFund === 'function') {
+        _openAddAssetWithFund(item);
+      }
+    });
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const ov = document.getElementById('marketPreviewOverlay');
+      if (ov && ov.classList.contains('open')) _aurixMktClose();
+    }
+  });
+})();
+
 function initChart() {
   const canvas = document.getElementById('portfolioChart');
   if (!canvas || portfolioChart) return;
@@ -11696,20 +12029,33 @@ function renderMarket() {
   updateMarketHeader();
   initMarketTabs();
   initMarketSearch();
-  // Event delegation for star toggles — set once, covers all dynamic rows
+  // Event delegation for star toggles + MARKET-1B row → preview open.
+  // The star-toggle branch must run first because its click target is
+  // INSIDE a market-row; e.stopPropagation stops further delegation so
+  // a star tap never accidentally opens the preview underneath.
   const screen = container.querySelector('.market-screen');
   if (screen) {
     screen.addEventListener('click', e => {
       const btn = e.target.closest('.watchlist-btn');
-      if (!btn) return;
-      e.stopPropagation();
-      const sym     = btn.dataset.symbol;
-      const isAdded = toggleWatchlist(sym);
-      document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
-        b.textContent = isAdded ? '★' : '☆';
-        b.classList.toggle('active', isAdded);
-      });
-      renderCurrentMarketView();
+      if (btn) {
+        e.stopPropagation();
+        const sym     = btn.dataset.symbol;
+        const isAdded = toggleWatchlist(sym);
+        document.querySelectorAll(`.watchlist-btn[data-symbol="${sym}"]`).forEach(b => {
+          b.textContent = isAdded ? '★' : '☆';
+          b.classList.toggle('active', isAdded);
+        });
+        renderCurrentMarketView();
+        return;
+      }
+      // MARKET-1B: open the preview overlay on market-row clicks. The
+      // helper itself respects the feature flag and falls back to
+      // no-op if the engine / item lookup fails.
+      const row = e.target.closest('.market-row');
+      if (!row || !row.dataset || !row.dataset.symbol) return;
+      try {
+        if (typeof _aurixMktOpenSymbol === 'function') _aurixMktOpenSymbol(row.dataset.symbol);
+      } catch (_) {}
     });
   }
   ensureMarketData();
