@@ -13851,8 +13851,11 @@ body.gs-open { overflow: hidden; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  margin: 10px 0 0;
+  padding: 11px 14px;
+  /* HEALTH-2: explicit top + bottom margin so the card breathes between
+     the hero and the distribution section instead of butting flush
+     against either. Matches the 14–16px range from the spec. */
+  margin: 14px 0;
   border-radius: 14px;
   background:
     linear-gradient(180deg, rgba(74, 130, 240, 0.08) 0%, rgba(12, 18, 32, 0.0) 75%),
@@ -13860,6 +13863,29 @@ body.gs-open { overflow: hidden; }
   border: 1px solid rgba(138, 166, 255, 0.12);
   box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.50);
   animation: aurix-signal-in .32s var(--ease-premium);
+}
+/* Subtle pulse on the signal icon so the card feels alive without
+   demanding attention. Pauses on hover for accessibility. */
+.aurix-signal-icon {
+  position: relative;
+}
+.aurix-signal-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 currentColor;
+  opacity: 0.0;
+  animation: aurix-signal-icon-pulse 2400ms ease-out infinite;
+  pointer-events: none;
+}
+.aurix-signal:hover .aurix-signal-icon::after { animation-play-state: paused; }
+@keyframes aurix-signal-icon-pulse {
+  0%   { box-shadow: 0 0 0 0   currentColor; opacity: 0.40; }
+  100% { box-shadow: 0 0 0 10px currentColor; opacity: 0.0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurix-signal-icon::after { animation: none; opacity: 0; }
 }
 @keyframes aurix-signal-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -14017,14 +14043,15 @@ body.gs-open { overflow: hidden; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   AURIX-SIGNALS-2 — Portfolio Health panel (#healthOverlay).
-   Acts as the bridge between the dashboard signal and Workspace.
-   Reuses the canonical .modal-overlay / .modal chrome so safe-area,
-   open/close transitions and z-index stack with the rest of the app.
+   AURIX-HEALTH-2 — Portfolio Health experience (#healthOverlay).
+   Self-contained surface: header → score ring → metrics row → cards →
+   disclaimer + (subtle) advanced link → close. Reuses the canonical
+   .modal-overlay / .modal chrome so safe-area, open/close transitions
+   and z-index stack with the rest of the app.
    ══════════════════════════════════════════════════════════════════ */
 #healthOverlay { z-index: 210; }
 .modal--health {
-  max-width: 500px;
+  max-width: 640px;
   background:
     linear-gradient(180deg, rgba(40, 60, 110, 0.20) 0%, rgba(12, 18, 32, 0.0) 50%),
     rgba(10, 14, 24, 0.96);
@@ -14034,119 +14061,241 @@ body.gs-open { overflow: hidden; }
 .health-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 20px 22px;
+  gap: 18px;
+  padding: 18px 22px 22px;
   overflow-y: auto;
 }
 
-.health-signal {
+/* ── Empty state (defensive — usually never seen) ── */
+.health-empty {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.62);
+}
+.health-empty-art {
+  font-size: 28px;
+  color: rgba(138, 178, 255, 0.42);
+}
+.health-empty-msg {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ── Score section ── */
+.health-score-section {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(74, 130, 240, 0.10) 0%, rgba(12, 18, 32, 0.0) 80%),
+    linear-gradient(180deg, rgba(74, 130, 240, 0.10) 0%, rgba(12, 18, 32, 0.0) 75%),
     rgba(16, 22, 38, 0.6);
   border: 1px solid rgba(138, 166, 255, 0.16);
 }
-.health-signal-icon {
-  width: 32px; height: 32px;
-  flex: 0 0 32px;
+.health-score-ring {
+  width: 96px; height: 96px;
+  flex: 0 0 96px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
-  background: rgba(74, 130, 240, 0.16);
-  color: #8ab2ff;
+  position: relative;
+  background:
+    conic-gradient(var(--health-ring-color, #4ade80) calc(var(--health-score, 0) * 1%),
+                   rgba(255,255,255,0.06) 0);
+  transition: --health-score 600ms var(--ease-premium);
 }
-.health-signal-icon svg { width: 16px; height: 16px; }
-.health-signal-text {
+.health-score-ring::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 999px;
+  background: rgba(10, 14, 24, 0.96);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.health-score-value {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  line-height: 1;
+}
+.health-score-num {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.health-score-suffix {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+.health-score-meta {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
 }
-.health-signal-label {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(180, 200, 240, 0.62);
+.health-score-tag {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  align-self: flex-start;
 }
-.health-signal-msg {
-  margin: 0;
-  font-size: 15px;
+.health-score-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.health-score-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--health-ring-color, #4ade80);
+  width: 0%;
+  transition: width 520ms var(--ease-premium), background 240ms var(--ease-out);
+}
+
+/* Score tone palette — driven by data-tone on the ring */
+.health-score-ring[data-tone="solid"]    { --health-ring-color: #4ade80; }
+.health-score-ring[data-tone="moderate"] { --health-ring-color: #8ab2ff; }
+.health-score-ring[data-tone="elevated"] { --health-ring-color: #f4c45a; }
+.health-score-ring[data-tone="high"]     { --health-ring-color: #e0904a; }
+.health-score-ring[data-tone="solid"]    ~ .health-score-meta .health-score-tag { background: rgba(74, 222, 128, 0.16); color: #4ade80; }
+.health-score-ring[data-tone="moderate"] ~ .health-score-meta .health-score-tag { background: rgba(74, 130, 240, 0.16); color: #8ab2ff; }
+.health-score-ring[data-tone="elevated"] ~ .health-score-meta .health-score-tag { background: rgba(244, 196, 90, 0.16); color: #f4c45a; }
+.health-score-ring[data-tone="high"]     ~ .health-score-meta .health-score-tag { background: rgba(224, 144, 74, 0.18); color: #e0904a; }
+
+/* ── Metrics row ── */
+.health-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.health-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  min-width: 0;
+}
+.health-metric-value {
+  font-size: 14.5px;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: #fff;
-  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-/* Variant tints mirror the dashboard card for visual coherence. */
-.health-signal[data-kind="concentration"] .health-signal-icon,
-.health-signal[data-kind="single"]        .health-signal-icon {
-  background: rgba(244, 196, 90, 0.16); color: #f4c45a;
-}
-.health-signal[data-kind="performance"] .health-signal-icon {
-  background: rgba(74, 222, 128, 0.16); color: #4ade80;
-}
-.health-signal[data-kind="loss"] .health-signal-icon {
-  background: rgba(224, 144, 74, 0.16); color: #e0904a;
-}
-
-.health-context {
-  margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.72);
+.health-metric-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(180, 200, 240, 0.58);
 }
 
-.health-breakdown {
+/* ── Diagnostic cards ── */
+.health-cards {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: hidden;
+  gap: 8px;
 }
-.health-breakdown-row {
+.health-card {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 11px 14px;
-  font-size: 13px;
-  background: rgba(8, 12, 22, 0.40);
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
 }
-.health-breakdown-row + .health-breakdown-row {
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+.health-card-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(180, 200, 240, 0.66);
 }
-.health-breakdown-label { color: rgba(220, 230, 250, 0.62); font-weight: 500; }
-.health-breakdown-value {
-  color: #fff;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.005em;
-  text-align: right;
-}
-.health-breakdown-row.is-empty .health-breakdown-value {
-  color: rgba(255, 255, 255, 0.36);
+.health-card-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.84);
   font-weight: 500;
+  letter-spacing: -0.005em;
 }
+.health-card[data-tone="warn"]   { background: rgba(244, 196, 90, 0.07); border-color: rgba(244, 196, 90, 0.20); }
+.health-card[data-tone="warn"]   .health-card-title { color: #f4c45a; }
+.health-card[data-tone="bad"]    { background: rgba(224, 144, 74, 0.08); border-color: rgba(224, 144, 74, 0.22); }
+.health-card[data-tone="bad"]    .health-card-title { color: #e0904a; }
+.health-card[data-tone="good"]   { background: rgba(74, 222, 128, 0.07); border-color: rgba(74, 222, 128, 0.20); }
+.health-card[data-tone="good"]   .health-card-title { color: #4ade80; }
+.health-card[data-tone="info"]   { background: rgba(74, 130, 240, 0.07); border-color: rgba(138, 178, 255, 0.20); }
+.health-card[data-tone="info"]   .health-card-title { color: #8ab2ff; }
 
+/* ── Disclaimer + advanced link row ── */
+.health-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
 .health-disclaimer {
   margin: 0;
   font-size: 11.5px;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.42);
-  text-align: center;
   font-style: italic;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.health-advanced-link {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: rgba(138, 178, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.003em;
+  padding: 4px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(138, 178, 255, 0.22);
+  text-underline-offset: 3px;
+  transition: color .16s var(--ease-out), text-decoration-color .16s var(--ease-out);
+  flex: 0 0 auto;
+}
+.health-advanced-link:hover {
+  color: #b5cbff;
+  text-decoration-color: rgba(138, 178, 255, 0.55);
 }
 
 .health-actions {
   display: flex;
   gap: 10px;
-  margin-top: 4px;
 }
 .health-actions .btn-submit { flex: 1; }
 .btn-submit--ghost {
@@ -14160,7 +14309,7 @@ body.gs-open { overflow: hidden; }
 }
 
 /* Mobile — centered-safe (same family as settings/reset): the system
-   safe-bottom padding lifts it above the bottom nav automatically. */
+   safe-bottom padding lifts the panel above the bottom nav. */
 @media (max-width: 768px) {
   #healthOverlay {
     align-items: center;
@@ -14173,7 +14322,11 @@ body.gs-open { overflow: hidden; }
     margin-bottom: 0;
   }
   .health-body { padding: 14px 16px 18px; gap: 14px; }
-  .health-signal-msg { font-size: 14.5px; }
+  .health-score-section { padding: 14px 14px; gap: 14px; }
+  .health-score-ring { width: 84px; height: 84px; flex-basis: 84px; }
+  .health-score-num { font-size: 24px; }
+  .health-metrics { grid-template-columns: repeat(2, 1fr); }
+  .health-footer-row { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

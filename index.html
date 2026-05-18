@@ -1287,59 +1287,75 @@
   </div>
 </div>
 
-<!-- AURIX-SIGNALS-2: Portfolio Health bridge. Surfaced from the
-     dashboard signal CTA. Explains the signal in context, surfaces a
-     compact summary, and hands off to Workspace only as an explicit
-     secondary action. Never duplicates the risk monitor. -->
+<!-- AURIX-HEALTH-2: Portfolio Health experience. Self-contained surface
+     opened from the dashboard signal CTA. Header → Score → Metrics →
+     Cards → Disclaimer → Close + (subtle) Advanced analysis link.
+     Workspace is intentionally NOT primary here — bridge demoted to
+     a small text link inside the disclaimer row. -->
 <div class="modal-overlay" id="healthOverlay" aria-hidden="true">
   <div class="modal modal--health" role="dialog" aria-modal="true" aria-labelledby="healthTitle">
     <div class="modal-header">
       <div class="modal-title-block">
         <h3 id="healthTitle" data-i18n="healthTitle">Salud de cartera</h3>
-        <p class="modal-subtitle" data-i18n="healthSub">Resumen inteligente de tu portfolio</p>
+        <p class="modal-subtitle" data-i18n="healthSubV2">Diagnóstico inteligente de tu portfolio</p>
       </div>
       <button class="modal-close" id="healthClose" aria-label="Close">✕</button>
     </div>
-    <div class="modal-body health-body">
 
-      <section class="health-signal" id="healthSignalBox" data-kind="">
-        <div class="health-signal-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2 L4 22 L12 18 L20 22 Z"/>
-          </svg>
+    <div class="modal-body health-body" id="healthBody">
+
+      <!-- Empty state — visible only when computeAurixSignal returns null
+           AND the panel was opened defensively (assets.length === 0). -->
+      <section class="health-empty" id="healthEmpty" hidden>
+        <div class="health-empty-art" aria-hidden="true">◇</div>
+        <p class="health-empty-msg" data-i18n="healthEmptyTitle">Añade activos para ver la salud de tu cartera.</p>
+      </section>
+
+      <!-- Health score -->
+      <section class="health-score-section" id="healthScoreSection">
+        <div class="health-score-ring" id="healthScoreRing" data-tone="solid">
+          <div class="health-score-value">
+            <span class="health-score-num" id="healthScoreNum">—</span>
+            <span class="health-score-suffix" data-i18n="healthScoreSuffix">/ 100</span>
+          </div>
         </div>
-        <div class="health-signal-text">
-          <span class="health-signal-label" data-i18n="signalTitle">Aurix Signal</span>
-          <p class="health-signal-msg" id="healthSignalMsg"></p>
+        <div class="health-score-meta">
+          <span class="health-score-tag" id="healthScoreLabel">—</span>
+          <div class="health-score-bar"><span class="health-score-bar-fill" id="healthScoreBarFill"></span></div>
         </div>
       </section>
 
-      <p class="health-context" id="healthContext"></p>
-
-      <section class="health-breakdown" id="healthBreakdown">
-        <div class="health-breakdown-row" data-row="top">
-          <span class="health-breakdown-label" data-i18n="healthBreakdownTop">Activo dominante</span>
-          <span class="health-breakdown-value" id="healthRowTop">—</span>
+      <!-- Summary metrics row -->
+      <section class="health-metrics" id="healthMetrics">
+        <div class="health-metric">
+          <span class="health-metric-value" id="healthMetAssets">—</span>
+          <span class="health-metric-label" id="healthMetAssetsLabel" data-i18n="healthMetricAssetsLabel">activos</span>
         </div>
-        <div class="health-breakdown-row" data-row="cat">
-          <span class="health-breakdown-label" data-i18n="healthBreakdownCat">Categoría principal</span>
-          <span class="health-breakdown-value" id="healthRowCat">—</span>
+        <div class="health-metric">
+          <span class="health-metric-value" id="healthMetCats">—</span>
+          <span class="health-metric-label" id="healthMetCatsLabel" data-i18n="healthMetricCategoriesLabel">categorías</span>
         </div>
-        <div class="health-breakdown-row" data-row="count">
-          <span class="health-breakdown-label" data-i18n="healthBreakdownCount">Número de activos</span>
-          <span class="health-breakdown-value" id="healthRowCount">—</span>
+        <div class="health-metric">
+          <span class="health-metric-value" id="healthMetDom">—</span>
+          <span class="health-metric-label" data-i18n="healthMetricDominantLabel">dominante</span>
         </div>
-        <div class="health-breakdown-row" data-row="cash">
-          <span class="health-breakdown-label" data-i18n="healthBreakdownCash">Efectivo</span>
-          <span class="health-breakdown-value" id="healthRowCash">—</span>
+        <div class="health-metric">
+          <span class="health-metric-value" id="healthMetCash">—</span>
+          <span class="health-metric-label" data-i18n="healthMetricLiquidityLabel">liquidez</span>
         </div>
       </section>
 
-      <p class="health-disclaimer" data-i18n="healthDisclaimer">Esto no es una recomendación financiera.</p>
+      <!-- Diagnostic cards (rendered dynamically; max 5) -->
+      <section class="health-cards" id="healthCards"></section>
+
+      <!-- Disclaimer + subtle advanced link -->
+      <div class="health-footer-row">
+        <p class="health-disclaimer" data-i18n="healthDisclaimer">Esto no es una recomendación financiera.</p>
+        <button type="button" class="health-advanced-link" id="healthWorkspaceBtn" data-i18n="healthAdvancedCta">Abrir análisis avanzado</button>
+      </div>
 
       <div class="health-actions">
         <button type="button" class="btn-submit btn-submit--ghost" id="healthCloseBtn" data-i18n="healthCtaClose">Cerrar</button>
-        <button type="button" class="btn-submit btn-submit--primary" id="healthWorkspaceBtn" data-i18n="healthCtaWorkspace">Ver Workspace</button>
       </div>
 
     </div>
