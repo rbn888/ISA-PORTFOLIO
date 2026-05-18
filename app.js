@@ -1015,6 +1015,11 @@ const T = {
     signalPerformanceCta:        'Ver detalle',
     signalLossBody:              'Uno de tus activos está bajo presión.',
     signalLossCta:               'Revisar',
+    signalCryptoBodySoft:        'Cripto representa una parte importante de tu cartera.',
+    signalDominantBody:          name => `${name} domina tu cartera.`,
+    signalCategoryBody:          'Tu cartera tiene una sola categoría dominante.',
+    signalLowDivBody:            'Tu portfolio tiene poca diversificación.',
+    signalNoCashBody:            'No hay efectivo registrado.',
     // ── Portfolio Health panel ───────────────────────
     healthTitle:                 'Salud de cartera',
     healthSub:                   'Resumen inteligente de tu portfolio',
@@ -1052,8 +1057,14 @@ const T = {
     healthCardCategoryTitle:      'Categoría principal',
     healthCardCategoryBody:       (label, pct) => `${label} representa el ${pct}% de tu cartera.`,
     healthCardDiversificationTitle: 'Diversificación',
-    healthCardDiversificationBody:  (n, c) => `Tu portfolio tiene ${n} activos en ${c} ${c === 1 ? 'categoría' : 'categorías'}.`,
+    healthCardDiversificationBody:  (n, c) => `Tu portfolio tiene ${n} ${n === 1 ? 'activo' : 'activos'} y ${c} ${c === 1 ? 'categoría' : 'categorías'}.`,
     healthCardSingleBody:         (name) => `Tu única posición es ${name}. Añadir otro activo reduce la dependencia de un solo movimiento.`,
+    healthCardCryptoConcTitle:    'Cripto',
+    healthCardCryptoConcBody:     'Tu exposición está concentrada en cripto.',
+    healthScoreExplainSolid:      'Tu cartera muestra buena diversificación y equilibrio.',
+    healthScoreExplainModerate:   'Tu cartera tiene algunos puntos de atención.',
+    healthScoreExplainElevated:   'Tu cartera muestra concentración elevada y baja diversificación.',
+    healthScoreExplainHigh:       'Tu cartera presenta riesgos importantes que conviene revisar.',
     healthCardLiquidityTitle:     'Liquidez',
     healthCardLiquidityBodyNone:  'No hay efectivo registrado.',
     healthCardLiquidityBodyHigh:  pct => `Mantienes ${pct}% en efectivo.`,
@@ -1757,6 +1768,11 @@ const T = {
     signalPerformanceCta:        'View detail',
     signalLossBody:              'One of your holdings is under pressure.',
     signalLossCta:               'Review',
+    signalCryptoBodySoft:        'Crypto represents a meaningful share of your portfolio.',
+    signalDominantBody:          name => `${name} dominates your portfolio.`,
+    signalCategoryBody:          'Your portfolio has a single dominant category.',
+    signalLowDivBody:            'Your portfolio has limited diversification.',
+    signalNoCashBody:            'No cash recorded.',
     // ── Portfolio Health panel ───────────────────────
     healthTitle:                 'Portfolio Health',
     healthSub:                   'Smart summary of your portfolio',
@@ -1794,8 +1810,14 @@ const T = {
     healthCardCategoryTitle:      'Main category',
     healthCardCategoryBody:       (label, pct) => `${label} represents ${pct}% of your portfolio.`,
     healthCardDiversificationTitle: 'Diversification',
-    healthCardDiversificationBody:  (n, c) => `Your portfolio has ${n} assets across ${c} ${c === 1 ? 'category' : 'categories'}.`,
+    healthCardDiversificationBody:  (n, c) => `Your portfolio has ${n} ${n === 1 ? 'asset' : 'assets'} and ${c} ${c === 1 ? 'category' : 'categories'}.`,
     healthCardSingleBody:         (name) => `Your only position is ${name}. Adding another asset reduces dependency on a single move.`,
+    healthCardCryptoConcTitle:    'Crypto',
+    healthCardCryptoConcBody:     'Your exposure is concentrated in crypto.',
+    healthScoreExplainSolid:      'Your portfolio shows solid diversification and balance.',
+    healthScoreExplainModerate:   'Your portfolio has a few points to watch.',
+    healthScoreExplainElevated:   'Your portfolio shows concentration and limited diversification.',
+    healthScoreExplainHigh:       'Your portfolio shows significant risks worth reviewing.',
     healthCardLiquidityTitle:     'Liquidity',
     healthCardLiquidityBodyNone:  'No cash recorded.',
     healthCardLiquidityBodyHigh:  pct => `You hold ${pct}% in cash.`,
@@ -21539,6 +21561,13 @@ function performSafeReset() {
     'aurix_onboarding_completed',// activation flag — clear so onboarding can re-show
     'aurix_onboarding_step',     // current step in the activation flow
     'aurix_onboarding_preferences', // language/interests/experience snapshot
+    // HEALTH-3: future-proof — any module writing these snapshot keys
+    // will see them cleared on reset alongside the legacy caches.
+    'aurix_health_snapshot',     // Portfolio Health derived summary
+    'aurix_signal_state',        // dashboard signal rotation pointer
+    'aurix_workspace_snapshot',  // workspace derived summary
+    'aurix_risk_snapshot',       // workspace risk monitor cache
+    'aurix_portfolio_summary',   // generic portfolio summary cache
   ];
   // Preserve `aurix_data_version` (so the migration IIFE early-returns
   // on next boot and can't accidentally rehydrate via its else branch),
@@ -22186,49 +22215,83 @@ function exportPortfolioBackup() {
   window.maybeShowOnboarding = maybeShowOnboarding;
 })();
 
-// ── AURIX-SIGNALS-1: lightweight dashboard smart signals ──────────
+// ── AURIX-SIGNALS-1 / -3: lightweight dashboard smart signals ──────
 // Deterministic, local-only computation. No network, no observers, no
-// AI dependency. Surfaces awareness — never financial advice. One
-// signal at a time, priority-ordered per the product spec.
-function computeAurixSignal() {
-  if (!Array.isArray(assets) || assets.length === 0) return null;
+// AI dependency. Surfaces awareness — never financial advice. The
+// dashboard rotates one signal at a time from the pool below; the
+// Health panel consumes the primary (highest-priority) one.
+function computeAurixSignalPool() {
+  if (!Array.isArray(assets) || assets.length === 0) return [];
 
   const totUSD = (typeof totalValueUSD === 'function') ? totalValueUSD() : 0;
-  if (totUSD <= 0) return null;
+  if (totUSD <= 0) return [];
 
-  // 1) CONCENTRATION — single asset > 60% of total value.
-  //   Gate by `assets.length >= 2` so a literal one-asset portfolio
-  //   falls through to the more specific SINGLE ASSET signal (rule 4)
-  //   instead of the generic "one asset dominates" copy.
-  let maxAssetUsd = 0;
+  const pool = [];
+  const seen = new Set();
+  const push = (entry) => {
+    if (seen.has(entry.kind)) return;
+    seen.add(entry.kind);
+    pool.push(entry);
+  };
+
+  // Single-asset top reference is also needed by several signal copies.
+  let topAsset = null, topAssetUsd = 0;
   for (const a of assets) {
     const v = (typeof assetValueUSD === 'function') ? assetValueUSD(a) : 0;
-    if (v > maxAssetUsd) maxAssetUsd = v;
+    if (v > topAssetUsd) { topAssetUsd = v; topAsset = a; }
   }
-  const topPct = (maxAssetUsd / totUSD) * 100;
-  if (topPct > 60 && assets.length >= 2) {
-    return { kind: 'concentration', msg: 'signalConcentrationBody', cta: 'signalConcentrationCta' };
-  }
-
-  // 2) CRYPTO EXPOSURE — category > 50%.
+  const topPct = (topAssetUsd / totUSD) * 100;
   const dist = (typeof getDistribution === 'function') ? (getDistribution() || []) : [];
-  const cryptoEntry = dist.find(d => d.type === 'crypto');
-  if (cryptoEntry && cryptoEntry.pct > 50) {
-    return { kind: 'crypto', msg: 'signalCryptoBody', cta: 'signalCryptoCta' };
+  const cryptoPct = (dist.find(d => d.type === 'crypto') || {}).pct || 0;
+  const cashPct   = (dist.find(d => d.type === 'cash')   || {}).pct || 0;
+
+  // 1) CONCENTRATION — top asset > 60% (and 2+ assets — single-asset
+  //    portfolios get a more specific signal below).
+  if (topPct > 60 && assets.length >= 2) {
+    push({ kind: 'concentration', msg: 'signalConcentrationBody', cta: 'signalConcentrationCta' });
+    // 1b) Companion "X domina tu cartera." for rotation variety.
+    if (topAsset) {
+      const name = topAsset.name || topAsset.ticker || '—';
+      push({
+        kind: 'dominant',
+        msgRaw: ((typeof t === 'function') && (typeof t('signalDominantBody') === 'function'))
+          ? t('signalDominantBody')(name)
+          : `${name} domina tu cartera.`,
+        cta:  'signalConcentrationCta',
+      });
+    }
   }
 
-  // 3) CASH WEIGHT — category > 40%.
-  const cashEntry = dist.find(d => d.type === 'cash');
-  if (cashEntry && cashEntry.pct > 40) {
-    return { kind: 'cash', msg: 'signalCashBody', cta: 'signalCashCta' };
+  // 2) CATEGORY CONCENTRATION — top category > 60%.
+  if (dist.length && dist[0].pct > 60) {
+    push({ kind: 'category', msg: 'signalCategoryBody', cta: 'signalCryptoCta' });
+  }
+
+  // 3) CRYPTO EXPOSURE — > 50%. Soft variant when crypto is the
+  //    *only* class (single-asset already covered); the pool surface
+  //    swaps copy via `msgSoft` when only one entry remains.
+  if (cryptoPct > 50) {
+    push({ kind: 'crypto', msg: 'signalCryptoBody', msgSoft: 'signalCryptoBodySoft', cta: 'signalCryptoCta' });
   }
 
   // 4) SINGLE ASSET — dependency on a single holding.
   if (assets.length === 1) {
-    return { kind: 'single', msg: 'signalSingleBody', cta: 'signalSingleCta' };
+    push({ kind: 'single', msg: 'signalSingleBody', cta: 'signalSingleCta' });
   }
 
-  // 5) PERFORMANCE — strongest 24h change > +15%.
+  // 5) LOW DIVERSIFICATION — 2–3 assets OR a single category.
+  if ((assets.length >= 2 && assets.length <= 3) || (dist.length === 1 && assets.length >= 2)) {
+    push({ kind: 'lowdiv', msg: 'signalLowDivBody', cta: 'signalSingleCta' });
+  }
+
+  // 6) LIQUIDITY — high cash OR no cash at all.
+  if (cashPct > 40) {
+    push({ kind: 'cash', msg: 'signalCashBody', cta: 'signalCashCta' });
+  } else if (cashPct === 0 && assets.length >= 2) {
+    push({ kind: 'nocash', msg: 'signalNoCashBody', cta: 'signalCashCta' });
+  }
+
+  // 7) PERFORMANCE — strongest 24h change > +15%.
   let maxChange = -Infinity;
   for (const a of assets) {
     if (typeof a.change24h === 'number' && a.change24h > maxChange) {
@@ -22236,10 +22299,10 @@ function computeAurixSignal() {
     }
   }
   if (Number.isFinite(maxChange) && maxChange > 15) {
-    return { kind: 'performance', msg: 'signalPerformanceBody', cta: 'signalPerformanceCta' };
+    push({ kind: 'performance', msg: 'signalPerformanceBody', cta: 'signalPerformanceCta' });
   }
 
-  // 6) LOSS PRESSURE — weakest 24h change < -12%.
+  // 8) LOSS PRESSURE — weakest 24h change < -12%.
   let minChange = Infinity;
   for (const a of assets) {
     if (typeof a.change24h === 'number' && a.change24h < minChange) {
@@ -22247,10 +22310,17 @@ function computeAurixSignal() {
     }
   }
   if (Number.isFinite(minChange) && minChange < -12) {
-    return { kind: 'loss', msg: 'signalLossBody', cta: 'signalLossCta' };
+    push({ kind: 'loss', msg: 'signalLossBody', cta: 'signalLossCta' });
   }
 
-  return null;
+  return pool.slice(0, 5);
+}
+
+// Backwards-compatible single-signal helper. Returns the highest-
+// priority entry, or null.
+function computeAurixSignal() {
+  const pool = computeAurixSignalPool();
+  return pool[0] || null;
 }
 
 // AURIX-SIGNALS-2 / HEALTH-2: build a lightweight snapshot of the
@@ -22328,7 +22398,7 @@ function _aurixHealthSnapshot() {
 // to the ring + tag colour palette in CSS.
 function _aurixHealthScore(snap) {
   if (!snap || snap.assetCount === 0 || snap.totUSD <= 0) {
-    return { score: null, label: t('healthScoreEmpty') || '—', tone: 'solid' };
+    return { score: null, label: t('healthScoreEmpty') || '—', tone: 'solid', explain: '' };
   }
   let s = 100;
   if (snap.topAsset && snap.topAsset.pctTotal > 60)      s -= 25;
@@ -22339,13 +22409,55 @@ function _aurixHealthScore(snap) {
   if (snap.cashPct === 0)                                 s -= 5;
   if (snap.worstAsset && snap.worstAsset.change24h < -15) s -= 10;
   s = Math.max(0, Math.min(100, s));
-  let label, tone;
-  if (s >= 80)      { label = t('healthScoreSolid');    tone = 'solid'; }
-  else if (s >= 60) { label = t('healthScoreModerate'); tone = 'moderate'; }
-  else if (s >= 40) { label = t('healthScoreElevated'); tone = 'elevated'; }
-  else              { label = t('healthScoreHigh');     tone = 'high'; }
-  return { score: s, label, tone };
+  let label, tone, explain;
+  if (s >= 80)      { label = t('healthScoreSolid');    tone = 'solid';    explain = t('healthScoreExplainSolid'); }
+  else if (s >= 60) { label = t('healthScoreModerate'); tone = 'moderate'; explain = t('healthScoreExplainModerate'); }
+  else if (s >= 40) { label = t('healthScoreElevated'); tone = 'elevated'; explain = t('healthScoreExplainElevated'); }
+  else              { label = t('healthScoreHigh');     tone = 'high';     explain = t('healthScoreExplainHigh'); }
+  return { score: s, label, tone, explain: explain || '' };
 }
+
+// HEALTH-3: developer-facing diagnostics for the Portfolio Health
+// surface. Surfaces the live source the snapshot reads from, the
+// resulting counts, the rotated signal pool and any stale future-
+// proof cache keys present in localStorage (none of which the
+// engine reads — they're cleared by reset to keep things tidy).
+window.__aurixHealthDebug = function () {
+  const snap   = _aurixHealthSnapshot();
+  const score  = _aurixHealthScore(snap);
+  const symbols = Array.isArray(assets)
+    ? assets.map(a => a.ticker || a.name || '?').slice(0, 25)
+    : [];
+  const dist = (typeof getDistribution === 'function') ? (getDistribution() || []) : [];
+  const categoryCounts = {};
+  dist.forEach(d => { categoryCounts[d.type] = Math.round(d.pct); });
+  const checkKeys = [
+    'aurix_health_snapshot', 'aurix_signal_state', 'aurix_workspace_snapshot',
+    'aurix_risk_snapshot',   'aurix_portfolio_summary',
+  ];
+  const staleKeysFound = [];
+  for (const k of checkKeys) {
+    try { if (localStorage.getItem(k)) staleKeysFound.push(k); } catch (_) {}
+  }
+  return {
+    source:         'live: assets[] + totalValueUSD() + getDistribution()',
+    assetCount:     snap.assetCount,
+    assetSymbols:   symbols,
+    categoryCounts,
+    cashPct:        snap.cashPct,
+    cryptoPct:      snap.cryptoPct,
+    topAsset:       snap.topAsset,
+    topCategory:    snap.topCategory,
+    score:          score.score,
+    scoreLabel:     score.label,
+    scoreTone:      score.tone,
+    signalPool:     computeAurixSignalPool().map(s => s.kind),
+    signalIdx:      _aurixSignalIdx,
+    signalPaused:   _aurixSignalPaused,
+    lastComputedAt: new Date().toISOString(),
+    staleKeysFound,
+  };
+};
 
 // HEALTH-2: produce up to N diagnostic cards from a snapshot. Each
 // card has { title, body, tone }. Order is priority — most signal-
@@ -22366,10 +22478,18 @@ function _aurixHealthCards(snap, max) {
     }
   }
 
-  // Category dominance
+  // Category dominance — special-cased for crypto: when the entire
+  // portfolio (or near-entire) is crypto, surface the dedicated
+  // "Cripto" card per spec rather than the generic category copy.
   if (snap.topCategory) {
     const pct = snap.topCategory.pctTotal;
-    if (pct >= 50) {
+    if (snap.topCategory.type === 'crypto' && pct >= 80) {
+      cards.push({
+        title: t('healthCardCryptoConcTitle'),
+        body:  t('healthCardCryptoConcBody'),
+        tone:  pct > 90 ? 'warn' : 'info',
+      });
+    } else if (pct >= 50) {
       cards.push({
         title: t('healthCardCategoryTitle'),
         body:  (t('healthCardCategoryBody'))(snap.topCategory.label, pct),
@@ -22378,20 +22498,15 @@ function _aurixHealthCards(snap, max) {
     }
   }
 
-  // Diversification
-  if (snap.assetCount === 1) {
-    cards.push({
-      title: t('healthCardDiversificationTitle'),
-      body:  (t('healthCardSingleBody'))(snap.topAsset ? snap.topAsset.name : '—'),
-      tone:  'warn',
-    });
-  } else if (snap.assetCount >= 2) {
-    cards.push({
-      title: t('healthCardDiversificationTitle'),
-      body:  (t('healthCardDiversificationBody'))(snap.assetCount, snap.categoryCount),
-      tone:  snap.categoryCount >= 3 ? 'good' : 'info',
-    });
-  }
+  // Diversification — always shown (single + multi). Uses the same
+  // pluralised body so the user always sees their N assets / C
+  // categories.
+  cards.push({
+    title: t('healthCardDiversificationTitle'),
+    body:  (t('healthCardDiversificationBody'))(snap.assetCount, snap.categoryCount),
+    tone:  (snap.assetCount === 1) ? 'warn'
+            : (snap.categoryCount >= 3 ? 'good' : 'info'),
+  });
 
   // Liquidity
   if (snap.cashPct === 0) {
@@ -22521,6 +22636,8 @@ function openHealthPanel() {
     if (num)  num.textContent = (score.score != null) ? String(score.score) : '—';
     if (lbl)  lbl.textContent = score.label || '—';
     if (fill) fill.style.width = ((score.score != null ? score.score : 0)) + '%';
+    const explainEl = document.getElementById('healthScoreExplain');
+    if (explainEl) explainEl.textContent = score.explain || '';
 
     // Metrics row
     const valEl = id => document.getElementById(id);
@@ -22567,34 +22684,122 @@ function closeHealthPanel() {
   document.body.classList.remove('modal-open');
 }
 
+// AURIX-SIGNALS-3: rotation state for the dashboard signal card.
+// Cycle through the pool every ~10s with a soft cross-fade. Pause on
+// hover and respect prefers-reduced-motion. The pool is regenerated
+// from the live portfolio every cycle so adds / removes / price ticks
+// keep the message accurate.
+let _aurixSignalIdx     = 0;
+let _aurixSignalTimer   = null;
+let _aurixSignalPool    = [];
+let _aurixSignalPaused  = false;
+let _aurixSignalHoverBound = false;
+const AURIX_SIGNAL_ROTATE_MS = 10000;
+
+function _aurixSignalResolveMsg(entry, isOnly) {
+  // Each entry can carry an i18n key (`msg`), a softer key (`msgSoft`)
+  // when it's the only signal in the pool, or a pre-formatted `msgRaw`
+  // (used by the dominant-asset entry that needs runtime interpolation).
+  if (entry.msgRaw) return entry.msgRaw;
+  const key = (isOnly && entry.msgSoft) ? entry.msgSoft : entry.msg;
+  const v = (typeof t === 'function') ? t(key) : null;
+  return (typeof v === 'string') ? v : (typeof v === 'function' ? '' : (key || ''));
+}
+
+function _aurixSignalCtaLabel(entry) {
+  const v = (typeof t === 'function') ? t(entry.cta) : null;
+  return (typeof v === 'string') ? v : '';
+}
+
+function _aurixSignalApply(entry, isOnly) {
+  const sec    = document.getElementById('aurixSignal');
+  const msgEl  = document.getElementById('aurixSignalMsg');
+  const ctaLbl = document.getElementById('aurixSignalCtaLabel');
+  const ctaBtn = document.getElementById('aurixSignalCta');
+  if (!sec || !msgEl) return;
+  const msgText = _aurixSignalResolveMsg(entry, !!isOnly);
+  const ctaText = _aurixSignalCtaLabel(entry);
+
+  const reduced = (typeof matchMedia === 'function')
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const writeNow = () => {
+    msgEl.textContent = msgText;
+    if (ctaLbl) ctaLbl.textContent = ctaText;
+    if (ctaBtn) ctaBtn.dataset.signalKind = entry.kind;
+    sec.dataset.kind = entry.kind;
+  };
+
+  if (reduced || sec.dataset.firstPaint !== '1') {
+    writeNow();
+    sec.dataset.firstPaint = '1';
+    return;
+  }
+  // Cross-fade: dim the content for ~180ms, swap text, fade back in.
+  sec.classList.add('is-fading');
+  setTimeout(() => {
+    writeNow();
+    sec.classList.remove('is-fading');
+  }, 180);
+}
+
+function _aurixSignalStopRotation() {
+  if (_aurixSignalTimer) { clearInterval(_aurixSignalTimer); _aurixSignalTimer = null; }
+}
+
+function _aurixSignalStartRotation() {
+  _aurixSignalStopRotation();
+  _aurixSignalTimer = setInterval(() => {
+    if (_aurixSignalPaused) return;
+    // Recompute pool — keeps copy fresh if the portfolio changed since
+    // last tick. If the pool shrank, clamp the index.
+    _aurixSignalPool = computeAurixSignalPool();
+    if (!_aurixSignalPool.length) { renderAurixSignal(); return; }
+    _aurixSignalIdx = (_aurixSignalIdx + 1) % _aurixSignalPool.length;
+    _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
+  }, AURIX_SIGNAL_ROTATE_MS);
+}
+
+function _aurixSignalBindHover() {
+  if (_aurixSignalHoverBound) return;
+  const sec = document.getElementById('aurixSignal');
+  if (!sec) return;
+  _aurixSignalHoverBound = true;
+  sec.addEventListener('mouseenter', () => { _aurixSignalPaused = true;  });
+  sec.addEventListener('mouseleave', () => { _aurixSignalPaused = false; });
+}
+
 function renderAurixSignal() {
   const sec = document.getElementById('aurixSignal');
   if (!sec) return;
 
-  // Empty portfolio OR drill-down view → no signal.
+  // Empty portfolio OR drill-down view → no signal, stop rotation.
   const emptyOrDrill = (!Array.isArray(assets) || assets.length === 0)
                     || (typeof activeCategory !== 'undefined' && activeCategory);
   if (emptyOrDrill) {
     sec.hidden = true;
     sec.removeAttribute('data-kind');
+    sec.dataset.firstPaint = '';
+    _aurixSignalStopRotation();
     return;
   }
 
-  const sig = computeAurixSignal();
-  if (!sig) {
+  _aurixSignalPool = computeAurixSignalPool();
+  if (!_aurixSignalPool.length) {
     sec.hidden = true;
     sec.removeAttribute('data-kind');
+    sec.dataset.firstPaint = '';
+    _aurixSignalStopRotation();
     return;
   }
 
-  const msgEl   = document.getElementById('aurixSignalMsg');
-  const ctaLbl  = document.getElementById('aurixSignalCtaLabel');
-  const ctaBtn  = document.getElementById('aurixSignalCta');
-  if (msgEl)  msgEl.textContent  = t(sig.msg);
-  if (ctaLbl) ctaLbl.textContent = t(sig.cta);
-  if (ctaBtn) ctaBtn.dataset.signalKind = sig.kind;
-  sec.dataset.kind = sig.kind;
+  // Clamp idx if pool shrank.
+  if (_aurixSignalIdx >= _aurixSignalPool.length) _aurixSignalIdx = 0;
+  _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
   sec.hidden = false;
+  _aurixSignalBindHover();
+  // Only rotate when there is more than one valid signal.
+  if (_aurixSignalPool.length > 1) _aurixSignalStartRotation();
+  else _aurixSignalStopRotation();
 }
 
 // ── AURIX-EMPTY-1 / ACTIVATION-2: activation card + quick-chip wiring ──

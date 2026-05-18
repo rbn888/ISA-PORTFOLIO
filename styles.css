@@ -13852,10 +13852,9 @@ body.gs-open { overflow: hidden; }
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
-  /* HEALTH-2: explicit top + bottom margin so the card breathes between
-     the hero and the distribution section instead of butting flush
-     against either. Matches the 14–16px range from the spec. */
-  margin: 14px 0;
+  /* SIGNALS-3: tightened to 12px top + 12px bottom so the card sits
+     evenly between the hero card and the distribution section. */
+  margin: 12px 0;
   border-radius: 14px;
   background:
     linear-gradient(180deg, rgba(74, 130, 240, 0.08) 0%, rgba(12, 18, 32, 0.0) 75%),
@@ -13863,6 +13862,21 @@ body.gs-open { overflow: hidden; }
   border: 1px solid rgba(138, 166, 255, 0.12);
   box-shadow: 0 4px 16px -10px rgba(0, 0, 0, 0.50);
   animation: aurix-signal-in .32s var(--ease-premium);
+}
+/* Rotation cross-fade — dims body + cta while the text swaps. */
+.aurix-signal-body,
+.aurix-signal-cta {
+  transition: opacity .18s var(--ease-out);
+}
+.aurix-signal.is-fading .aurix-signal-body,
+.aurix-signal.is-fading .aurix-signal-cta {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurix-signal-body,
+  .aurix-signal-cta { transition: none; }
+  .aurix-signal.is-fading .aurix-signal-body,
+  .aurix-signal.is-fading .aurix-signal-cta { opacity: 1; }
 }
 /* Subtle pulse on the signal icon so the card feels alive without
    demanding attention. Pauses on hover for accessibility. */
@@ -14057,6 +14071,11 @@ body.gs-open { overflow: hidden; }
     rgba(10, 14, 24, 0.96);
   border: 1px solid rgba(138, 166, 255, 0.18);
 }
+/* HEALTH-3 fix: the section selectors below all set display:flex/grid,
+   which overrides the built-in `[hidden]` user-agent rule. Force the
+   empty branch and its inverse to actually hide when the JS flips
+   the `.hidden` property on these containers. */
+.modal--health [hidden] { display: none !important; }
 
 .health-body {
   display: flex;
@@ -14170,6 +14189,14 @@ body.gs-open { overflow: hidden; }
   background: var(--health-ring-color, #4ade80);
   width: 0%;
   transition: width 520ms var(--ease-premium), background 240ms var(--ease-out);
+}
+.health-score-explain {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 500;
+  letter-spacing: -0.003em;
 }
 
 /* Score tone palette — driven by data-tone on the ring */
