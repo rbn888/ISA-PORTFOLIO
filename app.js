@@ -1040,6 +1040,21 @@ const T = {
     signalCategoryBody:          'Tu cartera tiene una sola categoría dominante.',
     signalLowDivBody:            'Tu portfolio tiene poca diversificación.',
     signalNoCashBody:            'No hay efectivo registrado.',
+    // SIGNAL-MOBILE-2: short copy used on viewports ≤640px so the
+    // mobile signal bar never ellipses meaning away. Each kind has a
+    // 1–3 word version that still conveys the awareness.
+    signalConcentrationBodyMobile:'Concentración alta',
+    signalDominantBodyMobile:    name => `${name} domina`,
+    signalCategoryBodyMobile:    'Categoría dominante',
+    signalCryptoBodyMobile:      'Cripto elevado',
+    signalCryptoBodyMobileSoft:  'Cripto importante',
+    signalSingleBodyMobile:      '1 solo activo',
+    signalLowDivBodyMobile:      'Baja diversificación',
+    signalCashBodyMobile:        'Cash elevado',
+    signalNoCashBodyMobile:      'Sin liquidez',
+    signalPerformanceBodyMobile: 'Activo en alza',
+    signalLossBodyMobile:        'Activo bajo presión',
+    signalCtaShort:              'Análisis',
     // ── Portfolio Health panel ───────────────────────
     healthTitle:                 'Salud de cartera',
     healthSub:                   'Resumen inteligente de tu portfolio',
@@ -1813,6 +1828,19 @@ const T = {
     signalCategoryBody:          'Your portfolio has a single dominant category.',
     signalLowDivBody:            'Your portfolio has limited diversification.',
     signalNoCashBody:            'No cash recorded.',
+    // SIGNAL-MOBILE-2: short copy for ≤640px viewports.
+    signalConcentrationBodyMobile:'High concentration',
+    signalDominantBodyMobile:    name => `${name} dominates`,
+    signalCategoryBodyMobile:    'Dominant category',
+    signalCryptoBodyMobile:      'Crypto heavy',
+    signalCryptoBodyMobileSoft:  'Crypto meaningful',
+    signalSingleBodyMobile:      'Single asset',
+    signalLowDivBodyMobile:      'Low diversification',
+    signalCashBodyMobile:        'Cash heavy',
+    signalNoCashBodyMobile:      'No cash',
+    signalPerformanceBodyMobile: 'Strong asset',
+    signalLossBodyMobile:        'Under pressure',
+    signalCtaShort:              'Analysis',
     // ── Portfolio Health panel ───────────────────────
     healthTitle:                 'Portfolio Health',
     healthSub:                   'Smart summary of your portfolio',
@@ -22471,18 +22499,34 @@ function computeAurixSignalPool() {
   const cryptoPct = (dist.find(d => d.type === 'crypto') || {}).pct || 0;
   const cashPct   = (dist.find(d => d.type === 'cash')   || {}).pct || 0;
 
+  // SIGNAL-MOBILE-2: shorter ticker form for the dominant-asset signal
+  // on phones. Tickers fall back to the first word of the name if the
+  // entry has no ticker attribute.
+  const shortDomName = (() => {
+    if (!topAsset) return '';
+    if (topAsset.ticker) return topAsset.ticker;
+    const n = (topAsset.name || '').split(' ');
+    return n[0] || '—';
+  })();
+
   // 1) CONCENTRATION — top asset > 60% (and 2+ assets — single-asset
   //    portfolios get a more specific signal below).
   if (topPct > 60 && assets.length >= 2) {
-    push({ kind: 'concentration', msg: 'signalConcentrationBody', cta: 'signalConcentrationCta' });
+    push({
+      kind: 'concentration',
+      msg: 'signalConcentrationBody',
+      msgMobile: 'signalConcentrationBodyMobile',
+      cta: 'signalConcentrationCta',
+    });
     // 1b) Companion "X domina tu cartera." for rotation variety.
     if (topAsset) {
       const name = topAsset.name || topAsset.ticker || '—';
+      const dominantFn       = t('signalDominantBody');
+      const dominantMobileFn = t('signalDominantBodyMobile');
       push({
         kind: 'dominant',
-        msgRaw: ((typeof t === 'function') && (typeof t('signalDominantBody') === 'function'))
-          ? t('signalDominantBody')(name)
-          : `${name} domina tu cartera.`,
+        msgRaw:       (typeof dominantFn === 'function')       ? dominantFn(name)               : `${name} domina tu cartera.`,
+        msgRawMobile: (typeof dominantMobileFn === 'function') ? dominantMobileFn(shortDomName) : `${shortDomName} domina`,
         cta:  'signalConcentrationCta',
       });
     }
@@ -22490,31 +22534,61 @@ function computeAurixSignalPool() {
 
   // 2) CATEGORY CONCENTRATION — top category > 60%.
   if (dist.length && dist[0].pct > 60) {
-    push({ kind: 'category', msg: 'signalCategoryBody', cta: 'signalCryptoCta' });
+    push({
+      kind: 'category',
+      msg: 'signalCategoryBody',
+      msgMobile: 'signalCategoryBodyMobile',
+      cta: 'signalCryptoCta',
+    });
   }
 
   // 3) CRYPTO EXPOSURE — > 50%. Soft variant when crypto is the
   //    *only* class (single-asset already covered); the pool surface
   //    swaps copy via `msgSoft` when only one entry remains.
   if (cryptoPct > 50) {
-    push({ kind: 'crypto', msg: 'signalCryptoBody', msgSoft: 'signalCryptoBodySoft', cta: 'signalCryptoCta' });
+    push({
+      kind: 'crypto',
+      msg: 'signalCryptoBody', msgSoft: 'signalCryptoBodySoft',
+      msgMobile: 'signalCryptoBodyMobile', msgMobileSoft: 'signalCryptoBodyMobileSoft',
+      cta: 'signalCryptoCta',
+    });
   }
 
   // 4) SINGLE ASSET — dependency on a single holding.
   if (assets.length === 1) {
-    push({ kind: 'single', msg: 'signalSingleBody', cta: 'signalSingleCta' });
+    push({
+      kind: 'single',
+      msg: 'signalSingleBody',
+      msgMobile: 'signalSingleBodyMobile',
+      cta: 'signalSingleCta',
+    });
   }
 
   // 5) LOW DIVERSIFICATION — 2–3 assets OR a single category.
   if ((assets.length >= 2 && assets.length <= 3) || (dist.length === 1 && assets.length >= 2)) {
-    push({ kind: 'lowdiv', msg: 'signalLowDivBody', cta: 'signalSingleCta' });
+    push({
+      kind: 'lowdiv',
+      msg: 'signalLowDivBody',
+      msgMobile: 'signalLowDivBodyMobile',
+      cta: 'signalSingleCta',
+    });
   }
 
   // 6) LIQUIDITY — high cash OR no cash at all.
   if (cashPct > 40) {
-    push({ kind: 'cash', msg: 'signalCashBody', cta: 'signalCashCta' });
+    push({
+      kind: 'cash',
+      msg: 'signalCashBody',
+      msgMobile: 'signalCashBodyMobile',
+      cta: 'signalCashCta',
+    });
   } else if (cashPct === 0 && assets.length >= 2) {
-    push({ kind: 'nocash', msg: 'signalNoCashBody', cta: 'signalCashCta' });
+    push({
+      kind: 'nocash',
+      msg: 'signalNoCashBody',
+      msgMobile: 'signalNoCashBodyMobile',
+      cta: 'signalCashCta',
+    });
   }
 
   // 7) PERFORMANCE — strongest 24h change > +15%.
@@ -22525,7 +22599,12 @@ function computeAurixSignalPool() {
     }
   }
   if (Number.isFinite(maxChange) && maxChange > 15) {
-    push({ kind: 'performance', msg: 'signalPerformanceBody', cta: 'signalPerformanceCta' });
+    push({
+      kind: 'performance',
+      msg: 'signalPerformanceBody',
+      msgMobile: 'signalPerformanceBodyMobile',
+      cta: 'signalPerformanceCta',
+    });
   }
 
   // 8) LOSS PRESSURE — weakest 24h change < -12%.
@@ -22536,7 +22615,12 @@ function computeAurixSignalPool() {
     }
   }
   if (Number.isFinite(minChange) && minChange < -12) {
-    push({ kind: 'loss', msg: 'signalLossBody', cta: 'signalLossCta' });
+    push({
+      kind: 'loss',
+      msg: 'signalLossBody',
+      msgMobile: 'signalLossBodyMobile',
+      cta: 'signalLossCta',
+    });
   }
 
   return pool.slice(0, 5);
@@ -22922,10 +23006,30 @@ let _aurixSignalPaused  = false;
 let _aurixSignalHoverBound = false;
 const AURIX_SIGNAL_ROTATE_MS = 10000;
 
+// SIGNAL-MOBILE-2: viewport probes. ≤640px → use mobile-specific
+// short copy. ≤360px → also shorten the CTA label to "Análisis ›".
+function _aurixSignalIsMobile() {
+  return (typeof matchMedia === 'function') && matchMedia('(max-width: 640px)').matches;
+}
+function _aurixSignalIsNarrow() {
+  return (typeof matchMedia === 'function') && matchMedia('(max-width: 360px)').matches;
+}
+
 function _aurixSignalResolveMsg(entry, isOnly) {
   // Each entry can carry an i18n key (`msg`), a softer key (`msgSoft`)
-  // when it's the only signal in the pool, or a pre-formatted `msgRaw`
-  // (used by the dominant-asset entry that needs runtime interpolation).
+  // when it's the only signal in the pool, a `msgRaw` (pre-formatted
+  // string used by the dominant-asset entry that interpolates a name)
+  // or mobile-specific variants (`msgMobile`, `msgRawMobile`,
+  // `msgMobileSoft`). The mobile copies are preferred on ≤640px so
+  // the bar never has to ellipsis meaning away.
+  if (_aurixSignalIsMobile()) {
+    if (entry.msgRawMobile) return entry.msgRawMobile;
+    const mKey = (isOnly && entry.msgMobileSoft) ? entry.msgMobileSoft : entry.msgMobile;
+    if (mKey) {
+      const mv = (typeof t === 'function') ? t(mKey) : null;
+      if (typeof mv === 'string' && mv) return mv;
+    }
+  }
   if (entry.msgRaw) return entry.msgRaw;
   const key = (isOnly && entry.msgSoft) ? entry.msgSoft : entry.msg;
   const v = (typeof t === 'function') ? t(key) : null;
@@ -22933,6 +23037,12 @@ function _aurixSignalResolveMsg(entry, isOnly) {
 }
 
 function _aurixSignalCtaLabel(entry) {
+  // On ≤360px viewports we fall back to a generic "Análisis" /
+  // "Analysis" so the pill never wraps or overlaps the message.
+  if (_aurixSignalIsNarrow()) {
+    const short = (typeof t === 'function') ? t('signalCtaShort') : null;
+    if (typeof short === 'string' && short) return short;
+  }
   const v = (typeof t === 'function') ? t(entry.cta) : null;
   return (typeof v === 'string') ? v : '';
 }
@@ -22994,6 +23104,30 @@ function _aurixSignalBindHover() {
   sec.addEventListener('mouseleave', () => { _aurixSignalPaused = false; });
 }
 
+// SIGNAL-MOBILE-2: re-apply the current entry when the viewport
+// crosses the mobile / narrow breakpoints so copy + CTA label switch
+// without waiting for the next 10s rotation tick. Debounced so a
+// rapid resize doesn't thrash. The icon breathing animation is owned
+// by CSS, so it never restarts here.
+let _aurixSignalResizeTimer = null;
+let _aurixSignalResizeBound = false;
+function _aurixSignalBindResize() {
+  if (_aurixSignalResizeBound) return;
+  _aurixSignalResizeBound = true;
+  window.addEventListener('resize', () => {
+    clearTimeout(_aurixSignalResizeTimer);
+    _aurixSignalResizeTimer = setTimeout(() => {
+      const sec = document.getElementById('aurixSignal');
+      if (!sec || sec.hidden) return;
+      if (!_aurixSignalPool.length) return;
+      // Force an instant write (firstPaint reset) so the swap is
+      // imperceptible — we're not rotating, just reformatting.
+      sec.dataset.firstPaint = '';
+      _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
+    }, 180);
+  });
+}
+
 function renderAurixSignal() {
   const sec = document.getElementById('aurixSignal');
   if (!sec) return;
@@ -23023,6 +23157,7 @@ function renderAurixSignal() {
   _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
   sec.hidden = false;
   _aurixSignalBindHover();
+  _aurixSignalBindResize();
   // Only rotate when there is more than one valid signal.
   if (_aurixSignalPool.length > 1) _aurixSignalStartRotation();
   else _aurixSignalStopRotation();
