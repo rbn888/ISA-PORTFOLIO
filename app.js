@@ -448,7 +448,13 @@ const T = {
     // GOLD-UX-2: progressive CTA + secondary "more karats" link.
     gold_cta_complete:    'Completa los datos',
     gold_cta_add:         'Añadir oro a cartera',
+    gold_cta_add_qty:     qtyText => `Añadir ${qtyText} de oro`,
     gold_more_karats_subtle: '¿No es uno de estos? Ver más',
+    // GOLD-UX-3: dynamic context line under the estimated value.
+    gold_summary_context: (karatStr, qtyText, purityText) =>
+      `${karatStr} · ${qtyText} · ${purityText}`,
+    gold_purity_max:      'pureza máxima',
+    gold_purity_approx:   pct => `${pct}% pureza aprox.`,
     gramUnit:             'g',
     ozUnit:               'oz troy',
     kgUnit:               'kg',
@@ -1216,7 +1222,13 @@ const T = {
     // GOLD-UX-2: progressive CTA + secondary "more karats" link.
     gold_cta_complete:    'Complete the details',
     gold_cta_add:         'Add gold to portfolio',
+    gold_cta_add_qty:     qtyText => `Add ${qtyText} of gold`,
     gold_more_karats_subtle: 'Not one of these? See more',
+    // GOLD-UX-3: dynamic context line under the estimated value.
+    gold_summary_context: (karatStr, qtyText, purityText) =>
+      `${karatStr} · ${qtyText} · ${purityText}`,
+    gold_purity_max:      'highest purity',
+    gold_purity_approx:   pct => `${pct}% purity approx.`,
     gramUnit:             'g',
     ozUnit:               'troy oz',
     kgUnit:               'kg',
@@ -16684,6 +16696,67 @@ function updatePreview() {
   if (typeof _updateGoldCtaState === 'function') _updateGoldCtaState();
 }
 
+// GOLD-UX-3: format the entered quantity for human display in CTA
+// labels and the context line. Trims trailing zeros so "25.00" reads
+// as "25", but keeps meaningful decimals like "0.5".
+function _formatGoldQtyText(qty, unit) {
+  if (!Number.isFinite(qty) || qty <= 0) return '';
+  let s = String(qty);
+  if (s.indexOf('.') !== -1) s = s.replace(/\.?0+$/, '');
+  const unitLabel = unit === 'oz' ? 'oz' : (unit === 'kg' ? 'kg' : 'g');
+  // Grams use no thin space (25g), troy ounce / kg use a thin one (2 oz).
+  return unitLabel === 'g' ? `${s} g` : `${s} ${unitLabel}`;
+}
+
+// GOLD-UX-3: build the dynamic context line shown under the estimated
+// value: "18K · 25 g · 75% pureza aprox." 24K reads as "pureza máxima".
+function _buildGoldContextLine() {
+  if (!selectedDbAsset || selectedDbAsset.ticker !== 'XAU') return '';
+  const qty = parseLocalFloat(qtyInput.value);
+  if (!Number.isFinite(qty) || qty <= 0) return '';
+  const karat = pendingKarat | 0;
+  if (!karat) return '';
+  const qtyText = _formatGoldQtyText(qty, pendingGoldUnit);
+  const purity  = (typeof _goldPurity === 'function') ? _goldPurity(karat) : 0;
+  const purityText = (karat === 24)
+    ? (t('gold_purity_max') || 'highest purity')
+    : ((typeof t('gold_purity_approx') === 'function')
+       ? t('gold_purity_approx')(Math.round(purity * 100))
+       : `${Math.round(purity * 100)}%`);
+  const fn = t('gold_summary_context');
+  return (typeof fn === 'function') ? fn(`${karat}K`, qtyText, purityText) : '';
+}
+
+// GOLD-UX-3: soft count-up on the estimated-value figure so the
+// number feels alive without flashing. ~320ms easeOutQuad, falls back
+// to instant write under prefers-reduced-motion.
+let _goldEstLast = 0;
+let _goldEstRaf  = null;
+function _animateGoldEstimate(targetUsd) {
+  const el = document.getElementById('goldSummaryAmount');
+  if (!el) return;
+  const reduced = (typeof matchMedia === 'function')
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced || _goldEstLast === 0 || !Number.isFinite(_goldEstLast)) {
+    _goldEstLast = targetUsd;
+    el.textContent = formatDisplay(targetUsd, 'USD');
+    return;
+  }
+  if (_goldEstRaf) cancelAnimationFrame(_goldEstRaf);
+  const start = _goldEstLast;
+  const end   = targetUsd;
+  const dur   = 320;
+  const t0    = performance.now();
+  function easeOutQuad(p) { return 1 - (1 - p) * (1 - p); }
+  (function step(now) {
+    const p = Math.min((now - t0) / dur, 1);
+    const v = start + (end - start) * easeOutQuad(p);
+    el.textContent = formatDisplay(v, 'USD');
+    if (p < 1) _goldEstRaf = requestAnimationFrame(step);
+    else { _goldEstRaf = null; _goldEstLast = end; el.textContent = formatDisplay(end, 'USD'); }
+  })(t0);
+}
+
 // GOLD-UX-2: validate the physical gold entry form and mirror the
 // result onto the sticky CTA. Required fields per the spec are:
 // type (Joyería/Moneda/Lingote), karat, unit and quantity > 0.
@@ -16710,11 +16783,25 @@ function _updateGoldCtaState() {
   // Reflect the qty validity on the section so CSS can reveal STEP 4
   // (estimated value) only when the user has actually entered an amount.
   v.section.dataset.goldQty = v.qtyValid ? '1' : '0';
+  // GOLD-UX-3: paint the context line under the estimated value.
+  const ctxEl = document.getElementById('goldSummaryContext');
+  if (ctxEl) ctxEl.textContent = _buildGoldContextLine();
   if (!btnSubmitEl) return;
   const enabled = v.valid;
   btnSubmitEl.disabled = !enabled;
   btnSubmitEl.classList.toggle('btn-submit--disabled', !enabled);
-  btnSubmitEl.textContent = enabled ? t('gold_cta_add') : t('gold_cta_complete');
+  if (!enabled) {
+    btnSubmitEl.textContent = t('gold_cta_complete');
+  } else {
+    // GOLD-UX-3: prefer the dynamic "Añadir 25 g de oro" label when we
+    // can build the qty text; fall back to the generic copy otherwise.
+    const qty = parseLocalFloat(qtyInput.value);
+    const qtyText = _formatGoldQtyText(qty, pendingGoldUnit);
+    const dynFn   = t('gold_cta_add_qty');
+    btnSubmitEl.textContent = (qtyText && typeof dynFn === 'function')
+      ? dynFn(qtyText)
+      : t('gold_cta_add');
+  }
 }
 
 // ADD-V4.1: gold market reference — small premium card above the
@@ -16745,7 +16832,10 @@ function _renderGoldValuation(spotValueUsd) {
   const factor = Math.max(0, Math.min(1, 1 - margin / 100));
   const isResale = pendingGoldValuationMode === 'resale';
   const shown = isResale ? v * factor : v;
-  amountEl.textContent = formatDisplay(shown, 'USD');
+  // GOLD-UX-3: animate the estimate with a short count-up tween so
+  // the figure feels responsive when the user changes karat / unit
+  // / qty. Falls back to instant write under prefers-reduced-motion.
+  _animateGoldEstimate(shown);
   if (metaEl) metaEl.textContent = t(isResale ? 'gold_summary_meta_resale' : 'gold_summary_meta_spot');
   if (spotRefEl) {
     if (isResale && v > 0) {

@@ -574,7 +574,7 @@
           </div>
 
           <!-- STEP 2: quilataje contextual al tipo -->
-          <div class="gold-field-block">
+          <div class="gold-field-block" id="goldKaratBlock">
             <div class="gold-field-label" data-i18n="gold_karat_label">Quilataje</div>
             <div class="gold-field-sub" data-i18n="gold_karat_sub">Selecciona el quilataje de tu oro.</div>
             <div class="gold-purity-grid" id="goldPurityGrid">
@@ -643,10 +643,13 @@
           </div>
 
           <!-- STEP 4 — estimated value. Primary focus once the user
-               has type + karat + qty. -->
+               has type + karat + qty. Context line (#goldSummaryContext)
+               appears below the amount to surface the math: karat,
+               quantity and approximate purity. -->
           <div class="gold-summary-card" id="goldSummaryCard">
             <div class="gold-summary-label" data-i18n="gold_summary_label">Valor estimado hoy</div>
             <div class="gold-summary-amount" id="goldSummaryAmount">—</div>
+            <div class="gold-summary-context" id="goldSummaryContext"></div>
             <div class="gold-summary-meta" id="goldSummaryMeta" data-i18n="gold_summary_meta_spot">Valor internacional del metal</div>
             <div class="gold-summary-spot" id="goldSummarySpotRef" hidden></div>
             <div class="gold-summary-disclaimer" id="goldSummaryDisclaimer" hidden data-i18n="gold_disclaimer">Estimación orientativa, no garantía de compra.</div>

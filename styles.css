@@ -14860,3 +14860,66 @@ body.gs-open { overflow: hidden; }
   filter: saturate(0.6);
   background: rgba(74, 130, 240, 0.45);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   GOLD-UX-3 — Micro polish: context line, fast-path for bars and
+   tighter mobile rhythm.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Context line under the estimated value. Soft fade-in so each update
+   feels alive without flashing. Empty string (cleared by JS when
+   invalid) collapses to zero height. */
+.gold-summary-context {
+  margin-top: 2px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.58);
+  font-variant-numeric: tabular-nums;
+  min-height: 0;
+  transition: opacity .22s var(--ease-premium);
+}
+.gold-summary-context:empty {
+  display: none;
+}
+
+/* Lingote fast-path — when the user picks "Lingote" we minimise the
+   karat field block so 99% of bars (24K) need zero extra interaction
+   to reach quantity. The Más-quilatajes link remains accessible. The
+   `#goldKaratBlock` selector keeps this compatible with browsers that
+   don't yet ship :has(). */
+#goldSection[data-gold-type="bar"]:not(.gold-section--all-karats) #goldKaratBlock {
+  gap: 4px;
+  padding: 6px 0 0;
+}
+#goldSection[data-gold-type="bar"]:not(.gold-section--all-karats) #goldKaratBlock .gold-field-sub {
+  display: none;
+}
+#goldSection[data-gold-type="bar"]:not(.gold-section--all-karats) #goldKaratBlock .gold-field-label {
+  font-size: 10.5px;
+  opacity: 0.55;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+#goldSection[data-gold-type="bar"]:not(.gold-section--all-karats) #goldPurityGrid .gold-chip {
+  padding: 9px 14px;
+}
+#goldSection[data-gold-type="bar"]:not(.gold-section--all-karats) #goldKaratBlock .gold-chip-sub {
+  display: none;
+}
+
+/* Mobile tightening — slightly less vertical air without crushing
+   readability. Applies to both the form-group--gold rhythm and the
+   summary-card padding so the user reaches the CTA faster. */
+@media (max-width: 520px) {
+  .form-group--gold { gap: 12px; }
+  .gold-field-block { gap: 6px; }
+  .gold-summary-card { padding: 14px 16px; }
+  .gold-summary-amount { font-size: 26px; }
+  .gold-summary-context { font-size: 11.5px; }
+  .gold-section-eyebrow,
+  .gold-section-eyebrow--tight { margin-top: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gold-summary-context { transition: none; }
+}
