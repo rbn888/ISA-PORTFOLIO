@@ -412,12 +412,19 @@
     getSnapshot,
   };
 
-  // ONBOARDING-1B §1: developer-facing diagnostics. Returns a snapshot
-  // of local persistence + the last Supabase sync attempt. Never exposes
-  // auth tokens, session secrets, or raw user records — only the state
-  // the engine itself owns plus a sanitised error message.
+  // ONBOARDING-1B §1 / 2B §17: developer-facing diagnostics. Returns a
+  // snapshot of local persistence + the last Supabase sync attempt +
+  // UI runtime flags (awaiting-asset etc.) when the UI module is loaded.
+  // Never exposes auth tokens, session secrets, or raw user records.
   window.__aurixOnboardingDebug = function () {
     const local = _readLocal();
+    // Optional UI snapshot from the wiring IIFE in app.js.
+    let ui = null;
+    try {
+      if (typeof window._aurixOnbUiState === 'function') {
+        ui = window._aurixOnbUiState();
+      }
+    } catch (_) { ui = null; }
     return {
       // Local persistence (source of truth)
       local: {
@@ -445,6 +452,8 @@
       hydrated:     _hydrated,
       inProgress:   !!window._aurixOnboardingInProgress,
       generation:   window._aurixOnboardingGeneration | 0,
+      // UI-level flags surfaced by the wiring layer (null if not loaded)
+      ui:           ui,
     };
   };
 })();

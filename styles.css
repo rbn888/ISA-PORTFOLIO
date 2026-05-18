@@ -14179,3 +14179,245 @@ body.gs-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .modal--health { transition: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   ONBOARDING-2B — premium UX overrides.
+   Layered AFTER the ONBOARDING-1 baseline so these refinements win
+   without rewriting the existing rules. Targets: richer language &
+   experience cards, premium chip selected state, animated activation
+   orb + success tick, count chip, microinteractions, tighter rhythm.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Microinteractions — slightly faster, more "Apple/Arc" feel. */
+.onb-cta,
+.onb-chip,
+.onb-lang-card,
+.onb-exp-card {
+  transition: background .18s var(--ease-premium),
+              border-color .18s var(--ease-premium),
+              transform .14s var(--ease-premium),
+              box-shadow .22s var(--ease-premium),
+              color .16s var(--ease-premium),
+              filter .18s var(--ease-premium);
+}
+
+/* ── Language step ── */
+.onb-lang-card {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(74, 130, 240, 0.06) 0%, rgba(255,255,255,0.0) 60%),
+    rgba(255, 255, 255, 0.025);
+  padding: 16px 16px 14px;
+}
+.onb-lang-card:hover {
+  background:
+    linear-gradient(180deg, rgba(74, 130, 240, 0.10) 0%, rgba(255,255,255,0.0) 60%),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(138, 178, 255, 0.24);
+}
+.onb-lang-card.is-selected {
+  background:
+    linear-gradient(180deg, rgba(74, 130, 240, 0.18) 0%, rgba(74, 130, 240, 0.02) 70%),
+    rgba(20, 30, 56, 0.6);
+  border-color: rgba(138, 178, 255, 0.6);
+  box-shadow:
+    0 0 0 1px rgba(138, 178, 255, 0.22) inset,
+    0 8px 24px -12px rgba(74, 130, 240, 0.45);
+}
+/* Premium check mark in the corner when selected. */
+.onb-lang-card::after {
+  content: '';
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 16px; height: 16px;
+  border-radius: 999px;
+  background: rgba(138, 178, 255, 0.0);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  transition: background .18s var(--ease-premium), border-color .18s var(--ease-premium),
+              transform .18s var(--ease-premium);
+}
+.onb-lang-card.is-selected::after {
+  background: var(--aurix-blue);
+  border-color: rgba(138, 178, 255, 0.6);
+  transform: scale(1.05);
+}
+
+/* ── Interests chips — premium selected ── */
+.onb-chip.is-selected {
+  background:
+    linear-gradient(180deg, rgba(74, 130, 240, 0.22) 0%, rgba(74, 130, 240, 0.10) 100%);
+  border-color: rgba(138, 178, 255, 0.6);
+  color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(138, 178, 255, 0.18) inset,
+    0 6px 18px -10px rgba(74, 130, 240, 0.40);
+}
+
+/* ── Experience step ── */
+.onb-exp-card {
+  position: relative;
+  padding: 14px 16px 14px 18px;
+}
+.onb-exp-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(138, 178, 255, 0.66);
+  margin-bottom: 4px;
+}
+.onb-exp-card.is-selected {
+  background:
+    linear-gradient(180deg, rgba(74, 130, 240, 0.18) 0%, rgba(74, 130, 240, 0.02) 70%),
+    rgba(20, 30, 56, 0.6);
+  border-color: rgba(138, 178, 255, 0.6);
+  box-shadow:
+    0 0 0 1px rgba(138, 178, 255, 0.20) inset,
+    0 8px 22px -12px rgba(74, 130, 240, 0.42);
+}
+.onb-exp-card.is-selected .onb-exp-tag { color: #8ab2ff; }
+
+/* ── Activation orb — pulsing rings ── */
+.onb-activation-art--orb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  background: none;
+  margin: 6px auto 0;
+}
+.onb-activation-art--orb .onb-activation-icon {
+  position: relative;
+  z-index: 3;
+  font-size: 30px;
+  color: #fff;
+  font-weight: 300;
+  text-shadow: 0 0 14px rgba(138, 178, 255, 0.55);
+}
+.onb-activation-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 178, 255, 0.36);
+  background: radial-gradient(circle at 50% 50%, rgba(74, 130, 240, 0.30) 0%, rgba(74, 130, 240, 0.0) 65%);
+  animation: onb-orb-pulse 2400ms var(--ease-premium) infinite;
+  pointer-events: none;
+}
+.onb-activation-ring--2 {
+  animation-delay: 1200ms;
+  border-color: rgba(138, 178, 255, 0.22);
+}
+@keyframes onb-orb-pulse {
+  0%   { transform: scale(0.92); opacity: 0.0; }
+  30%  { opacity: 0.95; }
+  100% { transform: scale(1.42); opacity: 0.0; }
+}
+
+/* ── Success badge with animated tick ── */
+.onb-success-art--badge {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  background: none;
+  margin: 8px auto 2px;
+}
+.onb-success-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(74, 222, 128, 0.28) 0%, rgba(74, 222, 128, 0.0) 65%);
+  border: 1px solid rgba(74, 222, 128, 0.40);
+  animation: onb-success-pulse 1800ms var(--ease-premium) 1;
+}
+.onb-success-tick {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  padding: 22px;
+  color: #4ade80;
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: onb-tick-draw 600ms var(--ease-premium) 220ms forwards;
+}
+@keyframes onb-success-pulse {
+  0%   { transform: scale(0.84); opacity: 0; }
+  40%  { opacity: 0.95; }
+  100% { transform: scale(1.0); opacity: 1; }
+}
+@keyframes onb-tick-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Success count chip — "Tienes 1 activo" / "Tienes 3 activos" ── */
+.onb-success-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.10);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  margin: -4px auto 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Success body — slightly muted, closer to chip */
+.onb-success-body {
+  margin-top: 0 !important;
+}
+
+/* ── Tighter vertical rhythm overall ── */
+.onb-step {
+  padding-top: 36px;
+  gap: 12px;
+}
+.modal--onboarding[data-step="LANGUAGE"]   > .onb-step,
+.modal--onboarding[data-step="WELCOME"]    > .onb-step,
+.modal--onboarding[data-step="ACTIVATION"] > .onb-step,
+.modal--onboarding[data-step="SUCCESS"]    > .onb-step {
+  /* Center the content vertically inside the step so single-asset
+     screens (welcome / activation / success) don't gravitate to top. */
+  justify-content: center;
+}
+.modal--onboarding {
+  /* Slimmer max-height — every step now fits without scrolling. */
+  max-height: min(78vh, 560px);
+}
+.onb-headline {
+  font-size: 24px;
+}
+.onb-sub {
+  font-size: 14.5px;
+}
+.onb-footer {
+  padding-top: 16px;
+}
+
+/* Mobile premium polish */
+@media (max-width: 520px) {
+  .onb-step {
+    padding: 36px 20px 18px;
+    gap: 10px;
+  }
+  .onb-headline    { font-size: 21px; }
+  .onb-sub         { font-size: 13.5px; }
+  .onb-activation-art--orb { width: 72px; height: 72px; }
+  .onb-success-art--badge  { width: 64px; height: 64px; }
+  .onb-bullets { gap: 8px; max-width: 100%; }
+  .onb-bullet  { padding: 9px 12px; font-size: 13px; }
+  .onb-cta { padding: 12px 16px; font-size: 14px; min-height: 44px; }
+  .onb-footer--split { gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onb-activation-ring,
+  .onb-success-ring,
+  .onb-success-tick {
+    animation: none;
+  }
+  .onb-success-tick { stroke-dashoffset: 0; }
+}

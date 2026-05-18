@@ -965,13 +965,18 @@ const T = {
     onbAddAssetBtn:       '+ Añadir activo',
     onbSuccessTitle:      'Perfecto.',
     onbSuccessSub:        'Tu cartera ha comenzado.',
-    onbSuccessBody1:      'Has añadido tu primer activo. Puedes seguir construyendo tu portfolio o ver ya tu dashboard.',
-    onbSuccessBodyN:      n => `Tu portfolio ya tiene ${n} activos. Puedes seguir construyendo o ver el dashboard.`,
+    onbSuccessBody1:      'Ya has añadido tu primer activo. Puedes seguir construyendo tu portfolio o entrar al dashboard.',
+    onbSuccessBodyN:      n => `Puedes seguir construyendo tu portfolio o entrar al dashboard.`,
+    onbSuccessCount:      n => n === 1 ? 'Tienes 1 activo' : `Tienes ${n} activos`,
     onbAddAnother:        '+ Añadir otro activo',
     onbGoDashboard:       'Ir al dashboard',
-    onbWelcomeBullet1:    'Unifica tu cartera',
-    onbWelcomeBullet2:    'Sigue tu evolución',
-    onbWelcomeBullet3:    'Entiende tu exposición',
+    onbWelcomeBullet1:    'Sigue tu evolución',
+    onbWelcomeBullet2:    'Entiende tu exposición',
+    onbWelcomeBullet3:    'Toma mejores decisiones',
+    // Experience step descriptors (used as small uppercase tags on cards)
+    onbExpTagBeginner:    'Nivel 1',
+    onbExpTagActive:      'Nivel 2',
+    onbExpTagAdvanced:    'Nivel 3',
     // ── Premium empty / activation states ────────────
     emptyHeroTitle:       'Tu portfolio está listo para empezar.',
     emptyHeroBody:        'Añade tu primer activo para construir tu visión financiera.',
@@ -1672,13 +1677,17 @@ const T = {
     onbAddAssetBtn:       '+ Add asset',
     onbSuccessTitle:      'Great.',
     onbSuccessSub:        'Your portfolio has started.',
-    onbSuccessBody1:      'You added your first asset. You can keep building your portfolio or go to your dashboard.',
-    onbSuccessBodyN:      n => `Your portfolio now has ${n} assets. You can keep building or go to your dashboard.`,
+    onbSuccessBody1:      'You added your first asset. You can continue building your portfolio or go to your dashboard.',
+    onbSuccessBodyN:      n => `You can continue building your portfolio or go to your dashboard.`,
+    onbSuccessCount:      n => n === 1 ? 'You have 1 asset' : `You have ${n} assets`,
     onbAddAnother:        '+ Add another asset',
     onbGoDashboard:       'Go to dashboard',
-    onbWelcomeBullet1:    'Unify your portfolio',
-    onbWelcomeBullet2:    'Track your evolution',
-    onbWelcomeBullet3:    'Understand your exposure',
+    onbWelcomeBullet1:    'Track your evolution',
+    onbWelcomeBullet2:    'Understand your exposure',
+    onbWelcomeBullet3:    'Make better decisions',
+    onbExpTagBeginner:    'Level 1',
+    onbExpTagActive:      'Level 2',
+    onbExpTagAdvanced:    'Level 3',
     // ── Premium empty / activation states ────────────
     emptyHeroTitle:       'Your portfolio is ready to begin.',
     emptyHeroBody:        'Add your first asset to start building your financial view.',
@@ -21841,21 +21850,42 @@ function exportPortfolioBackup() {
     });
   }
 
-  // ONBOARDING-2: success step body reflects the current asset count.
-  // n=1 → "Has añadido tu primer activo. …"; n>=2 → "Tu portfolio ya
-  // tiene N activos. …". Called every time the SUCCESS step mounts or
-  // the in-flight loop registers another asset-added event.
+  // ONBOARDING-2 / 2B: success step body + count chip reflect the
+  // current asset count. n=1 → "Has añadido tu primer activo. …";
+  // n>=2 → "Puedes seguir construyendo …". The chip carries the
+  // numeric proof ("Tienes 1 activo" / "Tienes 3 activos") so the
+  // user sees their progress at a glance.
   function _updateSuccessCopy() {
     const body = document.getElementById('onbSuccessBody');
-    if (!body) return;
+    const chip = document.getElementById('onbSuccessChip');
     const n = Array.isArray(assets) ? assets.length : 0;
-    if (n <= 1) {
-      body.textContent = t('onbSuccessBody1') || '';
-    } else {
-      const fn = t('onbSuccessBodyN');
-      body.textContent = (typeof fn === 'function') ? fn(n) : '';
+    if (body) {
+      if (n <= 1) {
+        body.textContent = t('onbSuccessBody1') || '';
+      } else {
+        const fn = t('onbSuccessBodyN');
+        body.textContent = (typeof fn === 'function') ? fn(n) : '';
+      }
+    }
+    if (chip) {
+      const fn = t('onbSuccessCount');
+      chip.textContent = (typeof fn === 'function') ? fn(n) : '';
+      chip.hidden = (n <= 0);
     }
   }
+
+  // ONBOARDING-2B §17: expose UI-level flags so the engine's debug
+  // helper can surface them. Read-only snapshot — never mutate from
+  // outside the closure.
+  window._aurixOnbUiState = function () {
+    return {
+      awaitingAsset:           awaitingAsset,
+      activationAddAttempted:  _activationAddAttempted,
+      pendingLang:             pendingLang,
+      pendingExp:              pendingExp,
+      assetCount:              Array.isArray(assets) ? assets.length : 0,
+    };
+  };
 
   // ── Step navigation handlers ───────────────────────────────────
   // Language selection

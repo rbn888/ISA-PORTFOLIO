@@ -1228,14 +1228,17 @@
       <p class="onb-sub" data-i18n="onbExpSub">Opcional. Adaptaremos el detalle a tu nivel.</p>
       <div class="onb-exp-grid">
         <button type="button" class="onb-exp-card" data-onb-exp="beginner">
+          <span class="onb-exp-tag" data-i18n="onbExpTagBeginner">Nivel 1</span>
           <span class="onb-exp-name" data-i18n="onbExpBeginner">Principiante</span>
           <span class="onb-exp-desc" data-i18n="onbExpBeginnerDesc">Estoy empezando</span>
         </button>
         <button type="button" class="onb-exp-card" data-onb-exp="active">
+          <span class="onb-exp-tag" data-i18n="onbExpTagActive">Nivel 2</span>
           <span class="onb-exp-name" data-i18n="onbExpActive">Inversor activo</span>
           <span class="onb-exp-desc" data-i18n="onbExpActiveDesc">Invierto con regularidad</span>
         </button>
         <button type="button" class="onb-exp-card" data-onb-exp="advanced">
+          <span class="onb-exp-tag" data-i18n="onbExpTagAdvanced">Nivel 3</span>
           <span class="onb-exp-name" data-i18n="onbExpAdvanced">Avanzado</span>
           <span class="onb-exp-desc" data-i18n="onbExpAdvancedDesc">Conozco los mercados</span>
         </button>
@@ -1248,25 +1251,33 @@
 
     <!-- Step: ACTIVATION — first asset add -->
     <section class="onb-step" data-onb-step="ACTIVATION">
-      <h2 class="onb-headline" data-i18n="onbActTitle">Añade tu primer activo</h2>
-      <p class="onb-sub" data-i18n="onbActSub">Empieza a construir tu visión financiera.</p>
-      <div class="onb-activation-art" aria-hidden="true">
+      <div class="onb-activation-art onb-activation-art--orb" aria-hidden="true">
+        <span class="onb-activation-ring onb-activation-ring--1"></span>
+        <span class="onb-activation-ring onb-activation-ring--2"></span>
         <span class="onb-activation-icon">+</span>
       </div>
+      <h2 class="onb-headline" data-i18n="onbActTitle">Añade tu primer activo</h2>
+      <p class="onb-sub" data-i18n="onbActSub">Empieza a construir tu visión financiera.</p>
       <div class="onb-footer onb-footer--split">
         <button type="button" class="onb-cta onb-cta--ghost" data-onb-back data-i18n="onbBack">Atrás</button>
         <button type="button" class="onb-cta onb-cta--primary" id="onbAddAssetBtn" data-i18n="onbAddAssetBtn">+ Añadir activo</button>
       </div>
     </section>
 
-    <!-- Step: SUCCESS — ONBOARDING-2: multi-asset loop. No auto-close;
-         user chooses when to leave onboarding via the CTAs below. -->
+    <!-- Step: SUCCESS — ONBOARDING-2B: persistent decision state.
+         No auto-close. Count chip + animated tick give the user a
+         clear "what I did" moment, the two CTAs let them choose to
+         keep building or commit to the dashboard. -->
     <section class="onb-step" data-onb-step="SUCCESS">
-      <div class="onb-success-art" aria-hidden="true">
-        <span class="onb-success-icon">✓</span>
+      <div class="onb-success-art onb-success-art--badge" aria-hidden="true">
+        <span class="onb-success-ring"></span>
+        <svg class="onb-success-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12 L10 17 L19 7"/>
+        </svg>
       </div>
       <h2 class="onb-headline" data-i18n="onbSuccessTitle">Perfecto.</h2>
       <p class="onb-sub" data-i18n="onbSuccessSub">Tu cartera ha comenzado.</p>
+      <span class="onb-success-chip" id="onbSuccessChip"></span>
       <p class="onb-sub onb-success-body" id="onbSuccessBody"></p>
       <div class="onb-footer onb-footer--split">
         <button type="button" class="onb-cta onb-cta--ghost" id="onbGoDashboardBtn" data-i18n="onbGoDashboard">Ir al dashboard</button>
