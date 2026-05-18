@@ -13168,3 +13168,357 @@ body.gs-open { overflow: hidden; }
     0 14px 38px -10px rgba(2, 6, 14, 0.75),
     0 0 24px -8px rgba(224, 90, 90, 0.35);
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   ONBOARDING-1 — activation overlay.
+   Dedicated modal chrome (NOT the add-asset modal). Mounts above the
+   bottom-nav safe area on mobile, centred premium card on desktop.
+   Steps are toggled via [data-step] on .modal--onboarding; only the
+   matching <section[data-onb-step]> is shown.
+   ══════════════════════════════════════════════════════════════════ */
+#onboardingOverlay {
+  z-index: 200; /* above settings/reset overlays */
+  padding: var(--space-3);
+}
+.modal--onboarding {
+  position: relative;
+  max-width: 560px;
+  background:
+    linear-gradient(180deg, rgba(40, 80, 150, 0.18) 0%, rgba(12, 18, 32, 0.0) 50%),
+    rgba(8, 12, 22, 0.96);
+  border: 1px solid rgba(138, 166, 255, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 24px 80px -20px rgba(0, 0, 0, 0.80),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  max-height: min(86vh, 720px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Step switching — show only the matching step. */
+.modal--onboarding > .onb-step { display: none; }
+.modal--onboarding[data-step="LANGUAGE"]   > .onb-step[data-onb-step="LANGUAGE"],
+.modal--onboarding[data-step="WELCOME"]    > .onb-step[data-onb-step="WELCOME"],
+.modal--onboarding[data-step="INTERESTS"]  > .onb-step[data-onb-step="INTERESTS"],
+.modal--onboarding[data-step="EXPERIENCE"] > .onb-step[data-onb-step="EXPERIENCE"],
+.modal--onboarding[data-step="ACTIVATION"] > .onb-step[data-onb-step="ACTIVATION"],
+.modal--onboarding[data-step="SUCCESS"]    > .onb-step[data-onb-step="SUCCESS"] {
+  display: flex;
+}
+.modal--onboarding[data-step="SUCCESS"] > .onb-skip,
+.modal--onboarding[data-step="SUCCESS"] > .onb-progress {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Progress dots */
+.onb-progress {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+  transition: opacity .24s var(--ease-out);
+}
+.onb-progress-dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  transition: background .22s var(--ease-out), width .26s var(--ease-premium);
+}
+.modal--onboarding[data-step="LANGUAGE"]   .onb-progress-dot[data-step="LANGUAGE"],
+.modal--onboarding[data-step="WELCOME"]    .onb-progress-dot[data-step="WELCOME"],
+.modal--onboarding[data-step="INTERESTS"]  .onb-progress-dot[data-step="INTERESTS"],
+.modal--onboarding[data-step="EXPERIENCE"] .onb-progress-dot[data-step="EXPERIENCE"],
+.modal--onboarding[data-step="ACTIVATION"] .onb-progress-dot[data-step="ACTIVATION"] {
+  background: var(--aurix-blue);
+  width: 18px;
+}
+
+/* Skip button */
+.onb-skip {
+  position: absolute;
+  top: 14px; right: 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.50);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 2;
+  transition: color .18s var(--ease-out), background .18s var(--ease-out);
+}
+.onb-skip:hover { color: #fff; background: rgba(255,255,255,0.06); }
+
+/* Steps — shared layout */
+.onb-step {
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 56px 28px 24px;
+  flex: 1;
+  overflow-y: auto;
+  animation: onb-fade-in .36s var(--ease-premium);
+}
+@keyframes onb-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.onb-headline {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1.18;
+  text-align: center;
+}
+.onb-headline-line { display: block; }
+.onb-headline-line--alt {
+  font-size: 17px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+  margin-top: 6px;
+  letter-spacing: -0.005em;
+}
+.onb-sub {
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.62);
+  text-align: center;
+  line-height: 1.5;
+  max-width: 420px;
+  margin: -8px auto 0;
+}
+
+/* Footer / CTAs */
+.onb-footer {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.onb-footer--split {
+  flex-direction: row;
+  gap: 12px;
+}
+.onb-footer--split .onb-cta--primary { flex: 1; }
+.onb-cta {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: transform .12s var(--ease-out), background .18s var(--ease-out),
+              opacity .18s var(--ease-out), box-shadow .22s var(--ease-out);
+  min-height: 48px;
+}
+.onb-cta--primary {
+  background: linear-gradient(180deg, #5a9cff 0%, #3a7be8 100%);
+  color: #fff;
+  box-shadow:
+    0 6px 18px -6px rgba(74, 130, 240, 0.55),
+    0 0 0 1px rgba(255,255,255,0.06) inset;
+}
+.onb-cta--primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.onb-cta--primary:active:not(:disabled) { transform: scale(0.985); }
+.onb-cta--primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.onb-cta--ghost {
+  background: transparent;
+  color: rgba(255,255,255,0.72);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.onb-cta--ghost:hover { background: rgba(255,255,255,0.04); color: #fff; }
+
+/* Step: LANGUAGE */
+.onb-lang-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: var(--space-2);
+}
+.onb-lang-card {
+  appearance: none;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  cursor: pointer;
+  transition: background .18s var(--ease-out), border-color .18s var(--ease-out),
+              transform .12s var(--ease-out);
+  text-align: left;
+}
+.onb-lang-card:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.16);
+}
+.onb-lang-card:active { transform: scale(0.985); }
+.onb-lang-card.is-selected {
+  background: rgba(74, 130, 240, 0.10);
+  border-color: rgba(74, 130, 240, 0.55);
+  box-shadow: 0 0 0 1px rgba(74, 130, 240, 0.18) inset;
+}
+.onb-lang-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+.onb-lang-native {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+/* Step: INTERESTS — chip grid */
+.onb-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+.onb-chip {
+  appearance: none;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: rgba(255,255,255,0.78);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: background .16s var(--ease-out), border-color .16s var(--ease-out),
+              color .16s var(--ease-out), transform .12s var(--ease-out);
+}
+.onb-chip:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.18);
+  color: #fff;
+}
+.onb-chip:active { transform: scale(0.96); }
+.onb-chip.is-selected {
+  background: rgba(74, 130, 240, 0.14);
+  border-color: rgba(74, 130, 240, 0.55);
+  color: #fff;
+}
+
+/* Step: EXPERIENCE */
+.onb-exp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--space-2);
+}
+.onb-exp-card {
+  appearance: none;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .18s var(--ease-out), border-color .18s var(--ease-out),
+              transform .12s var(--ease-out);
+}
+.onb-exp-card:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.16);
+}
+.onb-exp-card:active { transform: scale(0.99); }
+.onb-exp-card.is-selected {
+  background: rgba(74, 130, 240, 0.10);
+  border-color: rgba(74, 130, 240, 0.55);
+}
+.onb-exp-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+.onb-exp-desc {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.55);
+}
+
+/* Step: ACTIVATION */
+.onb-activation-art,
+.onb-success-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-2) auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 40%, rgba(74,130,240,0.30), rgba(74,130,240,0.0) 70%);
+}
+.onb-activation-icon {
+  font-size: 38px;
+  font-weight: 300;
+  color: #fff;
+  line-height: 1;
+}
+.onb-success-art {
+  background: radial-gradient(circle at 50% 40%, rgba(74,222,128,0.30), rgba(74,222,128,0.0) 70%);
+}
+.onb-success-icon {
+  font-size: 38px;
+  font-weight: 700;
+  color: #4ade80;
+  line-height: 1;
+}
+
+/* Mobile — fits above bottom nav, 92vw, safe-area aware. */
+@media (max-width: 768px) {
+  #onboardingOverlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal--onboarding {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 22px 22px 0 0;
+    /* Leave room for bottom-nav (~72px) + iOS safe area. */
+    max-height: calc(100dvh - 72px - env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  }
+  .onb-step {
+    padding: 48px 22px 20px;
+  }
+  .onb-headline { font-size: 22px; }
+  .onb-headline-line--alt { font-size: 15px; }
+  .onb-sub { font-size: 14px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .onb-step { animation: none; }
+  .onb-cta, .onb-chip, .onb-lang-card, .onb-exp-card,
+  .onb-progress-dot { transition: none; }
+}

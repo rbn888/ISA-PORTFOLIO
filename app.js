@@ -938,6 +938,33 @@ const T = {
     mktTimeframeSoon:         'Periodo disponible próximamente',
     // Beta screen
     exit: 'Salir',
+    // ── Onboarding ────────────────────────────────
+    onbSkip:              'Saltar',
+    onbContinue:          'Continuar',
+    onbBack:              'Atrás',
+    onbWelcomeTitle:      'Bienvenido a Aurix.',
+    onbWelcomeSub:        'Todo tu patrimonio, en un solo lugar.',
+    onbInterestsTitle:    '¿Qué te interesa seguir?',
+    onbInterestsSub:      'Opcional. Nos ayuda a personalizar tu experiencia.',
+    onbAssetStocks:       'Acciones',
+    onbAssetCrypto:       'Cripto',
+    onbAssetEtf:          'ETFs',
+    onbAssetGold:         'Oro',
+    onbAssetCash:         'Efectivo',
+    onbAssetRe:           'Inmuebles',
+    onbExpTitle:          '¿Cómo te describirías?',
+    onbExpSub:            'Opcional. Adaptaremos el detalle a tu nivel.',
+    onbExpBeginner:       'Principiante',
+    onbExpBeginnerDesc:   'Estoy empezando',
+    onbExpActive:         'Inversor activo',
+    onbExpActiveDesc:     'Invierto con regularidad',
+    onbExpAdvanced:       'Avanzado',
+    onbExpAdvancedDesc:   'Conozco los mercados',
+    onbActTitle:          'Añade tu primer activo',
+    onbActSub:            'Empieza a construir tu visión financiera.',
+    onbAddAssetBtn:       '+ Añadir activo',
+    onbSuccessTitle:      'Perfecto.',
+    onbSuccessSub:        'Tu portfolio ha comenzado.',
   },
   en: {
     // Summary
@@ -1557,6 +1584,33 @@ const T = {
     mktTimeframeSoon:         'Period coming soon',
     // Beta screen
     exit: 'Exit',
+    // ── Onboarding ────────────────────────────────
+    onbSkip:              'Skip',
+    onbContinue:          'Continue',
+    onbBack:              'Back',
+    onbWelcomeTitle:      'Welcome to Aurix.',
+    onbWelcomeSub:        'Your financial world, unified.',
+    onbInterestsTitle:    'What do you want to track?',
+    onbInterestsSub:      'Optional. Helps us tailor your experience.',
+    onbAssetStocks:       'Stocks',
+    onbAssetCrypto:       'Crypto',
+    onbAssetEtf:          'ETFs',
+    onbAssetGold:         'Gold',
+    onbAssetCash:         'Cash',
+    onbAssetRe:           'Real estate',
+    onbExpTitle:          'How would you describe yourself?',
+    onbExpSub:            'Optional. We will tune detail to your level.',
+    onbExpBeginner:       'Beginner',
+    onbExpBeginnerDesc:   'Just getting started',
+    onbExpActive:         'Active investor',
+    onbExpActiveDesc:     'I invest regularly',
+    onbExpAdvanced:       'Advanced',
+    onbExpAdvancedDesc:   'I know the markets',
+    onbActTitle:          'Add your first asset',
+    onbActSub:            'Start building your financial view.',
+    onbAddAssetBtn:       '+ Add asset',
+    onbSuccessTitle:      'Great.',
+    onbSuccessSub:        'Your portfolio has started.',
   },
 };
 
@@ -2038,6 +2092,18 @@ function load() {
   }
 }
 
+// ONBOARDING-1: track previous asset count so we can fire a one-shot
+// 'aurix:asset-added' event when the user transitions from an empty
+// portfolio to a populated one. The engine consumes it to advance from
+// ACTIVATION → SUCCESS (no polling — pure event-driven).
+let _aurixPrevAssetCount = (() => {
+  try {
+    const raw = localStorage.getItem('aurix_assets');
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr.length; }
+  } catch (_) {}
+  return 0;
+})();
+
 function save() {
   try {
     const { assets: catalogAssets, holdings } = convertToNewModel(assets);
@@ -2052,6 +2118,19 @@ function save() {
       try { recomputeDerivedFinancialState('mutation-sync'); }
       catch (e) { console.warn('[portfolio] derived recompute failed:', e?.message); }
     }
+
+    // ONBOARDING-1: detect first-asset transition (0 → ≥1) and emit.
+    // We fire on every increase so re-adds during onboarding still
+    // trigger the SUCCESS step; the engine is idempotent.
+    try {
+      const curLen = Array.isArray(assets) ? assets.length : 0;
+      if (curLen > _aurixPrevAssetCount) {
+        window.dispatchEvent(new CustomEvent('aurix:asset-added', {
+          detail: { count: curLen, prev: _aurixPrevAssetCount }
+        }));
+      }
+      _aurixPrevAssetCount = curLen;
+    } catch (_) {}
   } catch (e) {
     console.warn('[portfolio] save failed (localStorage full or unavailable):', e);
   }
@@ -17993,6 +18072,16 @@ document.getElementById('appRoot').style.opacity = '0';
       loader.style.opacity = '0';
       setTimeout(() => loader.remove(), 200);
     }
+
+    // ONBOARDING-1: spec §8 bootstrap order. Auth + portfolio resolved
+    // above; reset state is checked inside the engine's guards. We defer
+    // the decision behind a microtask so the first paint commits before
+    // the modal animates in — keeps the perceived load snappy.
+    Promise.resolve().then(() => {
+      if (typeof window.maybeShowOnboarding === 'function') {
+        window.maybeShowOnboarding();
+      }
+    });
   } catch (e) {
     console.error('[BOOT ERROR]', e);
     if (!window.location.pathname.includes('login.html')) {
@@ -21140,11 +21229,22 @@ function performSafeReset() {
     'aurix_data_backup',         // legacy pre-migration backup
     'aurix_identity',            // identity profile (portfolio-derived)
     'aurix_evolution',           // AI evolution level (portfolio-derived)
+    'aurix_onboarding_completed',// activation flag — clear so onboarding can re-show
+    'aurix_onboarding_step',     // current step in the activation flow
+    'aurix_onboarding_preferences', // language/interests/experience snapshot
   ];
   // Preserve `aurix_data_version` (so the migration IIFE early-returns
   // on next boot and can't accidentally rehydrate via its else branch),
-  // `portfolio_lang`, `portfolio_base_currency`, and `aurix_plan`.
+  // `portfolio_lang` (user preference, not portfolio state),
+  // `portfolio_base_currency`, and `aurix_plan`.
   PORTFOLIO_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+
+  // ONBOARDING-1: notify the engine so its in-memory mirror is cleared
+  // and the next eligibility check returns true again. Engine listens
+  // for 'aurix:reset' and calls clearOnboardingState().
+  try {
+    window.dispatchEvent(new CustomEvent('aurix:reset'));
+  } catch (_) {}
 
   try { assets = []; } catch (_) {}
   try { portfolioHistory = []; } catch (_) {}
@@ -21283,6 +21383,22 @@ async function performAtomicFreshStartReset() {
     // 6. Success toast.
     const isEs = (typeof lang !== 'undefined' && lang === 'es');
     _aurixShowToast(isEs ? 'Cartera reiniciada' : 'Portfolio reset', { variant: 'success' });
+
+    // 7. ONBOARDING-1B §2: reset must feel like a completed clean
+    //    action, NOT shove the user into another modal immediately.
+    //    The portfolio is wiped and the onboarding flag is cleared
+    //    (via 'aurix:reset' → engine.clearOnboardingState), so the
+    //    flow is re-eligible. We only auto-show if the project opts
+    //    in via an explicit window flag — default is OFF so a clean
+    //    empty dashboard is the post-reset experience. The next
+    //    authenticated boot will surface onboarding naturally.
+    if (window.AURIX_SHOW_ONBOARDING_AFTER_RESET === true) {
+      setTimeout(() => {
+        if (typeof window.maybeShowOnboarding === 'function') {
+          window.maybeShowOnboarding();
+        }
+      }, 280);
+    }
     return true;
   } finally {
     _aurixResetInProgress = false;
@@ -21398,5 +21514,283 @@ function exportPortfolioBackup() {
     if (resetOv && resetOv.classList.contains('open'))      { closeResetConfirm();   return; }
     if (settingsOv && settingsOv.classList.contains('open')) { closeSettingsPanel(); return; }
   });
+})();
+
+// ── ONBOARDING-1: activation UI wiring ─────────────────────────────
+// State machine + persistence live in services/onboarding-engine.js.
+// This IIFE only binds DOM → engine and engine → DOM. No state lives here.
+(function _initOnboardingUI() {
+  if (!window.AurixOnboarding) {
+    console.warn('[onboarding] engine not loaded — UI disabled');
+    return;
+  }
+
+  const Eng       = window.AurixOnboarding;
+  const STATES    = Eng.STATES;
+  let pendingLang = null;        // chosen on LANGUAGE step, applied on continue
+  let pendingExp  = null;        // selected experience (UI-only mirror)
+  let awaitingAsset = false;     // ACTIVATION → add-asset → SUCCESS handoff
+  // ONBOARDING-1B §3: only allow ONE auto-return to Activation per
+  // session. If the user closes Add Asset without adding anything we
+  // restore the onboarding modal once; further dismissals leave them
+  // on the dashboard, where Skip + manual reopen remain available.
+  let _activationAddAttempted = false;
+
+  function _ov() { return document.getElementById('onboardingOverlay'); }
+  function _modal() { return document.querySelector('#onboardingOverlay .modal'); }
+
+  function _closeConflictingOverlays() {
+    // Spec §23: ensure no other overlay is sitting under onboarding.
+    [
+      'modalOverlay', 'marketPreviewOverlay', 'globalSearchOverlay',
+      'mktFilterOverlay', 'settingsOverlay', 'resetConfirmOverlay',
+    ].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.classList.contains('open')) el.classList.remove('open');
+    });
+    document.body.classList.remove('modal-open');
+  }
+
+  function _openOnboardingOverlay() {
+    const ov = _ov();
+    if (!ov) return;
+    _closeConflictingOverlays();
+    ov.classList.add('open');
+    ov.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    // Make sure data-step on .modal reflects the engine's truth.
+    const snap = Eng.getSnapshot();
+    if (snap.state && snap.state !== STATES.COMPLETED) {
+      _modal()?.setAttribute('data-step', snap.state);
+    }
+    // Re-apply i18n in case language was switched after initial render.
+    if (typeof applyI18n === 'function') applyI18n();
+    _syncSelectionsFromState();
+  }
+
+  function _hideOnboardingOverlay() {
+    const ov = _ov();
+    if (!ov) return;
+    ov.classList.remove('open');
+    ov.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+  }
+
+  function _syncSelectionsFromState() {
+    const snap = Eng.getSnapshot();
+    // Language cards
+    document.querySelectorAll('[data-onb-lang]').forEach(el => {
+      const sel = (pendingLang || snap.language) === el.dataset.onbLang;
+      el.classList.toggle('is-selected', !!sel);
+    });
+    const langCta = document.getElementById('onbLangContinue');
+    if (langCta) langCta.disabled = !(pendingLang || snap.language);
+
+    // Interests chips
+    const set = new Set(snap.interests || []);
+    document.querySelectorAll('[data-onb-interest]').forEach(el => {
+      el.classList.toggle('is-selected', set.has(el.dataset.onbInterest));
+    });
+
+    // Experience cards
+    document.querySelectorAll('[data-onb-exp]').forEach(el => {
+      el.classList.toggle('is-selected', (pendingExp || snap.experience) === el.dataset.onbExp);
+    });
+  }
+
+  // ── Step navigation handlers ───────────────────────────────────
+  // Language selection
+  document.addEventListener('click', e => {
+    const langBtn = e.target.closest && e.target.closest('[data-onb-lang]');
+    if (langBtn && _ov()?.classList.contains('open')) {
+      pendingLang = langBtn.dataset.onbLang;
+      _syncSelectionsFromState();
+      return;
+    }
+
+    // Language CTA — apply language, advance.
+    const langContinue = e.target.closest && e.target.closest('#onbLangContinue');
+    if (langContinue && _ov()?.classList.contains('open')) {
+      const chosen = pendingLang || Eng.getSnapshot().language;
+      if (!chosen) return;
+      // Apply to the app immediately so subsequent screens render in the
+      // user's chosen language. switchLang already persists portfolio_lang.
+      try {
+        if (typeof switchLang === 'function' && chosen !== lang) switchLang(chosen);
+        else if (typeof applyI18n === 'function') applyI18n();
+      } catch (_) {}
+      Eng.setLanguage(chosen);
+      Eng.nextStep();
+      return;
+    }
+
+    // Interest chip toggle (multi-select)
+    const chip = e.target.closest && e.target.closest('[data-onb-interest]');
+    if (chip && _ov()?.classList.contains('open')) {
+      const snap = Eng.getSnapshot();
+      const key = chip.dataset.onbInterest;
+      const cur = new Set(snap.interests || []);
+      if (cur.has(key)) cur.delete(key); else cur.add(key);
+      Eng.savePreferences({ interests: Array.from(cur) });
+      return;
+    }
+
+    // Experience card (single-select)
+    const expCard = e.target.closest && e.target.closest('[data-onb-exp]');
+    if (expCard && _ov()?.classList.contains('open')) {
+      pendingExp = expCard.dataset.onbExp;
+      Eng.savePreferences({ experience: pendingExp });
+      _syncSelectionsFromState();
+      return;
+    }
+
+    // Generic next / back
+    if (e.target.closest && e.target.closest('[data-onb-next]') && _ov()?.classList.contains('open')) {
+      Eng.nextStep();
+      return;
+    }
+    if (e.target.closest && e.target.closest('[data-onb-back]') && _ov()?.classList.contains('open')) {
+      Eng.previousStep();
+      return;
+    }
+
+    // ACTIVATION CTA — open the existing add-asset modal, leave the
+    // onboarding modal visually hidden but the engine state intact.
+    // The 'aurix:asset-added' listener re-opens onboarding at SUCCESS.
+    if (e.target.closest && e.target.closest('#onbAddAssetBtn') && _ov()?.classList.contains('open')) {
+      // ONBOARDING-1B §3: only the first attempt arms the auto-return
+      // path. Subsequent reopens (e.g. user closed add-asset and pressed
+      // the CTA again manually) do not re-arm — they remain a normal
+      // open, so closing the add-asset modal leaves the user wherever
+      // they choose without a forced loop.
+      awaitingAsset = !_activationAddAttempted;
+      _activationAddAttempted = true;
+      _hideOnboardingOverlay();
+      try {
+        if (typeof openModal === 'function') openModal();
+      } catch (err) {
+        console.warn('[onboarding] failed to open add-asset modal:', err && err.message);
+        awaitingAsset = false;
+        _openOnboardingOverlay();
+      }
+      return;
+    }
+
+    // Skip
+    if (e.target.closest && e.target.closest('#onbSkipBtn') && _ov()?.classList.contains('open')) {
+      Eng.skipOnboarding();
+      _hideOnboardingOverlay();
+      return;
+    }
+  });
+
+  // ── Engine → UI bridge ────────────────────────────────────────
+  window.addEventListener('aurix:onboarding-state', e => {
+    const snap = e && e.detail ? e.detail : Eng.getSnapshot();
+    const modal = _modal();
+    if (modal && snap.state && snap.state !== STATES.COMPLETED) {
+      modal.setAttribute('data-step', snap.state);
+    }
+    _syncSelectionsFromState();
+
+    // SUCCESS → re-open overlay (in case add-asset modal closed it),
+    // then auto-complete after a short reveal so the user sees the
+    // confirmation copy.
+    if (snap.state === STATES.SUCCESS) {
+      awaitingAsset = false;
+      if (!_ov()?.classList.contains('open')) _openOnboardingOverlay();
+      setTimeout(() => {
+        Eng.completeOnboarding();
+        _hideOnboardingOverlay();
+      }, 1100);
+    }
+    if (snap.state === STATES.COMPLETED) {
+      _hideOnboardingOverlay();
+    }
+  });
+
+  // ── Add-asset modal close handoff ─────────────────────────────
+  // If the user opened the add-asset modal from the ACTIVATION step
+  // and then closed it WITHOUT adding anything, restore the onboarding
+  // overlay so they don't get stranded on the dashboard mid-flow.
+  // ONBOARDING-1B §3: `awaitingAsset` is single-use — it's cleared
+  // the moment we observe the add-asset modal close so a second close
+  // (e.g. user reopened add-asset manually) never re-mounts onboarding.
+  const _addAssetOv = document.getElementById('modalOverlay');
+  if (_addAssetOv && typeof MutationObserver !== 'undefined') {
+    const mo = new MutationObserver(() => {
+      if (!awaitingAsset) return;
+      const isOpen = _addAssetOv.classList.contains('open');
+      if (isOpen) return;
+      // Closed. Consume the single-shot guard FIRST so any further
+      // mutations don't re-enter this branch. If the asset-added event
+      // already fired, the engine has moved to SUCCESS and the state
+      // listener owns the reopen — we skip the ACTIVATION restore.
+      awaitingAsset = false;
+      const snap = Eng.getSnapshot();
+      if (snap.state === STATES.ACTIVATION && !snap.completed) {
+        _openOnboardingOverlay();
+      }
+    });
+    mo.observe(_addAssetOv, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // ── Entry point — called from boot after auth + portfolio load ──
+  async function maybeShowOnboarding() {
+    try {
+      // ONBOARDING-1B §6: existing-user guarantee runs BEFORE we even
+      // hydrate — if the portfolio already has assets in localStorage,
+      // mark onboarding complete and bail. We do not show the overlay
+      // even for an instant. shouldShowOnboarding does the same check
+      // later, but doing it here keeps the overlay element from ever
+      // entering the DOM mount path for returning users.
+      const earlyLen = (Array.isArray(window.assets) && window.assets.length) ||
+        (function () {
+          try {
+            const raw = localStorage.getItem('aurix_assets');
+            if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr.length; }
+          } catch (_) {}
+          return 0;
+        })();
+      if (earlyLen > 0) {
+        // Hydrate (so debug helper has truth) then mark complete silently.
+        await Eng.hydrateOnboardingState();
+        if (!Eng.getSnapshot().completed) Eng.completeOnboarding({ silent: true });
+        return;
+      }
+
+      await Eng.hydrateOnboardingState();
+      const user = (typeof currentUser !== 'undefined' && currentUser)
+        ? { authenticated: true, id: currentUser.id }
+        : null;
+      if (!user) return;
+      if (!Eng.shouldShowOnboarding(user, assets)) return;
+
+      // ONBOARDING-1B §5: LANGUAGE is always the first onboarding
+      // screen, even if the app already has a language set. We
+      // preselect the current `lang` so a single Continue tap moves on.
+      const snap = Eng.getSnapshot();
+      const inFlight = snap.state && snap.state !== STATES.NOT_STARTED &&
+                       snap.state !== STATES.COMPLETED;
+      const currentAppLang = (typeof lang === 'string' && lang) ? lang : null;
+      if (!snap.language && currentAppLang) {
+        pendingLang = currentAppLang;
+      } else if (snap.language) {
+        pendingLang = snap.language;
+      }
+
+      if (inFlight) {
+        window._aurixOnboardingInProgress = true;
+        _openOnboardingOverlay();
+      } else {
+        Eng.startOnboarding();
+        _openOnboardingOverlay();
+      }
+    } catch (err) {
+      console.warn('[onboarding] maybe show failed:', err && err.message);
+    }
+  }
+
+  window.maybeShowOnboarding = maybeShowOnboarding;
 })();
 

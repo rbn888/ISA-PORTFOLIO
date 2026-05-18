@@ -854,7 +854,8 @@
   <script src="ai/insightEngine.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=167"></script>
+  <script src="services/onboarding-engine.js?v=1"></script>
+  <script src="app.js?v=168"></script>
   <script src="services/prices.js"></script>
   <script src="services/history.js"></script>
   <script src="aurora-bg.js"></script>
@@ -1096,6 +1097,117 @@
       </section>
 
     </div>
+  </div>
+</div>
+
+<!-- ONBOARDING-1: activation overlay. Dedicated chrome — does NOT reuse
+     #modalOverlay (which is the add-asset modal). State machine and
+     persistence live in services/onboarding-engine.js; UI wiring lives
+     in app.js (see _initOnboardingUI). -->
+<div class="modal-overlay onboarding-overlay" id="onboardingOverlay" aria-hidden="true">
+  <div class="modal modal--onboarding" role="dialog" aria-modal="true" aria-labelledby="onbTitle" data-step="LANGUAGE">
+    <div class="onb-progress" id="onbProgress" aria-hidden="true">
+      <span class="onb-progress-dot" data-step="LANGUAGE"></span>
+      <span class="onb-progress-dot" data-step="WELCOME"></span>
+      <span class="onb-progress-dot" data-step="INTERESTS"></span>
+      <span class="onb-progress-dot" data-step="EXPERIENCE"></span>
+      <span class="onb-progress-dot" data-step="ACTIVATION"></span>
+    </div>
+    <button type="button" class="onb-skip" id="onbSkipBtn" data-i18n="onbSkip">Saltar</button>
+
+    <!-- Step: LANGUAGE — first screen always. No localised copy: bilingual. -->
+    <section class="onb-step" data-onb-step="LANGUAGE">
+      <h2 id="onbTitle" class="onb-headline">
+        <span class="onb-headline-line">Selecciona tu idioma</span>
+        <span class="onb-headline-line onb-headline-line--alt">Choose your language</span>
+      </h2>
+      <div class="onb-lang-grid">
+        <button type="button" class="onb-lang-card" data-onb-lang="es">
+          <span class="onb-lang-name">Español</span>
+          <span class="onb-lang-native">ES</span>
+        </button>
+        <button type="button" class="onb-lang-card" data-onb-lang="en">
+          <span class="onb-lang-name">English</span>
+          <span class="onb-lang-native">EN</span>
+        </button>
+      </div>
+      <div class="onb-footer">
+        <button type="button" class="onb-cta onb-cta--primary" id="onbLangContinue" disabled data-i18n="onbContinue">Continuar</button>
+      </div>
+    </section>
+
+    <!-- Step: WELCOME -->
+    <section class="onb-step" data-onb-step="WELCOME">
+      <h2 class="onb-headline" data-i18n="onbWelcomeTitle">Bienvenido a Aurix.</h2>
+      <p class="onb-sub" data-i18n="onbWelcomeSub">Todo tu patrimonio, en un solo lugar.</p>
+      <div class="onb-footer">
+        <button type="button" class="onb-cta onb-cta--primary" data-onb-next data-i18n="onbContinue">Continuar</button>
+      </div>
+    </section>
+
+    <!-- Step: INTERESTS -->
+    <section class="onb-step" data-onb-step="INTERESTS">
+      <h2 class="onb-headline" data-i18n="onbInterestsTitle">¿Qué te interesa seguir?</h2>
+      <p class="onb-sub" data-i18n="onbInterestsSub">Opcional. Nos ayuda a personalizar tu experiencia.</p>
+      <div class="onb-chip-grid" id="onbInterestsGrid">
+        <button type="button" class="onb-chip" data-onb-interest="stocks"      data-i18n="onbAssetStocks">Acciones</button>
+        <button type="button" class="onb-chip" data-onb-interest="crypto"      data-i18n="onbAssetCrypto">Cripto</button>
+        <button type="button" class="onb-chip" data-onb-interest="etf"         data-i18n="onbAssetEtf">ETFs</button>
+        <button type="button" class="onb-chip" data-onb-interest="metal"       data-i18n="onbAssetGold">Oro</button>
+        <button type="button" class="onb-chip" data-onb-interest="cash"        data-i18n="onbAssetCash">Efectivo</button>
+        <button type="button" class="onb-chip" data-onb-interest="real_estate" data-i18n="onbAssetRe">Inmuebles</button>
+      </div>
+      <div class="onb-footer onb-footer--split">
+        <button type="button" class="onb-cta onb-cta--ghost" data-onb-back data-i18n="onbBack">Atrás</button>
+        <button type="button" class="onb-cta onb-cta--primary" data-onb-next data-i18n="onbContinue">Continuar</button>
+      </div>
+    </section>
+
+    <!-- Step: EXPERIENCE -->
+    <section class="onb-step" data-onb-step="EXPERIENCE">
+      <h2 class="onb-headline" data-i18n="onbExpTitle">¿Cómo te describirías?</h2>
+      <p class="onb-sub" data-i18n="onbExpSub">Opcional. Adaptaremos el detalle a tu nivel.</p>
+      <div class="onb-exp-grid">
+        <button type="button" class="onb-exp-card" data-onb-exp="beginner">
+          <span class="onb-exp-name" data-i18n="onbExpBeginner">Principiante</span>
+          <span class="onb-exp-desc" data-i18n="onbExpBeginnerDesc">Estoy empezando</span>
+        </button>
+        <button type="button" class="onb-exp-card" data-onb-exp="active">
+          <span class="onb-exp-name" data-i18n="onbExpActive">Inversor activo</span>
+          <span class="onb-exp-desc" data-i18n="onbExpActiveDesc">Invierto con regularidad</span>
+        </button>
+        <button type="button" class="onb-exp-card" data-onb-exp="advanced">
+          <span class="onb-exp-name" data-i18n="onbExpAdvanced">Avanzado</span>
+          <span class="onb-exp-desc" data-i18n="onbExpAdvancedDesc">Conozco los mercados</span>
+        </button>
+      </div>
+      <div class="onb-footer onb-footer--split">
+        <button type="button" class="onb-cta onb-cta--ghost" data-onb-back data-i18n="onbBack">Atrás</button>
+        <button type="button" class="onb-cta onb-cta--primary" data-onb-next data-i18n="onbContinue">Continuar</button>
+      </div>
+    </section>
+
+    <!-- Step: ACTIVATION — first asset add -->
+    <section class="onb-step" data-onb-step="ACTIVATION">
+      <h2 class="onb-headline" data-i18n="onbActTitle">Añade tu primer activo</h2>
+      <p class="onb-sub" data-i18n="onbActSub">Empieza a construir tu visión financiera.</p>
+      <div class="onb-activation-art" aria-hidden="true">
+        <span class="onb-activation-icon">+</span>
+      </div>
+      <div class="onb-footer onb-footer--split">
+        <button type="button" class="onb-cta onb-cta--ghost" data-onb-back data-i18n="onbBack">Atrás</button>
+        <button type="button" class="onb-cta onb-cta--primary" id="onbAddAssetBtn" data-i18n="onbAddAssetBtn">+ Añadir activo</button>
+      </div>
+    </section>
+
+    <!-- Step: SUCCESS -->
+    <section class="onb-step" data-onb-step="SUCCESS">
+      <div class="onb-success-art" aria-hidden="true">
+        <span class="onb-success-icon">✓</span>
+      </div>
+      <h2 class="onb-headline" data-i18n="onbSuccessTitle">Perfecto.</h2>
+      <p class="onb-sub" data-i18n="onbSuccessSub">Tu portfolio ha comenzado.</p>
+    </section>
   </div>
 </div>
 
