@@ -965,6 +965,26 @@ const T = {
     onbAddAssetBtn:       '+ Añadir activo',
     onbSuccessTitle:      'Perfecto.',
     onbSuccessSub:        'Tu portfolio ha comenzado.',
+    // ── Premium empty / activation states ────────────
+    emptyHeroTitle:       'Tu portfolio está listo para empezar.',
+    emptyHeroBody:        'Añade tu primer activo para construir tu visión financiera.',
+    emptyCtaPrimary:      '+ Añadir primer activo',
+    emptyCtaSecondary:    'Explorar mercado',
+    emptyAssetCount:      'Sin activos todavía',
+    emptyPerf:            'Esperando tu primer activo',
+    emptyDonutLabel:      'Sin activos',
+    emptyDonutSub:        'Añade tu primer activo',
+    emptyChartTitle:      'Tu evolución aparecerá aquí',
+    emptyChartBody:       'cuando añadas activos.',
+    emptyCatSub:          'Sin asignación todavía',
+    emptyActivationTitle: 'Empieza tu portfolio',
+    emptyActivationBody:  'Añade acciones, cripto, ETFs, oro o efectivo.',
+    emptyQuickStart:      'Empieza con',
+    emptyChipBtc:         'Bitcoin',
+    emptyChipAapl:        'Apple',
+    emptyChipSpy:         'SPY ETF',
+    emptyChipCash:        'Efectivo',
+    emptyChipGold:        'Oro',
   },
   en: {
     // Summary
@@ -1611,6 +1631,26 @@ const T = {
     onbAddAssetBtn:       '+ Add asset',
     onbSuccessTitle:      'Great.',
     onbSuccessSub:        'Your portfolio has started.',
+    // ── Premium empty / activation states ────────────
+    emptyHeroTitle:       'Your portfolio is ready to begin.',
+    emptyHeroBody:        'Add your first asset to start building your financial view.',
+    emptyCtaPrimary:      '+ Add first asset',
+    emptyCtaSecondary:    'Explore market',
+    emptyAssetCount:      'No assets yet',
+    emptyPerf:            'Waiting for your first asset',
+    emptyDonutLabel:      'No assets',
+    emptyDonutSub:        'Add your first asset',
+    emptyChartTitle:      'Your portfolio evolution will appear here',
+    emptyChartBody:       'once you add assets.',
+    emptyCatSub:          'No allocation yet',
+    emptyActivationTitle: 'Start your portfolio',
+    emptyActivationBody:  'Add stocks, crypto, ETFs, gold or cash.',
+    emptyQuickStart:      'Start with',
+    emptyChipBtc:         'Bitcoin',
+    emptyChipAapl:        'Apple',
+    emptyChipSpy:         'SPY ETF',
+    emptyChipCash:        'Cash',
+    emptyChipGold:        'Gold',
   },
 };
 
@@ -7859,10 +7899,43 @@ function updateDonut() {
   _donutHoverIdx = -1;
 
   if (!dist || dist.length === 0) {
-    distributionSectionEl.style.display = 'none';
+    // AURIX-EMPTY-1: ghost-ring placeholder instead of collapsing the
+    // section. Preserves the donut footprint, surfaces the "no assets"
+    // copy as the center label, and clears the legend. The ring colour
+    // is a neutral surface tone — never red / warning.
+    distributionSectionEl.style.display = '';
+    distributionSectionEl.classList.add('distribution-section--empty');
+    if (distributionLegendEl) distributionLegendEl.innerHTML = '';
+    const _mLegend = document.getElementById('distributionLegendMobile');
+    if (_mLegend) _mLegend.innerHTML = '';
+    if (donutCenterValEl) donutCenterValEl.textContent = t('emptyDonutLabel');
+    if (donutCenterSubEl) donutCenterSubEl.textContent = t('emptyDonutSub');
+    const _mCenterVal = document.getElementById('donutCenterValMobile');
+    const _mCenterSub = document.getElementById('donutCenterSubMobile');
+    if (_mCenterVal) _mCenterVal.textContent = t('emptyDonutLabel');
+    if (_mCenterSub) _mCenterSub.textContent = t('emptyDonutSub');
+    const _ghost      = ['rgba(255,255,255,0.06)'];
+    const _ghostHover = ['rgba(255,255,255,0.10)'];
+    if (donutChart) {
+      donutChart.data.labels                            = [t('emptyDonutLabel')];
+      donutChart.data.datasets[0].data                  = [100];
+      donutChart.data.datasets[0].backgroundColor       = _ghost;
+      donutChart.data.datasets[0].hoverBackgroundColor  = _ghostHover;
+      donutChart.update('none');
+    }
+    if (donutChartMobile) {
+      donutChartMobile.data.labels                            = [t('emptyDonutLabel')];
+      donutChartMobile.data.datasets[0].data                  = [100];
+      donutChartMobile.data.datasets[0].backgroundColor       = _ghost;
+      donutChartMobile.data.datasets[0].hoverBackgroundColor  = _ghostHover;
+      donutChartMobile.update('none');
+    }
     updateCategoryCards();
     return;
   }
+
+  // Live data path — clear empty-mode marker if it was set previously.
+  distributionSectionEl.classList.remove('distribution-section--empty');
 
   if (distributionSectionEl.style.display === 'none' || !distributionSectionEl.dataset.entered) {
     distributionSectionEl.dataset.entered = '1';
@@ -10644,7 +10717,7 @@ function updateCategoryCards() {
           <span class="cat-card-name">${m.label}</span>
         </div>
         <span class="cat-card-value" data-target="${isEmpty ? '' : dist.valueBase}">${isEmpty ? '—' : formatBase(dist.valueBase)}</span>
-        <span class="cat-card-pct">${isEmpty ? '0.0%' : dist.pct.toFixed(1) + '%'}</span>
+        <span class="cat-card-pct">${isEmpty ? t('emptyCatSub') : dist.pct.toFixed(1) + '%'}</span>
         ${rentLineHtml}
         ${hint}
       </div>
@@ -14513,6 +14586,27 @@ function render(animate = false) {
   countUpTotalValue(totalValueBase());
   updatePerformance();
   assetCountEl.textContent = t('assetCount')(assets.length);
+
+  // AURIX-EMPTY-1: hero empty mode. Single source of truth: assets.length.
+  // Applied AFTER the regular value updates so the premium copy is the
+  // last write — never raced by countUp / updatePerformance. The class
+  // toggle is the contract every dependent CSS rule listens to.
+  const _dashEmpty  = assets.length === 0;
+  const _dashTopEl  = document.querySelector('.dashboard-top');
+  if (_dashTopEl) _dashTopEl.classList.toggle('is-empty', _dashEmpty && !activeCategory);
+  if (_dashEmpty && !activeCategory) {
+    if (totalValueEl) {
+      totalValueEl.textContent = '—';
+      totalValueEl.classList.remove('skeleton');
+      totalValueEl.classList.remove('summary-total--compact');
+    }
+    if (assetCountEl)   assetCountEl.textContent = t('emptyAssetCount');
+    if (summaryPerfEl) {
+      summaryPerfEl.textContent = t('emptyPerf');
+      summaryPerfEl.className   = 'summary-perf';
+      summaryPerfEl.style.display = '';
+    }
+  }
 
   // Update section header: show category name + back button, or the normal title
   const assetsTitleEl    = document.getElementById('assetsSectionTitle');
@@ -21376,6 +21470,13 @@ async function performAtomicFreshStartReset() {
     try { if (typeof recomputeDerivedFinancialState === 'function') recomputeDerivedFinancialState('reset-frame2'); } catch (_) {}
     try { if (typeof render === 'function') render(); } catch (_) {}
 
+    // AURIX-EMPTY-1: render() owns the hero + asset-list empty state,
+    // but the donut + category grid + chart placeholder are driven by
+    // onPortfolioChange. Without this call the ghost ring + new
+    // empty-mode copy would only appear on the next price-tick, leaving
+    // a brief stale frame after reset.
+    try { if (typeof onPortfolioChange === 'function') onPortfolioChange(false); } catch (_) {}
+
     // 5. After the render commits, let the chart engine settle its
     //    layout (resize observers / dvh changes) on the next frame.
     await new Promise(r => requestAnimationFrame(() => r()));
@@ -21792,5 +21893,72 @@ function exportPortfolioBackup() {
   }
 
   window.maybeShowOnboarding = maybeShowOnboarding;
+})();
+
+// ── AURIX-EMPTY-1: activation card + quick-chip wiring ─────────────
+// Pure event delegation — no engine, no state, no observers. Mounts
+// on the document so it survives every re-render of #assetsList.
+(function _initEmptyActivationWiring() {
+  function _prefillAddAsset(query, filter) {
+    if (typeof openModal !== 'function') return;
+    // skipPicker lands us directly on the form (search + filter chips)
+    // so the prefill below applies on a visible search input.
+    openModal({ skipPicker: true });
+    setTimeout(() => {
+      if (filter) {
+        const filterBtn = document.querySelector(`#modalOverlay .filter-btn[data-filter="${filter}"]`);
+        if (filterBtn) filterBtn.click();
+      }
+      const inp = document.getElementById('assetSearch');
+      if (inp && query) {
+        inp.value = query;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        try { inp.focus(); } catch (_) {}
+      }
+    }, 90);
+  }
+
+  function _openMarketTab() {
+    if (typeof switchTab === 'function') {
+      switchTab('market');
+      return;
+    }
+    // Fallback: dispatch a click on the bottom-nav market tab.
+    const tab = document.querySelector('#bottomNav [data-tab="market"]');
+    if (tab) tab.click();
+  }
+
+  function _handleChip(kind) {
+    switch (kind) {
+      case 'btc':  _prefillAddAsset('bitcoin', 'crypto'); break;
+      case 'aapl': _prefillAddAsset('AAPL',    'stock');  break;
+      case 'spy':  _prefillAddAsset('SPY',     'etf');    break;
+      case 'gold': _prefillAddAsset('gold',    'metal');  break;
+      case 'cash':
+        if (typeof openLiquidityModal === 'function') openLiquidityModal();
+        break;
+    }
+  }
+
+  document.addEventListener('click', e => {
+    // Activation card CTAs.
+    const action = e.target.closest && e.target.closest('[data-empty-action]');
+    if (action) {
+      const a = action.dataset.emptyAction;
+      if (a === 'add-asset') {
+        if (typeof openModal === 'function') openModal();
+        return;
+      }
+      if (a === 'explore-market') {
+        _openMarketTab();
+        return;
+      }
+    }
+    // Quick-start chips.
+    const chip = e.target.closest && e.target.closest('[data-empty-chip]');
+    if (chip) {
+      _handleChip(chip.dataset.emptyChip);
+    }
+  });
 })();
 

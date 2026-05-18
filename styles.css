@@ -13541,3 +13541,260 @@ body.gs-open { overflow: hidden; }
   .onb-cta, .onb-chip, .onb-lang-card, .onb-exp-card,
   .onb-progress-dot { transition: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   AURIX-EMPTY-1 — premium activation states.
+   Driven by JS via the `is-empty` class on .dashboard-top + canonical
+   empty-state nodes (.empty-state--activation, .cat-card--empty,
+   .distribution-section--empty, .chart-no-data multi-line).
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Hero empty mode (.dashboard-top.is-empty) ── */
+.dashboard-top.is-empty .summary-total {
+  color: rgba(255, 255, 255, 0.40);
+  font-feature-settings: 'tnum' on;
+  letter-spacing: -0.02em;
+}
+.dashboard-top.is-empty .summary-perf {
+  display: inline-block !important;
+  background: rgba(74, 130, 240, 0.10);
+  color: rgba(180, 200, 240, 0.85);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(74, 130, 240, 0.22);
+  letter-spacing: 0.005em;
+}
+.dashboard-top.is-empty #assetCount {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+}
+.dashboard-top.is-empty .btn-summary-action.btn-primary {
+  /* Slightly amplify the primary CTA when the portfolio is empty so
+     the first action is unambiguous. No color change — premium feel. */
+  box-shadow:
+    0 8px 22px -8px rgba(74, 130, 240, 0.55),
+    0 0 0 1px rgba(74, 130, 240, 0.10) inset;
+}
+
+/* ── Chart no-data: premium two-line copy ──
+   Note: the base `.chart-no-data` rule (position:absolute; inset:0;
+   flex centred) lives near the top of this file. Here we only OVERRIDE
+   the flex direction (so the two-line copy stacks vertically) and add
+   the per-span typography. Positioning + interaction props are
+   inherited from the base rule. */
+.chart-no-data {
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+.chart-no-data-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: -0.005em;
+}
+.chart-no-data-body {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.42);
+  font-weight: 500;
+}
+
+/* ── Donut ghost ring (empty state) ── */
+.distribution-section--empty .legend-item { display: none; }
+.distribution-section--empty .distribution-legend::before {
+  content: '';
+  display: block;
+  height: 1px;
+}
+.distribution-section--empty .donut-center-val {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.distribution-section--empty .donut-center-sub {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+  text-transform: none;
+}
+
+/* ── Category cards empty subline ── */
+.cat-card--empty .cat-card-pct {
+  font-size: 11.5px !important;
+  color: rgba(255, 255, 255, 0.36) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.005em !important;
+  text-transform: none !important;
+}
+.cat-card--empty .cat-card-value {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* ── Activation card (replaces the bare .empty-state line) ── */
+.empty-state--activation {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 48px 28px 36px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(40, 80, 150, 0.10) 0%, rgba(12, 18, 32, 0.0) 60%),
+    rgba(16, 22, 36, 0.62);
+  border: 1px solid rgba(138, 166, 255, 0.10);
+  overflow: hidden;
+  box-shadow:
+    0 24px 60px -28px rgba(0, 0, 0, 0.70),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  animation: empty-fade-in .42s var(--ease-premium);
+}
+@keyframes empty-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.empty-state-aurora {
+  position: absolute;
+  top: -80px; left: 50%;
+  transform: translateX(-50%);
+  width: 320px; height: 220px;
+  pointer-events: none;
+  z-index: 0;
+}
+.empty-state-orb {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(closest-side, rgba(74, 130, 240, 0.28), rgba(74, 130, 240, 0.0) 72%);
+  filter: blur(2px);
+}
+.empty-state-title,
+.empty-state-body,
+.empty-state-actions,
+.empty-state-quickstart {
+  position: relative;
+  z-index: 1;
+}
+.empty-state-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: #fff;
+  margin: 0;
+}
+.empty-state-body {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 400;
+  max-width: 420px;
+  line-height: 1.5;
+  margin: 0;
+}
+.empty-state-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+.empty-cta {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 11px 18px;
+  cursor: pointer;
+  transition: transform .12s var(--ease-out), background .18s var(--ease-out),
+              filter .18s var(--ease-out), opacity .18s var(--ease-out);
+  min-height: 42px;
+}
+.empty-cta--primary {
+  background: linear-gradient(180deg, #5a9cff 0%, #3a7be8 100%);
+  color: #fff;
+  box-shadow:
+    0 6px 18px -6px rgba(74, 130, 240, 0.50),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.empty-cta--primary:hover { filter: brightness(1.06); }
+.empty-cta--primary:active { transform: scale(0.985); }
+.empty-cta--secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+.empty-cta--secondary:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.empty-cta--secondary:active { transform: scale(0.985); }
+
+.empty-state-quickstart {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.empty-state-quickstart-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+.empty-state-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 480px;
+}
+.empty-chip {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.80);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.003em;
+  cursor: pointer;
+  transition: background .16s var(--ease-out), border-color .16s var(--ease-out),
+              color .16s var(--ease-out), transform .12s var(--ease-out);
+}
+.empty-chip:hover {
+  background: rgba(74, 130, 240, 0.10);
+  border-color: rgba(74, 130, 240, 0.36);
+  color: #fff;
+}
+.empty-chip:active { transform: scale(0.96); }
+
+/* Hide the legacy bare-empty .empty-icon if it ever renders. */
+.empty-state--activation .empty-icon { display: none; }
+
+/* Mobile — keep activation card readable, no horizontal overflow,
+   buttons stack but stay touch-friendly. The system bottom-nav
+   clearance is already applied at the layout level. */
+@media (max-width: 520px) {
+  .empty-state--activation {
+    padding: 38px 18px 28px;
+    border-radius: 20px;
+  }
+  .empty-state-title { font-size: 18px; }
+  .empty-state-body  { font-size: 13.5px; }
+  .empty-state-actions { width: 100%; flex-direction: column; }
+  .empty-cta { width: 100%; }
+  .empty-state-chips { gap: 6px; }
+  .empty-chip { padding: 6px 12px; font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state--activation { animation: none; }
+  .empty-cta, .empty-chip { transition: none; }
+}

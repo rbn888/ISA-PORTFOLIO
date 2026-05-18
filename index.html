@@ -130,7 +130,10 @@
           </div>
           <div class="chart-wrap">
             <canvas id="portfolioChart"></canvas>
-            <div class="chart-no-data" id="chartNoData" data-i18n="chartNoData">Añade activos para ver la evolución</div>
+            <div class="chart-no-data" id="chartNoData">
+              <span class="chart-no-data-title" data-i18n="emptyChartTitle">Tu evolución aparecerá aquí</span>
+              <span class="chart-no-data-body"  data-i18n="emptyChartBody">cuando añadas activos.</span>
+            </div>
             <div class="chart-tooltip" id="chartTooltip">
               <div class="chart-tooltip-time"></div>
               <div class="chart-tooltip-val"></div>
@@ -192,7 +195,10 @@
             </div>
             <div class="chart-wrap mobile-chart-wrap">
               <canvas id="portfolioChartMobile"></canvas>
-              <div class="chart-no-data" id="chartNoDataMobile" data-i18n="chartNoData">Añade activos para ver la evolución</div>
+              <div class="chart-no-data" id="chartNoDataMobile">
+                <span class="chart-no-data-title" data-i18n="emptyChartTitle">Tu evolución aparecerá aquí</span>
+                <span class="chart-no-data-body"  data-i18n="emptyChartBody">cuando añadas activos.</span>
+              </div>
             </div>
           </div>
 
@@ -237,10 +243,29 @@
         </div>
 
         <div class="assets-list" id="assetsList">
-          <div class="empty-state" id="emptyState">
-            <div class="empty-icon">◇</div>
-            <p data-i18n="emptyTitle">No tienes activos todavía.</p>
-            <p class="empty-sub" data-i18n="emptySub">Pulsa "Añadir activo" para comenzar.</p>
+          <!-- AURIX-EMPTY-1: premium activation card. Replaces the bare
+               “no assets” line with a guided first-action block. JS
+               binds clicks below — no duplicated add logic. -->
+          <div class="empty-state empty-state--activation" id="emptyState">
+            <div class="empty-state-aurora" aria-hidden="true">
+              <div class="empty-state-orb"></div>
+            </div>
+            <h3 class="empty-state-title" data-i18n="emptyActivationTitle">Empieza tu portfolio</h3>
+            <p class="empty-state-body" data-i18n="emptyActivationBody">Añade acciones, cripto, ETFs, oro o efectivo.</p>
+            <div class="empty-state-actions">
+              <button type="button" class="empty-cta empty-cta--primary" data-empty-action="add-asset" data-i18n="emptyCtaPrimary">+ Añadir primer activo</button>
+              <button type="button" class="empty-cta empty-cta--secondary" data-empty-action="explore-market" data-i18n="emptyCtaSecondary">Explorar mercado</button>
+            </div>
+            <div class="empty-state-quickstart">
+              <span class="empty-state-quickstart-label" data-i18n="emptyQuickStart">Empieza con</span>
+              <div class="empty-state-chips">
+                <button type="button" class="empty-chip" data-empty-chip="btc"  data-i18n="emptyChipBtc">Bitcoin</button>
+                <button type="button" class="empty-chip" data-empty-chip="aapl" data-i18n="emptyChipAapl">Apple</button>
+                <button type="button" class="empty-chip" data-empty-chip="spy"  data-i18n="emptyChipSpy">SPY ETF</button>
+                <button type="button" class="empty-chip" data-empty-chip="cash" data-i18n="emptyChipCash">Efectivo</button>
+                <button type="button" class="empty-chip" data-empty-chip="gold" data-i18n="emptyChipGold">Oro</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
