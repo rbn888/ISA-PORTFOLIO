@@ -985,6 +985,10 @@ const T = {
     emptyChipSpy:         'SPY ETF',
     emptyChipCash:        'Efectivo',
     emptyChipGold:        'Oro',
+    // ── First asset add flow ─────────────────────────
+    modalAddTitleFirst:   'Añade tu primer activo',
+    modalAddSubFirst:     'Empieza creando la base de tu portfolio.',
+    firstAssetToast:      'Perfecto — tu portfolio ha empezado.',
   },
   en: {
     // Summary
@@ -1651,6 +1655,10 @@ const T = {
     emptyChipSpy:         'SPY ETF',
     emptyChipCash:        'Cash',
     emptyChipGold:        'Gold',
+    // ── First asset add flow ─────────────────────────
+    modalAddTitleFirst:   'Add your first asset',
+    modalAddSubFirst:     'Start building your portfolio foundation.',
+    firstAssetToast:      'Great — your portfolio has started.',
   },
 };
 
@@ -2164,10 +2172,22 @@ function save() {
     // trigger the SUCCESS step; the engine is idempotent.
     try {
       const curLen = Array.isArray(assets) ? assets.length : 0;
+      const wasEmpty = (_aurixPrevAssetCount === 0);
       if (curLen > _aurixPrevAssetCount) {
         window.dispatchEvent(new CustomEvent('aurix:asset-added', {
           detail: { count: curLen, prev: _aurixPrevAssetCount }
         }));
+        // AURIX-ACTIVATION-2: premium first-asset moment. Only fires
+        // on the true 0 → ≥1 transition so a second add never replays
+        // the celebration. Toast reuses the existing _aurixShowToast
+        // helper (mobile safe-area aware, auto-dismiss). The onboarding
+        // engine owns its own SUCCESS reveal — when in-progress, we
+        // defer to it so we don't stack two celebrations.
+        if (wasEmpty && curLen >= 1 &&
+            typeof _aurixShowToast === 'function' &&
+            !window._aurixOnboardingInProgress) {
+          _aurixShowToast(t('firstAssetToast'), { variant: 'success', duration: 2600 });
+        }
       }
       _aurixPrevAssetCount = curLen;
     } catch (_) {}
@@ -16056,6 +16076,35 @@ function resetISINInput() {
   if (isManualMode) exitManualMode();
 }
 
+// AURIX-ACTIVATION-2: tracked across openModal / closeModal so the
+// header copy and the post-save toast both know whether the current
+// modal session is the user's first ever asset.
+let _firstAssetMode = false;
+
+function _applyFirstAssetModalCopy(firstMode) {
+  // Title swap — h3 inside the modal header. The HTML still carries
+  // `data-i18n="modalAddTitle"`, so the next applyI18n() pass would
+  // overwrite this; that's fine because applyI18n only fires on
+  // language switches (not on modal open) and modal closes clear the
+  // mode anyway. If applyI18n races us, the user simply sees the
+  // generic title — never a broken state.
+  const modalTitle = document.querySelector('#modalOverlay .modal-header h3');
+  const subEl      = document.getElementById('addV2HeaderSub');
+  if (firstMode) {
+    if (modalTitle) modalTitle.textContent = t('modalAddTitleFirst');
+    if (subEl) {
+      subEl.textContent = t('modalAddSubFirst');
+      subEl.hidden = false;
+    }
+  } else {
+    if (modalTitle) modalTitle.textContent = t('modalAddTitle');
+    if (subEl) {
+      subEl.textContent = '';
+      subEl.hidden = true;
+    }
+  }
+}
+
 function openModal(opts) {
   // ADD-V2.1: optional Step-1 type picker. Default = show picker.
   // Internal callers that need to skip the picker (edit-RE, category
@@ -16067,6 +16116,12 @@ function openModal(opts) {
     _modalEl.dataset.step       = skipPicker ? 'form' : 'picker';
     _modalEl.dataset.fromPicker = skipPicker ? '0'    : '1';
   }
+  // AURIX-ACTIVATION-2: arm first-asset mode based on the canonical
+  // source of truth (assets.length). Applied once per open — the post-
+  // save toast still gates on the 0→1+ transition independently so a
+  // user editing an existing asset never triggers the success copy.
+  _firstAssetMode = (Array.isArray(assets) && assets.length === 0);
+  _applyFirstAssetModalCopy(_firstAssetMode);
   assetForm.reset();
   previewTotal.textContent = formatBase(0);
 
@@ -16138,9 +16193,10 @@ function openModal(opts) {
   filterBtns.forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
 
   searchInput.placeholder = T[lang].searchPH.all;
-  // Reset modal title in case it was changed for edit mode
-  const modalTitle = document.querySelector('#modalOverlay .modal-header h3');
-  if (modalTitle) modalTitle.textContent = t('modalAddTitle');
+  // AURIX-ACTIVATION-2: re-apply the modal header (title + subtitle).
+  // Edit mode and a previous open may have left either in a stale
+  // state, so the helper writes the right copy based on _firstAssetMode.
+  _applyFirstAssetModalCopy(_firstAssetMode);
   // Collapse the mobile ISIN section + refresh the empty hint on every open.
   if (typeof _setIsinRevealed === 'function') _setIsinRevealed(false);
   if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
@@ -16156,6 +16212,12 @@ function closeModal() {
   clearTimeout(searchDebounceTimer);
   if (searchAbortCtrl) { searchAbortCtrl.abort(); searchAbortCtrl = null; }
   closeSuggestions();
+  // AURIX-ACTIVATION-2: clear the first-asset flag and restore the
+  // generic header copy so the next open starts from a clean state
+  // even when re-opened with assets still empty (the flag is re-armed
+  // inside openModal anyway).
+  _firstAssetMode = false;
+  _applyFirstAssetModalCopy(false);
 }
 
 // ADD-V4.2 hotfix: ISIN advanced is only meaningful for traditional
@@ -21895,27 +21957,38 @@ function exportPortfolioBackup() {
   window.maybeShowOnboarding = maybeShowOnboarding;
 })();
 
-// ── AURIX-EMPTY-1: activation card + quick-chip wiring ─────────────
+// ── AURIX-EMPTY-1 / ACTIVATION-2: activation card + quick-chip wiring ──
 // Pure event delegation — no engine, no state, no observers. Mounts
 // on the document so it survives every re-render of #assetsList.
 (function _initEmptyActivationWiring() {
-  function _prefillAddAsset(query, filter) {
-    if (typeof openModal !== 'function') return;
-    // skipPicker lands us directly on the form (search + filter chips)
-    // so the prefill below applies on a visible search input.
+  // AURIX-ACTIVATION-2: hand-curated entries so each quick chip can
+  // call selectAsset() directly and skip the search round-trip. The
+  // shape matches what the search suggestions return — selectAsset
+  // resolves the live price via the existing provider chain.
+  const QUICK_ENTRIES = {
+    btc:  { ticker: 'BTC',  name: 'Bitcoin',                type: 'crypto', coinId: 'bitcoin' },
+    aapl: { ticker: 'AAPL', name: 'Apple Inc.',             type: 'stock',  marketSymbol: 'AAPL' },
+    spy:  { ticker: 'SPY',  name: 'SPDR S&P 500 ETF Trust', type: 'etf',    marketSymbol: 'SPY' },
+    gold: { ticker: 'XAU',  name: 'Gold',                   type: 'metal',  marketSymbol: 'GC=F' },
+  };
+
+  function _quickAdd(kind) {
+    if (kind === 'cash') {
+      if (typeof openLiquidityModal === 'function') openLiquidityModal();
+      return;
+    }
+    const entry = QUICK_ENTRIES[kind];
+    if (!entry || typeof openModal !== 'function') return;
+    // skipPicker lands directly on the form so selectAsset can mount
+    // the qty/preview controls. Defer the call one tick so the modal's
+    // own reset routine finishes before we paint the chip + price.
     openModal({ skipPicker: true });
     setTimeout(() => {
-      if (filter) {
-        const filterBtn = document.querySelector(`#modalOverlay .filter-btn[data-filter="${filter}"]`);
-        if (filterBtn) filterBtn.click();
+      if (typeof selectAsset === 'function') {
+        try { selectAsset(entry); }
+        catch (e) { console.warn('[quick-add]', e && e.message); }
       }
-      const inp = document.getElementById('assetSearch');
-      if (inp && query) {
-        inp.value = query;
-        inp.dispatchEvent(new Event('input', { bubbles: true }));
-        try { inp.focus(); } catch (_) {}
-      }
-    }, 90);
+    }, 60);
   }
 
   function _openMarketTab() {
@@ -21929,15 +22002,7 @@ function exportPortfolioBackup() {
   }
 
   function _handleChip(kind) {
-    switch (kind) {
-      case 'btc':  _prefillAddAsset('bitcoin', 'crypto'); break;
-      case 'aapl': _prefillAddAsset('AAPL',    'stock');  break;
-      case 'spy':  _prefillAddAsset('SPY',     'etf');    break;
-      case 'gold': _prefillAddAsset('gold',    'metal');  break;
-      case 'cash':
-        if (typeof openLiquidityModal === 'function') openLiquidityModal();
-        break;
-    }
+    _quickAdd(kind);
   }
 
   document.addEventListener('click', e => {
