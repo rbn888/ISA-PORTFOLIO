@@ -388,6 +388,7 @@ const T = {
       stock: 'Buscar Apple, Tesla, NVIDIA…',
       etf: 'Buscar SPY, IWDA, Vanguard…',
       metal: 'Buscar Oro, Plata…',
+      real_estate: 'Describe el inmueble por tipo o ubicación…',
     },
     noResults:       q => `Sin resultados para "${q}"`,
     // Price lookup
@@ -409,8 +410,6 @@ const T = {
     addV2_picker_sub:          'Elige el tipo para empezar.',
     addV2_pick_asset_title:    'Activo financiero',
     addV2_pick_asset_sub:      'Acciones, ETFs, fondos, cripto, índices',
-    addV2_pick_liquidity_title:'Liquidez',
-    addV2_pick_liquidity_sub:  'Saldos en efectivo en EUR, USD…',
     addV2_pick_gold_title:     'Oro físico',
     addV2_pick_gold_sub:       'Joyería, lingotes o monedas por peso y pureza',
     addV2_pick_re_title:       'Inmueble',
@@ -665,9 +664,6 @@ const T = {
     // Search placeholders
     searchAssetPH:     'Buscar BTC, Apple, Vanguard, MSCI World…',
     reNamePH:          'ej. Apartamento Madrid',
-    // Add asset modal toggles
-    typeAsset:         'Activo',
-    typeLiquidity:     'Liquidez',
     // Transaction modal
     txModalTitle:      'Añadir transacción',
     txTypeLabel:       'Tipo',
@@ -793,6 +789,8 @@ const T = {
     ws_pi_sub:               'Visión consolidada de riesgo y exposición',
     ws_action_add_asset:     'Añadir activo',
     ws_action_add_liquidity: 'Añadir liquidez',
+    ws_action_add_asset_short:     'Activo',
+    ws_action_add_liquidity_short: 'Liquidez',
     ws_action_open_dashboard:'Abrir dashboard',
     ws_action_sync:          'Sincronizar',
     ws_risk_concentration:   'Concentración',
@@ -1188,6 +1186,7 @@ const T = {
       stock: 'Search Apple, Tesla, NVIDIA…',
       etf: 'Search SPY, IWDA, Vanguard…',
       metal: 'Search Gold, Silver…',
+      real_estate: 'Describe the property by type or location…',
     },
     noResults:       q => `No results for "${q}"`,
     // Price lookup
@@ -1209,8 +1208,6 @@ const T = {
     addV2_picker_sub:          'Pick a type to get started.',
     addV2_pick_asset_title:    'Financial asset',
     addV2_pick_asset_sub:      'Stocks, ETFs, funds, crypto, indices',
-    addV2_pick_liquidity_title:'Liquidity',
-    addV2_pick_liquidity_sub:  'Cash balances in EUR, USD…',
     addV2_pick_gold_title:     'Physical gold',
     addV2_pick_gold_sub:       'Jewelry, bars or coins by weight and purity',
     addV2_pick_re_title:       'Real estate',
@@ -1465,9 +1462,6 @@ const T = {
     // Search placeholders
     searchAssetPH:     'Search BTC, Apple, Vanguard, MSCI World…',
     reNamePH:          'e.g. Madrid Apartment',
-    // Add asset modal toggles
-    typeAsset:         'Asset',
-    typeLiquidity:     'Liquidity',
     // Transaction modal
     txModalTitle:      'Add transaction',
     txTypeLabel:       'Type',
@@ -1593,6 +1587,8 @@ const T = {
     ws_pi_sub:               'Consolidated risk and exposure overview',
     ws_action_add_asset:     'Add asset',
     ws_action_add_liquidity: 'Add cash',
+    ws_action_add_asset_short:     'Asset',
+    ws_action_add_liquidity_short: 'Cash',
     ws_action_open_dashboard:'Open dashboard',
     ws_action_sync:          'Sync now',
     ws_risk_concentration:   'Concentration',
@@ -2259,6 +2255,13 @@ let focusedSuggIdx       = -1;
 let searchDebounceTimer  = null;
 let searchAbortCtrl      = null;
 let suppressFocusDefaults = false;  // true when focus is programmatic (openModal/enterSearchMode)
+// ADD-FLOW-ARCH-1: which intent currently owns a modal. Exactly one
+// of these can be active at a time — opening one closes and releases
+// the other. Exposed via window for debug + automated checks.
+let _modalContext = null; // null | 'asset' | 'liquidity'
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, '__aurixModalContext', { get: () => _modalContext });
+}
 
 // ── Asset type metadata ────────────────────────────────────
 const TYPE_META = {
@@ -7245,14 +7248,18 @@ function _renderWorkspaceMobile(sheet) {
 
       <section class="ws-risk-stack" aria-label="${_escapeWorkspaceText(t('ws_risk_signals'))}">${riskCardsHtml}</section>
 
-      <section class="ws-quick-actions">
-        <button type="button" class="ws-action" data-ws-action="add-asset">
-          <span class="ws-action-icon" aria-hidden="true">+</span>
-          <span class="ws-action-label">${_escapeWorkspaceText(t('ws_action_add_asset'))}</span>
+      <!-- ADD-FLOW-ARCH-1: mobile workspace is an intelligence cockpit;
+           actions stay secondary. The chunky button grid is replaced
+           with a compact pill row that defers visual weight to the risk
+           cards above. -->
+      <section class="ws-action-row" aria-label="${_escapeWorkspaceText(t('ws_action_add_asset'))}">
+        <button type="button" class="ws-action-pill" data-ws-action="add-asset" aria-label="${_escapeWorkspaceText(t('ws_action_add_asset'))}">
+          <span class="ws-action-pill-icon" aria-hidden="true">+</span>
+          <span class="ws-action-pill-label">${_escapeWorkspaceText(t('ws_action_add_asset_short'))}</span>
         </button>
-        <button type="button" class="ws-action" data-ws-action="add-liquidity">
-          <span class="ws-action-icon" aria-hidden="true">+</span>
-          <span class="ws-action-label">${_escapeWorkspaceText(t('ws_action_add_liquidity'))}</span>
+        <button type="button" class="ws-action-pill" data-ws-action="add-liquidity" aria-label="${_escapeWorkspaceText(t('ws_action_add_liquidity'))}">
+          <span class="ws-action-pill-icon" aria-hidden="true">+</span>
+          <span class="ws-action-pill-label">${_escapeWorkspaceText(t('ws_action_add_liquidity_short'))}</span>
         </button>
       </section>
     </div>
@@ -16463,6 +16470,16 @@ function openModal(opts) {
   // contextual entry points, etc.) pass { skipPicker: true } so they
   // land directly in the existing form. No submit logic touched.
   const skipPicker = !!(opts && opts.skipPicker);
+  // ADD-FLOW-ARCH-1: claim asset context and tear down any in-flight
+  // liquidity flow so state from one intent can never bleed into the
+  // other (e.g. user opens liquidity, closes mid-input, opens asset).
+  _modalContext = 'asset';
+  try {
+    if (typeof liquidityOverlay !== 'undefined' && liquidityOverlay &&
+        liquidityOverlay.classList.contains('open')) {
+      closeLiquidityModal();
+    }
+  } catch (_) {}
   const _modalEl = document.querySelector('#modalOverlay .modal');
   if (_modalEl) {
     _modalEl.dataset.step       = skipPicker ? 'form' : 'picker';
@@ -16476,11 +16493,6 @@ function openModal(opts) {
   _applyFirstAssetModalCopy(_firstAssetMode);
   assetForm.reset();
   previewTotal.textContent = formatBase(0);
-
-  // Reset type toggle to "Activo"
-  document.querySelectorAll('.type-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.type === 'asset')
-  );
 
   // Reset state
   selectedDbAsset      = null;
@@ -16593,6 +16605,9 @@ function closeModal() {
   // inside openModal anyway).
   _firstAssetMode = false;
   _applyFirstAssetModalCopy(false);
+  // ADD-FLOW-ARCH-1: release the asset context only if it still owns
+  // it (an in-flight openLiquidityModal already overrode it).
+  if (_modalContext === 'asset') _modalContext = null;
 }
 
 // ADD-V4.2 hotfix: ISIN advanced is only meaningful for traditional
@@ -17755,6 +17770,17 @@ liquidityQtyInput.addEventListener('input', e => {
 });
 
 function openLiquidityModal() {
+  // ADD-FLOW-ARCH-1: claim liquidity context and force-close any open
+  // asset modal so the two intents are mutually exclusive on screen
+  // and in state. Asset side resets its own pending fields via
+  // closeModal → openModal cycles, so we never leak across.
+  _modalContext = 'liquidity';
+  try {
+    if (typeof modalOverlay !== 'undefined' && modalOverlay &&
+        modalOverlay.classList.contains('open')) {
+      closeModal();
+    }
+  } catch (_) {}
   liquidityForm.reset();
   liquidityCurrIn.value = 'EUR';
   liqBtns.forEach(b => b.classList.toggle('active', b.dataset.curr === 'EUR'));
@@ -17766,6 +17792,8 @@ function openLiquidityModal() {
 function closeLiquidityModal() {
   liquidityOverlay.classList.remove('open');
   document.body.classList.remove('modal-open');
+  // ADD-FLOW-ARCH-1: release context only if liquidity still owns it.
+  if (_modalContext === 'liquidity') _modalContext = null;
 }
 
 liqBtns.forEach(btn => {
@@ -18505,6 +18533,10 @@ function _addV4RenderPreview() {
       if (typeof _updateSearchEmptyHint === 'function') _updateSearchEmptyHint();
       return;
     }
+    // ADD-FLOW-ARCH-1: defensive guard. The liquidity picker card is
+    // gone from the HTML — if a stale cached page still surfaces it,
+    // route through the dedicated liquidity flow and never contaminate
+    // asset state.
     if (pick === 'liquidity') {
       closeModal();
       if (typeof openLiquidityModal === 'function') openLiquidityModal();
@@ -18536,15 +18568,9 @@ function _addV4RenderPreview() {
   });
 })();
 
-// ── Modal type toggle (Activo / Liquidez) ──────────────────
-document.querySelectorAll('.type-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.type === 'liquidity') {
-      closeModal();
-      openLiquidityModal();
-    }
-  });
-});
+// ADD-FLOW-ARCH-1: the Activo / Liquidez type toggle is gone. Asset
+// and liquidity are now strictly separate entry surfaces — there is
+// no in-modal switch between intents.
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal();

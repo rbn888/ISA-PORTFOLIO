@@ -9559,59 +9559,60 @@ body.workspace-active .header {
 .ws-risk-card.is-info     { border-color: rgba(138,166,255,0.22); }
 .ws-risk-card.is-info     .ws-risk-icon { color: rgba(138,166,255,0.95); background: rgba(138,166,255,0.12); border-color: rgba(138,166,255,0.22); }
 
-/* ── Quick actions (2 actions, no truncation) ────────────── */
-.ws-quick-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 4px;
+/* ADD-FLOW-ARCH-1: workspace action row. Compact pill duo that sits
+   below the risk stack on mobile — the cockpit reads as intelligence
+   first, actions second. The Add Asset / Add Liquidity intents stay
+   strictly separate by design and never collapse into a single CTA. */
+.ws-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
 }
-.ws-action {
+.ws-action-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 50px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(138,166,255,0.10), rgba(138,166,255,0.04));
-  border: 1px solid rgba(138,166,255,0.22);
-  color: rgba(225,233,255,0.95);
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(225,233,255,0.92);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.22s ease;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
 }
-.ws-action:active {
-  transform: scale(0.97);
-  background: linear-gradient(180deg, rgba(138,166,255,0.18), rgba(138,166,255,0.06));
-  box-shadow: 0 0 0 4px rgba(138,166,255,0.10);
+.ws-action-pill:hover {
+  background: rgba(138,166,255,0.10);
+  border-color: rgba(138,166,255,0.26);
+  color: rgba(235,242,255,0.98);
 }
-.ws-action-icon {
+.ws-action-pill:active { transform: scale(0.96); }
+.ws-action-pill-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: rgba(138,166,255,0.18);
   color: rgba(225,233,255,0.95);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
   flex-shrink: 0;
 }
-/* MW-3: labels never truncate — small phones get a slightly smaller
-   font instead. The two-column grid leaves enough room for "Añadir
-   liquidez" at 13px on a 360px viewport. */
-.ws-action-label {
+.ws-action-pill-label {
   white-space: nowrap;
   overflow: visible;
   text-overflow: clip;
 }
 @media (max-width: 360px) {
-  .ws-action { font-size: 12px; padding: 11px 10px; gap: 6px; }
+  .ws-action-pill { font-size: 12px; padding: 0 10px 0 8px; gap: 5px; }
 }
 
 /* ── AW-6.2: Immersive desktop workstation refinement ──────────────────────
@@ -11352,8 +11353,8 @@ body.gs-open { overflow: hidden; }
 
   /* Last actionable section reserves enough bottom space for the
      home indicator + bottom nav. The shell already includes safe-
-     area padding; add a little extra below the action buttons. */
-  .aurix-workspace-shell.is-mobile .ws-quick-actions {
+     area padding; add a little extra below the action row. */
+  .aurix-workspace-shell.is-mobile .ws-action-row {
     margin-bottom: 4px;
   }
 

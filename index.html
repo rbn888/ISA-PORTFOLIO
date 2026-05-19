@@ -361,14 +361,9 @@
             </span>
             <span class="add-v2-chevron" aria-hidden="true">›</span>
           </button>
-          <button type="button" class="add-v2-card" data-pick="liquidity">
-            <span class="add-v2-icon">€</span>
-            <span class="add-v2-text">
-              <span class="add-v2-title" data-i18n="addV2_pick_liquidity_title">Liquidez</span>
-              <span class="add-v2-sub" data-i18n="addV2_pick_liquidity_sub">Saldos en efectivo en EUR, USD…</span>
-            </span>
-            <span class="add-v2-chevron" aria-hidden="true">›</span>
-          </button>
+          <!-- ADD-FLOW-ARCH-1: liquidity intentionally removed from this
+               picker. Adding cash is a separate flow with its own modal —
+               see openLiquidityModal() / #liquidityOverlay. -->
           <button type="button" class="add-v2-card" data-pick="gold">
             <span class="add-v2-icon">◉</span>
             <span class="add-v2-text">
@@ -404,10 +399,9 @@
         <button class="modal-close" id="modalClose">✕</button>
       </div>
 
-      <div class="add-type-toggle">
-        <button type="button" class="type-btn active" data-type="asset" data-i18n="typeAsset">Activo</button>
-        <button type="button" class="type-btn" data-type="liquidity" data-i18n="typeLiquidity">Liquidez</button>
-      </div>
+      <!-- ADD-FLOW-ARCH-1: removed the Activo / Liquidez toggle. The
+           asset modal is purely an asset-discovery surface — liquidity
+           is added through its own dedicated modal (openLiquidityModal). -->
 
       <form id="assetForm" class="modal-body">
         <!-- ADD-V4.2: 2-column layout wrapper. Mobile collapses to a single
