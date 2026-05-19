@@ -1040,6 +1040,9 @@ const T = {
     signalCategoryBody:          'Tu cartera tiene una sola categoría dominante.',
     signalLowDivBody:            'Tu portfolio tiene poca diversificación.',
     signalNoCashBody:            'No hay efectivo registrado.',
+    signalInsightsBody:          'Análisis de tu cartera disponible.',
+    signalInsightsBodyMobile:    'Análisis disponible',
+    signalInsightsCta:           'Ver análisis',
     // SIGNAL-MOBILE-2: short copy used on viewports ≤640px so the
     // mobile signal bar never ellipses meaning away. Each kind has a
     // 1–3 word version that still conveys the awareness.
@@ -1836,6 +1839,9 @@ const T = {
     signalCategoryBody:          'Your portfolio has a single dominant category.',
     signalLowDivBody:            'Your portfolio has limited diversification.',
     signalNoCashBody:            'No cash recorded.',
+    signalInsightsBody:          'Portfolio insights available.',
+    signalInsightsBodyMobile:    'Insights available',
+    signalInsightsCta:           'View analysis',
     // SIGNAL-MOBILE-2: short copy for ≤640px viewports.
     signalConcentrationBodyMobile:'High concentration',
     signalDominantBodyMobile:    name => `${name} dominates`,
@@ -22690,6 +22696,19 @@ function computeAurixSignalPool() {
     });
   }
 
+  // SIGNAL-HOTFIX: with assets present and a positive total, the bar
+  // must never disappear. If none of the rules above fired, surface a
+  // generic intelligence entry so the module stays mounted and the
+  // user can still open the Health panel.
+  if (!pool.length) {
+    push({
+      kind: 'insights',
+      msg: 'signalInsightsBody',
+      msgMobile: 'signalInsightsBodyMobile',
+      cta: 'signalInsightsCta',
+    });
+  }
+
   return pool.slice(0, 5);
 }
 
@@ -23069,9 +23088,21 @@ function closeHealthPanel() {
 let _aurixSignalIdx     = 0;
 let _aurixSignalTimer   = null;
 let _aurixSignalPool    = [];
+let _aurixSignalPoolLen = 0;
 let _aurixSignalPaused  = false;
 let _aurixSignalHoverBound = false;
+let _aurixSignalVisibility = 'init';
 const AURIX_SIGNAL_ROTATE_MS = 10000;
+
+// SIGNAL-HOTFIX: bound the index to the live pool length. Prevents an
+// out-of-range read (returns undefined → silent disappearance) when
+// the pool shrinks between ticks or when the previous index leaked
+// from a longer pool.
+function _aurixSignalSafeIdx(len) {
+  if (!len || len < 1) return 0;
+  const n = Number.isFinite(_aurixSignalIdx) ? _aurixSignalIdx : 0;
+  return Math.max(0, Math.min(n, len - 1));
+}
 
 // SIGNAL-MOBILE-2: viewport probes. ≤640px → use mobile-specific
 // short copy. ≤360px → also shorten the CTA label to "Análisis ›".
@@ -23157,8 +23188,18 @@ function _aurixSignalStartRotation() {
     // last tick. If the pool shrank, clamp the index.
     _aurixSignalPool = computeAurixSignalPool();
     if (!_aurixSignalPool.length) { renderAurixSignal(); return; }
-    _aurixSignalIdx = (_aurixSignalIdx + 1) % _aurixSignalPool.length;
-    _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
+    // SIGNAL-HOTFIX: if the pool length changed since last tick, the
+    // stored index may no longer point at the same entry — restart
+    // from 0 so the rotation stays predictable.
+    if (_aurixSignalPool.length !== _aurixSignalPoolLen) {
+      _aurixSignalIdx = 0;
+      _aurixSignalPoolLen = _aurixSignalPool.length;
+    } else {
+      _aurixSignalIdx = (_aurixSignalIdx + 1) % _aurixSignalPool.length;
+    }
+    const idx = _aurixSignalSafeIdx(_aurixSignalPool.length);
+    _aurixSignalIdx = idx;
+    _aurixSignalApply(_aurixSignalPool[idx], _aurixSignalPool.length === 1);
   }, AURIX_SIGNAL_ROTATE_MS);
 }
 
@@ -23185,12 +23226,11 @@ function _aurixSignalBindResize() {
     clearTimeout(_aurixSignalResizeTimer);
     _aurixSignalResizeTimer = setTimeout(() => {
       const sec = document.getElementById('aurixSignal');
-      if (!sec || sec.hidden) return;
-      if (!_aurixSignalPool.length) return;
-      // Force an instant write (firstPaint reset) so the swap is
-      // imperceptible — we're not rotating, just reformatting.
-      sec.dataset.firstPaint = '';
-      _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
+      if (!sec) return;
+      // SIGNAL-HOTFIX: never trust an outdated cached pool on resize —
+      // recompute from live state and re-run the full render path so
+      // visibility decisions stay correct after viewport changes.
+      try { renderAurixSignal(); } catch (_) { /* never let resize hide the bar */ }
     }, 180);
   });
 }
@@ -23200,9 +23240,21 @@ function renderAurixSignal() {
   if (!sec) return;
 
   // Empty portfolio OR drill-down view → no signal, stop rotation.
-  const emptyOrDrill = (!Array.isArray(assets) || assets.length === 0)
-                    || (typeof activeCategory !== 'undefined' && activeCategory);
-  if (emptyOrDrill) {
+  // SIGNAL-HOTFIX: visibility decisions are derived live from `assets`
+  // and `activeCategory`; no localStorage snapshot is consulted here.
+  if (!Array.isArray(assets) || assets.length === 0) {
+    _aurixSignalVisibility = 'hidden:empty';
+    sec.hidden = true;
+    sec.removeAttribute('data-kind');
+    sec.dataset.firstPaint = '';
+    _aurixSignalPool = [];
+    _aurixSignalPoolLen = 0;
+    _aurixSignalIdx = 0;
+    _aurixSignalStopRotation();
+    return;
+  }
+  if (typeof activeCategory !== 'undefined' && activeCategory) {
+    _aurixSignalVisibility = 'hidden:drilldown';
     sec.hidden = true;
     sec.removeAttribute('data-kind');
     sec.dataset.firstPaint = '';
@@ -23211,23 +23263,68 @@ function renderAurixSignal() {
   }
 
   _aurixSignalPool = computeAurixSignalPool();
+  // SIGNAL-HOTFIX: with assets present the pool now always contains at
+  // least the generic `insights` fallback. The empty branch below is a
+  // safety net for the edge case where totalValueUSD() returns 0 (e.g.
+  // hydration in progress) — show the fallback inline rather than
+  // hiding the module.
   if (!_aurixSignalPool.length) {
-    sec.hidden = true;
-    sec.removeAttribute('data-kind');
-    sec.dataset.firstPaint = '';
-    _aurixSignalStopRotation();
-    return;
+    _aurixSignalPool = [{
+      kind: 'insights',
+      msg: 'signalInsightsBody',
+      msgMobile: 'signalInsightsBodyMobile',
+      cta: 'signalInsightsCta',
+    }];
   }
 
-  // Clamp idx if pool shrank.
-  if (_aurixSignalIdx >= _aurixSignalPool.length) _aurixSignalIdx = 0;
-  _aurixSignalApply(_aurixSignalPool[_aurixSignalIdx], _aurixSignalPool.length === 1);
+  // SIGNAL-HOTFIX: if the pool length changed since the previous
+  // render, the stored index may reference a different entry — reset
+  // to 0 and drop any in-flight rotation timer so the next tick is
+  // computed from the new pool, not the stale one.
+  if (_aurixSignalPool.length !== _aurixSignalPoolLen) {
+    _aurixSignalIdx = 0;
+    _aurixSignalPoolLen = _aurixSignalPool.length;
+    _aurixSignalStopRotation();
+  }
+  const idx = _aurixSignalSafeIdx(_aurixSignalPool.length);
+  _aurixSignalIdx = idx;
+  _aurixSignalVisibility = 'visible:' + (_aurixSignalPool[idx] && _aurixSignalPool[idx].kind);
+  _aurixSignalApply(_aurixSignalPool[idx], _aurixSignalPool.length === 1);
   sec.hidden = false;
   _aurixSignalBindHover();
   _aurixSignalBindResize();
   // Only rotate when there is more than one valid signal.
   if (_aurixSignalPool.length > 1) _aurixSignalStartRotation();
   else _aurixSignalStopRotation();
+}
+
+// SIGNAL-HOTFIX: temporary debug probe. Run `__aurixSignalDebug()` in
+// devtools to inspect live signal state — pool kinds, the active
+// entry, why the bar is visible/hidden, and the rotation timer
+// status. Safe to leave in: no side effects.
+if (typeof window !== 'undefined') {
+  window.__aurixSignalDebug = function () {
+    const livePool = (typeof computeAurixSignalPool === 'function')
+      ? computeAurixSignalPool() : [];
+    const idx = _aurixSignalSafeIdx(_aurixSignalPool.length);
+    return {
+      assets: Array.isArray(assets) ? assets.map(a => ({
+        ticker: a.ticker || a.symbol || null,
+        type:   a.type || null,
+        qty:    a.quantity ?? a.qty ?? null,
+      })) : [],
+      signalPool:       _aurixSignalPool.map(s => s.kind),
+      livePool:         livePool.map(s => s.kind),
+      currentIdx:       _aurixSignalIdx,
+      activeSignal:     _aurixSignalPool[idx] || null,
+      visibilityReason: _aurixSignalVisibility,
+      timerState: {
+        running: !!_aurixSignalTimer,
+        paused:  _aurixSignalPaused,
+        intervalMs: AURIX_SIGNAL_ROTATE_MS,
+      },
+    };
+  };
 }
 
 // ── AURIX-EMPTY-1 / ACTIVATION-2: activation card + quick-chip wiring ──
