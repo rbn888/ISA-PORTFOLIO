@@ -2903,6 +2903,33 @@ function gramsToDisplay(g) {
 }
 
 // ── History storage ────────────────────────────────────────
+
+// RESET-HISTORY-1: portfolio epoch. After a reset, this timestamp
+// marks the cutoff before which no historical point may surface in
+// the UI. Filtering is applied at every read site (loadHistory,
+// loadCategoryHistory, getChartData) so stale localStorage, remote
+// sync, or in-flight snapshots from before the reset can never leak
+// into the chart or PnL math.
+const PORTFOLIO_EPOCH_KEY = 'aurix_portfolio_epoch';
+function _aurixPortfolioEpoch() {
+  try {
+    const v = parseInt(localStorage.getItem(PORTFOLIO_EPOCH_KEY) || '0', 10) || 0;
+    if (v > 0) return v;
+    // Back-compat: pre-RESET-HISTORY-1 resets only wrote the tombstone.
+    // Treat the reset_at marker as the epoch so historical resets still
+    // gain the new visibility filter on next load.
+    return parseInt(localStorage.getItem('aurix_reset_at') || '0', 10) || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+function _aurixFilterAfterEpoch(arr, tsKey) {
+  const epoch = _aurixPortfolioEpoch();
+  if (!epoch || !Array.isArray(arr) || !arr.length) return Array.isArray(arr) ? arr : [];
+  const key = tsKey || 'ts';
+  return arr.filter(p => p && typeof p[key] === 'number' && p[key] >= epoch);
+}
+
 function loadHistory() {
   try {
     const raw = JSON.parse(localStorage.getItem(HISTORY_KEY));
@@ -2923,7 +2950,10 @@ function loadHistory() {
       valid.reduce((acc, p) => { acc[p.ts] = p; return acc; }, {})
     );
 
-    return deduped.sort((a, b) => a.ts - b.ts);
+    // RESET-HISTORY-1: drop anything from before the reset epoch so
+    // an old 53K timeline can never be stitched in front of a fresh
+    // 2K portfolio.
+    return _aurixFilterAfterEpoch(deduped.sort((a, b) => a.ts - b.ts), 'ts');
   } catch {
     return [];
   }
@@ -2960,7 +2990,8 @@ function loadCategoryHistory() {
     const deduped = Object.values(
       valid.reduce((acc, p) => { acc[p.ts] = p; return acc; }, {})
     );
-    return deduped.sort((a, b) => a.ts - b.ts);
+    // RESET-HISTORY-1: same epoch guard as loadHistory().
+    return _aurixFilterAfterEpoch(deduped.sort((a, b) => a.ts - b.ts), 'ts');
   } catch (_) { return []; }
 }
 
@@ -9677,8 +9708,13 @@ function getChartData(range) {
   const _empty = { labels: [], values: [] };
   if (!Array.isArray(portfolioHistory) || portfolioHistory.length < 2) return _empty;
 
+  // RESET-HISTORY-1: defense-in-depth — filter again at the chart
+  // boundary in case anything bypassed the load-time filter
+  // (in-memory mutation, late hydration, remote merge, etc).
+  const _epoch = (typeof _aurixPortfolioEpoch === 'function') ? _aurixPortfolioEpoch() : 0;
   const source = portfolioHistory
     .filter(p => p && typeof p.ts === 'number' && typeof p.value === 'number' && isFinite(p.value) && p.value > 0)
+    .filter(p => !_epoch || p.ts >= _epoch)
     .sort((a, b) => a.ts - b.ts);
 
   if (source.length < 2) return _empty;
@@ -18748,6 +18784,12 @@ document.getElementById('appRoot').style.opacity = '0';
 
 // Bootstrap simulated history if this is the first session
 (function bootstrapHistory() {
+  // RESET-HISTORY-1: after a reset, the user's mental model is "start
+  // from zero". Injecting 30 days of synthetic history would betray
+  // that and re-introduce the very baseline divergence the reset is
+  // meant to wipe. When an epoch is set we let real snapshots accrue
+  // naturally instead.
+  if (_aurixPortfolioEpoch() > 0) return;
   const val = totalValueUSD();
   if (portfolioHistory.length === 0 && val > 0) {
     portfolioHistory = generateSimulatedHistory(val);
@@ -21610,6 +21652,65 @@ if (typeof window !== 'undefined') {
       adaptersReady:   _mktHistoryAdaptersReady(),
     };
   };
+
+  // RESET-HISTORY-1: portfolio-history probe. Run `__aurixHistoryDebug()`
+  // in devtools to verify the reset epoch is wiring through everything:
+  // raw vs. filtered counts, whether any pre-epoch points still live
+  // in memory, and what basis the current PnL calculation rests on.
+  window.__aurixHistoryDebug = function () {
+    const resetAt = (function () {
+      try { return parseInt(localStorage.getItem(RESET_AT_KEY) || '0', 10) || 0; }
+      catch (_) { return 0; }
+    })();
+    const epoch = _aurixPortfolioEpoch();
+    const raw = Array.isArray(portfolioHistory) ? portfolioHistory : [];
+    const validRaw = raw.filter(p =>
+      p && typeof p.ts === 'number' && typeof p.value === 'number' &&
+      isFinite(p.value) && p.value > 0
+    );
+    const filtered = epoch ? validRaw.filter(p => p.ts >= epoch) : validRaw.slice();
+    const ignored  = validRaw.length - filtered.length;
+    const oldest = arr => arr.length ? arr[0] : null;
+    const newest = arr => arr.length ? arr[arr.length - 1] : null;
+    const sortedRaw = validRaw.slice().sort((a, b) => a.ts - b.ts);
+    const sortedFil = filtered.slice().sort((a, b) => a.ts - b.ts);
+    const fmt = p => p ? { ts: p.ts, iso: new Date(p.ts).toISOString(), value: p.value } : null;
+    let currentValue = 0;
+    try { currentValue = (typeof totalValueUSD === 'function') ? totalValueUSD() : 0; } catch (_) {}
+    // Mirrors the perf-basis logic in computeRangePnL: post-epoch
+    // history with <2 points → null (neutral). When 'all' range is
+    // active we surface cost basis instead.
+    let dashboardPerfBasis = null;
+    try {
+      const data = (typeof getChartData === 'function') ? getChartData(activeRange) : null;
+      if (data && Array.isArray(data.values) && data.values.length >= 2) {
+        dashboardPerfBasis = {
+          range:     activeRange,
+          mode:      'history',
+          basePoint: data.values[0],
+          points:    data.values.length,
+        };
+      } else if (activeRange === 'all') {
+        const inv = (typeof totalCostBasisBase === 'function') ? totalCostBasisBase() : 0;
+        dashboardPerfBasis = { range: 'all', mode: inv > 0 ? 'costBasis' : 'neutral', basePoint: inv };
+      } else {
+        dashboardPerfBasis = { range: activeRange, mode: 'neutral', basePoint: null };
+      }
+    } catch (_) {}
+    return {
+      resetAt,
+      portfolioEpoch:                 epoch,
+      portfolioHistoryRawCount:       validRaw.length,
+      portfolioHistoryFilteredCount:  filtered.length,
+      oldestRawPoint:                 fmt(oldest(sortedRaw)),
+      newestRawPoint:                 fmt(newest(sortedRaw)),
+      oldestFilteredPoint:            fmt(oldest(sortedFil)),
+      newestFilteredPoint:            fmt(newest(sortedFil)),
+      currentPortfolioValue:          currentValue,
+      dashboardPerfBasis,
+      ignoredOldPointsCount:          ignored,
+    };
+  };
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -21865,8 +21966,13 @@ function performSafeReset() {
   // RESET-2: tombstone FIRST, before clearing any storage. If the
   // user reloads mid-reset (e.g. unhandled error below), the marker
   // alone is enough to prevent remote resurrection.
+  // RESET-HISTORY-1: also stamp the portfolio epoch — every history
+  // read filters strictly by `ts >= epoch` so stale localStorage or
+  // remote sync from before this moment can never re-appear in the
+  // dashboard chart or PnL math.
   const RESET_AT = Date.now();
   try { localStorage.setItem(RESET_AT_KEY, String(RESET_AT)); } catch (_) {}
+  try { localStorage.setItem(PORTFOLIO_EPOCH_KEY, String(RESET_AT)); } catch (_) {}
 
   const PORTFOLIO_KEYS = [
     'portfolio_assets',          // legacy primary
@@ -21895,6 +22001,13 @@ function performSafeReset() {
     'aurix_workspace_snapshot',  // workspace derived summary
     'aurix_risk_snapshot',       // workspace risk monitor cache
     'aurix_portfolio_summary',   // generic portfolio summary cache
+    // RESET-HISTORY-1: defensive — clear any chart-series caches in
+    // case a future module persists derived dashboard data. Removing
+    // a non-existent key is a no-op.
+    'aurix_dashboard_chart_cache',
+    'aurix_chart_cache',
+    'aurix_portfolio_history',   // alt key seen in spec
+    'aurix_category_history',    // alt key seen in spec
   ];
   // Preserve `aurix_data_version` (so the migration IIFE early-returns
   // on next boot and can't accidentally rehydrate via its else branch),
@@ -21915,6 +22028,10 @@ function performSafeReset() {
   try { _cardOrder = []; } catch (_) {}
   try { _catOrder  = []; } catch (_) {}
   try { activeCategory = null; } catch (_) {}
+  // RESET-HISTORY-1: clear snapshot cadence state so the next
+  // recordSnapshot writes a fresh point at the new baseline instead
+  // of getting absorbed into a stale 5s dedup window.
+  try { lastSnapshotMs = 0; } catch (_) {}
 
   // Persist the empty state via the canonical save path so the
   // schema-version flag and migration vars stay consistent.
