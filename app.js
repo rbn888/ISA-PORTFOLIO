@@ -21262,6 +21262,7 @@ if (typeof window !== 'undefined') {
     const marketHits = (Array.isArray(MARKET_DATA) ? MARKET_DATA : [])
       .filter(d => wlNorm.includes(normalizeSymbol(d.canonicalSymbol || d.symbol)))
       .map(d => d.symbol || d.canonicalSymbol);
+    const editorRows = (typeof _aurixWatchlistRows === 'function') ? _aurixWatchlistRows() : [];
     return {
       watchlist:                 wl,
       seeded,
@@ -21270,10 +21271,111 @@ if (typeof window !== 'undefined') {
       skippedReasons:            built.skipped,
       dashboardVisibleSymbols:   wl,           // tracking card mirrors getWatchlist()
       marketWatchlistSymbols:    marketHits,
+      editorVisibleSymbols:      editorRows.map(r => r.key),
       assetCount:                Array.isArray(assets) ? assets.length : 0,
       existingWatchlistCount:    wl.length,
     };
   };
+
+  // WATCHLIST-SEED-QA-1: dev-only convenience for QA without forcing a
+  // new email registration. Builds a starter watchlist from the
+  // provided interests and applies it to the canonical store, with
+  // safe defaults (does not clear current watchlist, does not mark
+  // seeded). Pass { clear: true } to wipe first, { markSeeded: true }
+  // to also set aurix_watchlist_seeded so reload paths reproduce a
+  // post-onboarding state. Returns the structured result for
+  // inspection.
+  window.__aurixSeedStarterWatchlistForTest = function (interests, opts) {
+    const o     = opts || {};
+    const clear = !!o.clear;
+    const mark  = !!o.markSeeded;
+    const list  = Array.isArray(interests) ? interests : [];
+    if (clear) {
+      try {
+        const current = watchlistStore.getWatchlist();
+        current.forEach(k => watchlistStore.remove(k));
+      } catch (_) {}
+      try { localStorage.removeItem(WATCHLIST_SEEDED_KEY); } catch (_) {}
+    }
+    const built = _aurixBuildStarterWatchlist(list);
+    const added = [];
+    for (const sym of built.symbols) {
+      if (!watchlistStore.includes(sym)) {
+        watchlistStore.add(sym);
+        added.push(sym);
+      }
+    }
+    if (mark) {
+      try { localStorage.setItem(WATCHLIST_SEEDED_KEY, '1'); } catch (_) {}
+    }
+    return {
+      ran:        true,
+      reason:     'manual-test',
+      interests:  list,
+      cleared:    clear,
+      markedSeeded: mark,
+      generated:  built.symbols,
+      added,
+      skipped:    built.skipped,
+      watchlist:  watchlistStore.getWatchlist(),
+    };
+  };
+}
+
+// WATCHLIST-SEED-QA-1: unified row builder shared by the dashboard
+// tracking card and the watchlist editor modal. Every entry in
+// `aurix_watchlist` produces a row, even when there is no holding.
+// Lookup precedence: owned asset (has live price + qty) → MARKET_DATA
+// (curated catalog) → placeholder (ticker only, "—" price). The
+// editor row is fully removable in every case so users can always
+// take control of seeded items.
+function _aurixWatchlistRows() {
+  const wl = (typeof getWatchlist === 'function') ? getWatchlist() : [];
+  if (!wl.length) return [];
+  const ownedByKey = new Map();
+  if (Array.isArray(assets)) {
+    for (const a of assets) {
+      if (!a) continue;
+      const k = a.sym || a.name;
+      if (k) ownedByKey.set(k, a);
+    }
+  }
+  const out = [];
+  for (const key of wl) {
+    const owned = ownedByKey.get(key);
+    if (owned) {
+      out.push({
+        key,
+        sym:    owned.sym || key,
+        name:   owned.name || key,
+        type:   owned.type || 'asset',
+        price:  Number(owned.price) || 0,
+        source: 'owned',
+      });
+      continue;
+    }
+    let priced = 0, name = key, type = 'asset';
+    try {
+      if (Array.isArray(MARKET_DATA)) {
+        const norm = normalizeSymbol(key);
+        const m = MARKET_DATA.find(d => normalizeSymbol(d.canonicalSymbol || d.symbol) === norm);
+        if (m) {
+          priced = Number(m.price) || 0;
+          name   = m.name || key;
+          type   = m.type || 'asset';
+        }
+      }
+    } catch (_) {}
+    out.push({
+      key,
+      sym:    key,
+      name,
+      type,
+      price:  priced,
+      source: priced > 0 ? 'market' : 'placeholder',
+    });
+  }
+  return out;
 }
 
 // ── Market Store (live prices + smooth interpolation) ──────
@@ -21534,6 +21636,19 @@ const marketStore = (() => {
   }
 
   watchlistStore.subscribe(_restartPolling);
+  // WATCHLIST-SEED-QA-1: keep the Market screen in lockstep with the
+  // canonical watchlist. Removing or adding a symbol from the editor
+  // must instantly reflect on the Market "Watchlist" tab — otherwise
+  // the user perceives stale state until they switch tabs.
+  watchlistStore.subscribe(() => {
+    try {
+      if (typeof renderCurrentMarketView === 'function' &&
+          typeof currentMarketTab === 'string' &&
+          currentMarketTab === 'watchlist') {
+        renderCurrentMarketView();
+      }
+    } catch (_) { /* never let a render miss break the polling loop */ }
+  });
 
   return {
     getPrice:   key => _prices[key] ?? null,
@@ -21679,28 +21794,38 @@ function _wlRenderBody() {
   const body = document.getElementById('watchlistModalBody');
   if (!body) return;
 
-  const tracked = Array.isArray(assets)
-    ? assets
-        .filter(a => a.qty > 0 && watchlistStore.includes(a.sym || a.name))
-        .sort((a, b) => (b.price * b.qty) - (a.price * a.qty))
-    : [];
+  // WATCHLIST-SEED-QA-1: editor now iterates the canonical store so
+  // seeded virtual items (no holdings yet) are listed and removable.
+  // Rows are sorted: owned-first (richest first), then virtuals in
+  // insertion order — keeps the user's own positions on top while
+  // surfacing the curated suggestions just below.
+  const all = (typeof _aurixWatchlistRows === 'function') ? _aurixWatchlistRows() : [];
+  const owned    = all.filter(r => r.source === 'owned');
+  const virtuals = all.filter(r => r.source !== 'owned');
+  owned.sort((a, b) => {
+    const av = a.price * (assets?.find(x => (x.sym || x.name) === a.key)?.qty || 0);
+    const bv = b.price * (assets?.find(x => (x.sym || x.name) === b.key)?.qty || 0);
+    return bv - av;
+  });
+  const tracked = [...owned, ...virtuals];
 
   if (tracked.length === 0) {
     body.innerHTML = '<div class="watchlist-modal-empty">' + t('watchlistEmpty') + '</div>';
   } else {
-    body.innerHTML = tracked.map(a => {
-      const key       = a.sym || a.name;
+    body.innerHTML = tracked.map(r => {
+      const key       = r.key;
       const pd        = marketStore.getPrice(key);
-      const rawPrice  = pd?.display ?? pd?.price ?? a.price;
+      const rawPrice  = pd?.display ?? pd?.price ?? r.price;
       const price     = rawPrice ? formatBase(rawPrice) : '—';
       const editClass = _wlEditing ? ' editing' : '';
       const removeBtn = _wlEditing
         ? '<button class="remove-btn" data-key="' + key + '">✕</button>'
         : '';
-      return '<div class="watchlist-modal-row' + editClass + '" data-key="' + key + '">' +
-        '<span class="watchlist-modal-sym">'   + (a.sym  || '') + '</span>' +
-        '<span class="watchlist-modal-name">'  + (a.name || '') + '</span>' +
-        '<span class="watchlist-modal-price">' + price          + '</span>' +
+      const typeAttr  = r.type ? ' data-type="' + r.type + '"' : '';
+      return '<div class="watchlist-modal-row' + editClass + '" data-key="' + key + '"' + typeAttr + '>' +
+        '<span class="watchlist-modal-sym">'   + (r.sym  || key) + '</span>' +
+        '<span class="watchlist-modal-name">'  + (r.name || '')  + '</span>' +
+        '<span class="watchlist-modal-price">' + price            + '</span>' +
         removeBtn +
       '</div>';
     }).join('');
