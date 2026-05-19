@@ -2290,11 +2290,27 @@ body.modal-open {
    card above is the single source of truth for the user. */
 .modal[data-mode="gold"] #formPreview { display: none !important; }
 
-/* Reserve bottom space so the sticky CTA never covers the summary
-   card or buyer row on phones with home-indicators. */
+/* GOLD-UX-4: the asset modal mobile sticky CTA must (1) be visually
+   anchored at the bottom with a fully opaque base so nothing reads as
+   overlap and (2) reserve enough scroll padding that karats, unit
+   pills, qty input and the estimate card never sit underneath it. */
 @media (max-width: 768px) {
-  .modal[data-mode="gold"] .modal-body {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 58px + 28px + 16px);
+  .modal[data-mode="gold"] .modal-body,
+  .modal[data-mode="asset"] #assetForm.modal-body {
+    /* CTA pill ≈ 48px + 10px top pad + 12px bottom pad + safe-area
+       + 24px breathing room above the last form element. */
+    padding-bottom: calc(env(safe-area-inset-bottom) + 48px + 22px + 24px);
+  }
+  /* Solid base for the sticky CTA — the prior gradient ending at 0.7
+     alpha let underlying chips read through, which felt like overlap.
+     The thin top hairline replaces the gradient as the visual cue. */
+  .modal-overlay #modalOverlay .modal-cta,
+  .modal[data-mode="gold"]  .modal-cta,
+  .modal[data-mode="asset"] .modal-cta {
+    background: rgba(5,7,13,0.96);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 }
 .type-btn {

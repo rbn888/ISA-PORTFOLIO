@@ -408,8 +408,8 @@ const T = {
     // ADD-V2.1: type picker (Step 1) — purely UI shell, routes to existing flows.
     addV2_picker_title:        '¿Qué quieres añadir?',
     addV2_picker_sub:          'Elige el tipo para empezar.',
-    addV2_pick_asset_title:    'Activo financiero',
-    addV2_pick_asset_sub:      'Acciones, ETFs, fondos, cripto, índices',
+    addV2_pick_asset_title:    'Activo',
+    addV2_pick_asset_sub:      'Acciones, ETFs, cripto, metales e índices',
     addV2_pick_gold_title:     'Oro físico',
     addV2_pick_gold_sub:       'Joyería, lingotes o monedas por peso y pureza',
     addV2_pick_re_title:       'Inmueble',
@@ -439,16 +439,18 @@ const T = {
     gold_type_jewelry:    'Joyería',
     gold_type_coin:       'Moneda',
     gold_type_bar:        'Lingote',
-    gold_karat_label:     'Quilataje',
-    gold_karat_sub:       'Selecciona el quilataje de tu oro.',
-    gold_more_karats:     'Más quilatajes',
+    gold_karat_label:     'Quilates',
+    gold_karat_sub:       'Selecciona los quilates de tu oro.',
+    gold_more_karats:     'Más quilates',
     gold_quantity_label:  'Cantidad',
-    gold_market_meta_sub: 'Valor ajustado según quilataje seleccionado.',
+    gold_market_meta_sub: 'Referencia 24K · ajustada por pureza',
     // GOLD-UX-2: progressive CTA + secondary "more karats" link.
     gold_cta_complete:    'Completa los datos',
     gold_cta_add:         'Añadir oro a cartera',
     gold_cta_add_qty:     qtyText => `Añadir ${qtyText} de oro`,
-    gold_more_karats_subtle: '¿No es uno de estos? Ver más',
+    gold_more_karats_subtle: '¿No es uno de estos? Ver más quilates',
+    gold_less_karats_subtle: 'Ocultar quilates',
+    gold_adjust_estimate:    'Ajustar estimación',
     // GOLD-UX-3: dynamic context line under the estimated value.
     gold_summary_context: (karatStr, qtyText, purityText) =>
       `${karatStr} · ${qtyText} · ${purityText}`,
@@ -473,12 +475,12 @@ const T = {
     gold_purity_label:    'Pureza',
     gold_unit_label:      'Unidad',
     gold_more_options:    'Más opciones',
-    gold_purity_24_sub:   'Lingote',
+    gold_purity_24_sub:   'Oro puro',
     gold_purity_22_sub:   'Moneda',
-    gold_purity_18_sub:   'Joyería',
-    gold_purity_14_sub:   'Aleación',
-    gold_purity_21_sub:   'Aleación',
-    gold_purity_10_sub:   'Aleación',
+    gold_purity_18_sub:   'Joyería común',
+    gold_purity_14_sub:   'Oro bajo',
+    gold_purity_21_sub:   'Joyería fina',
+    gold_purity_10_sub:   'Oro bajo',
     gold_value_label:     'Valorar como',
     gold_value_spot:      'Valor spot',
     gold_value_resale:    'Venta estimada',
@@ -1253,8 +1255,8 @@ const T = {
     // ADD-V2.1: type picker (Step 1) — purely UI shell, routes to existing flows.
     addV2_picker_title:        'What do you want to add?',
     addV2_picker_sub:          'Pick a type to get started.',
-    addV2_pick_asset_title:    'Financial asset',
-    addV2_pick_asset_sub:      'Stocks, ETFs, funds, crypto, indices',
+    addV2_pick_asset_title:    'Asset',
+    addV2_pick_asset_sub:      'Stocks, ETFs, crypto, metals & indices',
     addV2_pick_gold_title:     'Physical gold',
     addV2_pick_gold_sub:       'Jewelry, bars or coins by weight and purity',
     addV2_pick_re_title:       'Real estate',
@@ -1285,15 +1287,17 @@ const T = {
     gold_type_coin:       'Coin',
     gold_type_bar:        'Bar',
     gold_karat_label:     'Karat',
-    gold_karat_sub:       'Select the karat of your gold.',
+    gold_karat_sub:       'Select your gold karat.',
     gold_more_karats:     'More karats',
     gold_quantity_label:  'Quantity',
-    gold_market_meta_sub: 'Value adjusts to the selected karat.',
+    gold_market_meta_sub: '24K reference · adjusted by purity',
     // GOLD-UX-2: progressive CTA + secondary "more karats" link.
     gold_cta_complete:    'Complete the details',
     gold_cta_add:         'Add gold to portfolio',
     gold_cta_add_qty:     qtyText => `Add ${qtyText} of gold`,
-    gold_more_karats_subtle: 'Not one of these? See more',
+    gold_more_karats_subtle: 'Not one of these? Show more karats',
+    gold_less_karats_subtle: 'Hide karats',
+    gold_adjust_estimate:    'Adjust estimate',
     // GOLD-UX-3: dynamic context line under the estimated value.
     gold_summary_context: (karatStr, qtyText, purityText) =>
       `${karatStr} · ${qtyText} · ${purityText}`,
@@ -1318,12 +1322,12 @@ const T = {
     gold_purity_label:    'Purity',
     gold_unit_label:      'Unit',
     gold_more_options:    'More options',
-    gold_purity_24_sub:   'Bar',
+    gold_purity_24_sub:   'Pure gold',
     gold_purity_22_sub:   'Coin',
-    gold_purity_18_sub:   'Jewelry',
-    gold_purity_14_sub:   'Alloy',
-    gold_purity_21_sub:   'Alloy',
-    gold_purity_10_sub:   'Alloy',
+    gold_purity_18_sub:   'Common jewelry',
+    gold_purity_14_sub:   'Low purity',
+    gold_purity_21_sub:   'Fine jewelry',
+    gold_purity_10_sub:   'Low purity',
     gold_value_label:     'Value as',
     gold_value_spot:      'Spot value',
     gold_value_resale:    'Estimated resale',
@@ -16698,7 +16702,13 @@ function openModal(opts) {
   if (_goldMoreReset) {
     _goldMoreReset.setAttribute('aria-expanded', 'false');
     const _icon = _goldMoreReset.querySelector('.gold-more-icon');
-    if (_icon) _icon.textContent = '+';
+    if (_icon) _icon.textContent = '›';
+    // GOLD-UX-4: restore the "Ver más quilates" label every open so
+    // the previous-session toggle state can't leak in.
+    const _showLbl = _goldMoreReset.querySelector('[data-show]');
+    const _hideLbl = _goldMoreReset.querySelector('[data-hide]');
+    if (_showLbl) _showLbl.hidden = false;
+    if (_hideLbl) _hideLbl.hidden = true;
   }
   currentSuggestions   = [];
   renderedSuggestions  = [];
@@ -18162,14 +18172,40 @@ function _addV4SyncGoldUI() {
   );
   const buyerBlock = document.getElementById('goldBuyerBlock');
   if (buyerBlock) buyerBlock.hidden = pendingGoldValuationMode !== 'resale';
-  // Reveal the advanced 10K / 21K row if the user landed on a karat
-  // that lives in that bucket (e.g. coming back to edit a 21K asset).
+  // GOLD-UX-4: when the block hides (back to spot), collapse the
+  // buyer row so reopening resale starts from the single-estimate
+  // view, not a previously expanded selector.
+  if (pendingGoldValuationMode !== 'resale') {
+    const row = document.getElementById('goldBuyerRow');
+    if (row) row.hidden = true;
+    const btn = document.getElementById('goldBuyerToggle');
+    if (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+      const icon = btn.querySelector('.gold-more-icon');
+      if (icon) icon.textContent = '›';
+    }
+  }
+  // Reveal the advanced 10K / 21K / 14K row if the user landed on a
+  // karat that lives in that bucket (e.g. coming back to edit a 21K
+  // asset). GOLD-UX-4: also sync the paired label visibility + the
+  // chevron so the toggle reads correctly when auto-expanded.
   const adv = document.getElementById('goldPurityAdvanced');
   if (adv) {
-    const inAdvanced = pendingKarat === 10 || pendingKarat === 21;
-    if (inAdvanced) adv.hidden = false;
+    const inAdvanced = pendingKarat === 10 || pendingKarat === 14 || pendingKarat === 21;
+    if (inAdvanced) {
+      adv.hidden = false;
+      section.classList.add('gold-section--all-karats');
+    }
     const moreBtn = document.getElementById('goldMoreToggle');
-    if (moreBtn) moreBtn.setAttribute('aria-expanded', inAdvanced ? 'true' : 'false');
+    if (moreBtn) {
+      moreBtn.setAttribute('aria-expanded', inAdvanced ? 'true' : 'false');
+      const showLbl = moreBtn.querySelector('[data-show]');
+      const hideLbl = moreBtn.querySelector('[data-hide]');
+      if (showLbl) showLbl.hidden = inAdvanced;
+      if (hideLbl) hideLbl.hidden = !inAdvanced;
+      const icon = moreBtn.querySelector('.gold-more-icon');
+      if (icon) icon.textContent = inAdvanced ? '‹' : '›';
+    }
   }
 }
 
@@ -18196,7 +18232,14 @@ function _addV4SyncGoldUI() {
       if (moreBtn) {
         moreBtn.setAttribute('aria-expanded', 'false');
         const icon = moreBtn.querySelector('.gold-more-icon');
-        if (icon) icon.textContent = '+';
+        if (icon) icon.textContent = '›';
+        // GOLD-UX-4: collapse the advanced label back to "Ver más
+        // quilates" when the user picks a new gold type so each type
+        // starts from its contextual karat subset.
+        const showLbl = moreBtn.querySelector('[data-show]');
+        const hideLbl = moreBtn.querySelector('[data-hide]');
+        if (showLbl) showLbl.hidden = false;
+        if (hideLbl) hideLbl.hidden = true;
       }
       // Update active class on the type chip row.
       section.querySelectorAll('.gold-type-chip').forEach(b =>
@@ -18237,6 +18280,17 @@ function _addV4SyncGoldUI() {
       updatePreview();
       return;
     }
+    if (target.id === 'goldBuyerToggle') {
+      // GOLD-UX-4: reveal/hide the premium/standard/conservative pills.
+      const row = document.getElementById('goldBuyerRow');
+      if (!row) return;
+      const willOpen = row.hidden;
+      row.hidden = !willOpen;
+      target.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      const icon = target.querySelector('.gold-more-icon');
+      if (icon) icon.textContent = willOpen ? '‹' : '›';
+      return;
+    }
     if (target.id === 'goldMoreToggle') {
       const adv = document.getElementById('goldPurityAdvanced');
       if (!adv) return;
@@ -18247,8 +18301,15 @@ function _addV4SyncGoldUI() {
       // type-narrowed primary view.
       section.classList.toggle('gold-section--all-karats', willOpen);
       target.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      // GOLD-UX-4: swap "Ver más quilates" ↔ "Ocultar quilates" via
+      // paired labels (one visible at a time) so the toggle reads
+      // naturally in both states. Icon rotates to convey the action.
+      const showLbl = target.querySelector('[data-show]');
+      const hideLbl = target.querySelector('[data-hide]');
+      if (showLbl) showLbl.hidden = willOpen;
+      if (hideLbl) hideLbl.hidden = !willOpen;
       const icon = target.querySelector('.gold-more-icon');
-      if (icon) icon.textContent = willOpen ? '−' : '+';
+      if (icon) icon.textContent = willOpen ? '‹' : '›';
       return;
     }
   });

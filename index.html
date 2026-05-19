@@ -585,8 +585,9 @@
                 <span class="gold-chip-sub" data-i18n="gold_purity_18_sub">Joyería</span>
               </button>
             </div>
-            <button type="button" class="gold-more-toggle gold-more-toggle--subtle" id="goldMoreToggle" aria-expanded="false">
-              <span data-i18n="gold_more_karats_subtle">¿No es uno de estos? Ver más</span>
+            <button type="button" class="gold-more-toggle gold-more-toggle--subtle" id="goldMoreToggle" aria-expanded="false" aria-controls="goldPurityAdvanced">
+              <span class="gold-more-label" data-show data-i18n="gold_more_karats_subtle">¿No es uno de estos? Ver más quilates</span>
+              <span class="gold-more-label" data-hide hidden data-i18n="gold_less_karats_subtle">Ocultar quilates</span>
               <span class="gold-more-icon" aria-hidden="true">›</span>
             </button>
             <div class="gold-purity-advanced" id="goldPurityAdvanced" hidden>
@@ -627,9 +628,17 @@
             <button type="button" class="gold-pill"            data-gold-mode="resale" data-i18n="gold_value_resale">Venta estimada</button>
           </div>
 
+          <!-- GOLD-UX-4: buyer-type selector demoted behind an
+               "Ajustar estimación" disclosure. The user sees a single
+               clean estimate first; advanced buyers can drill into the
+               margin model only if they want to. Only revealed in
+               resale valuation mode. -->
           <div class="gold-buyer-block" id="goldBuyerBlock" hidden>
-            <div class="gold-field-label" data-i18n="gold_buyer_label">Tipo de comprador</div>
-            <div class="gold-buyer-row" id="goldBuyerRow">
+            <button type="button" class="gold-buyer-toggle gold-more-toggle gold-more-toggle--subtle" id="goldBuyerToggle" aria-expanded="false" aria-controls="goldBuyerRow">
+              <span data-i18n="gold_adjust_estimate">Ajustar estimación</span>
+              <span class="gold-more-icon" aria-hidden="true">›</span>
+            </button>
+            <div class="gold-buyer-row" id="goldBuyerRow" hidden>
               <button type="button" class="gold-pill" data-gold-buyer="premium" data-margin-internal="5"  data-i18n="gold_buyer_premium">Comprador premium</button>
               <button type="button" class="gold-pill is-active" data-gold-buyer="standard" data-margin-internal="8" data-i18n="gold_buyer_standard">Comprador normal</button>
               <button type="button" class="gold-pill" data-gold-buyer="conservative" data-margin-internal="15" data-i18n="gold_buyer_conservative">Comprador conservador</button>
