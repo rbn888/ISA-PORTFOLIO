@@ -517,6 +517,13 @@ const T = {
     currency:        'Moneda',
     amount:          'Importe',
     addLiqBtn:       'Añadir liquidez',
+    liqSourceLabel:   'Origen',
+    liqSourceOptional:' (opcional)',
+    liqSourceNone:    'Sin especificar',
+    liqSourceBank:    'Banco',
+    liqSourceBroker:  'Bróker',
+    liqSourceWallet:  'Wallet',
+    liqSourceCash:    'Reserva',
     // Filters
     filterAll: 'Todos', filterCrypto: 'Cripto', filterStock: 'Acciones',
     filterEtf: 'ETF / Fondos', filterMetal: 'Metales', filterRE: 'Inmuebles',
@@ -1315,6 +1322,13 @@ const T = {
     currency:        'Currency',
     amount:          'Amount',
     addLiqBtn:       'Add liquidity',
+    liqSourceLabel:   'Source',
+    liqSourceOptional:' (optional)',
+    liqSourceNone:    'Unspecified',
+    liqSourceBank:    'Bank',
+    liqSourceBroker:  'Broker',
+    liqSourceWallet:  'Wallet',
+    liqSourceCash:    'Reserve',
     // Filters
     // Chart range labels
     range1y:  '1Y',
@@ -16649,6 +16663,11 @@ filterBtns.forEach(btn => {
     // Update placeholder
     searchInput.placeholder = T[lang].searchPH[activeSearchFilter] || T[lang].searchPH.all;
 
+    // ADD-FLOW-ARCHITECTURE-2: re-render the popular cards so they
+    // mirror the new intent (Crypto tab → BTC/ETH/SOL…, Stocks tab →
+    // AAPL/MSFT/NVDA…). No fetch, just a DOM swap from DEFAULTS.
+    if (typeof _addV2RefreshQuick === 'function') _addV2RefreshQuick();
+
     // Cancel any pending search
     clearTimeout(searchDebounceTimer);
     if (searchAbortCtrl) { searchAbortCtrl.abort(); searchAbortCtrl = null; }
@@ -17784,6 +17803,15 @@ function openLiquidityModal() {
   liquidityForm.reset();
   liquidityCurrIn.value = 'EUR';
   liqBtns.forEach(b => b.classList.toggle('active', b.dataset.curr === 'EUR'));
+  // ADD-FLOW-ARCHITECTURE-2: reset the optional source row to the
+  // "Sin especificar" default so each open starts clean.
+  try {
+    const srcInput = document.getElementById('liquiditySource');
+    if (srcInput) srcInput.value = '';
+    document.querySelectorAll('#liqSourceRow .liq-source-pill').forEach(b => {
+      b.classList.toggle('active', (b.dataset.source || '') === '');
+    });
+  } catch (_) {}
   liquidityOverlay.classList.add('open');
   document.body.classList.add('modal-open');
   setTimeout(() => liquidityQtyInput.focus(), 50);
@@ -17803,6 +17831,19 @@ liqBtns.forEach(btn => {
   });
 });
 
+// ADD-FLOW-ARCHITECTURE-2: source-pill row wiring. Pure UI selector
+// over a hidden input — the form submit handler reads the canonical
+// value off `#liquiditySource` so callers don't have to know about
+// the pill DOM. Empty string means "no source specified".
+document.querySelectorAll('#liqSourceRow .liq-source-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#liqSourceRow .liq-source-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const srcInput = document.getElementById('liquiditySource');
+    if (srcInput) srcInput.value = btn.dataset.source || '';
+  });
+});
+
 // ── Real estate currency toggle ─────────────────────────────
 document.querySelectorAll('.re-curr-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -17818,6 +17859,13 @@ liquidityForm.addEventListener('submit', e => {
   const curr = liquidityCurrIn.value || 'EUR';
   const qty  = parseLocalFloat(liquidityQtyInput.value);
   if (isNaN(qty) || qty <= 0) { liquidityQtyInput.focus(); return; }
+  // ADD-FLOW-ARCHITECTURE-2: optional source label — informational
+  // only, never feeds valuation. Allowed values are constrained so a
+  // stale DOM can't smuggle arbitrary strings into stored assets.
+  const _ALLOWED_SRC = new Set(['bank', 'broker', 'wallet', 'cash']);
+  const srcInput = document.getElementById('liquiditySource');
+  const rawSource = srcInput ? String(srcInput.value || '').trim() : '';
+  const source = _ALLOWED_SRC.has(rawSource) ? rawSource : null;
 
   // LIQ-1: cash storage uses price = 1. The value of a cash position is
   // qty in its assetCurrency — there is no unit price to attach. The
@@ -17829,6 +17877,7 @@ liquidityForm.addEventListener('submit', e => {
   if (existingCash) {
     existingCash.qty   = +(existingCash.qty + qty).toFixed(2);
     existingCash.price = 1;
+    if (source) existingCash.source = source;
   } else {
     assets.push({
       id:            Date.now().toString(36) + Math.random().toString(36).slice(2),
@@ -17842,6 +17891,7 @@ liquidityForm.addEventListener('submit', e => {
       assetCurrency: curr,
       change24h:     null,
       prevPrice:     null,
+      source:        source || null,
     });
   }
 
@@ -18375,26 +18425,22 @@ function _addV2SetMode(mode) {
   }
 }
 
-// Curated quick picks — every entry maps directly to a shape selectAsset
-// already accepts, so taps reuse the existing pricing pipeline.
-const _ADD_V2_QUICK_PICKS = [
-  { ticker:'BTC',  name:'Bitcoin',    type:'crypto', coinId:'bitcoin' },
-  { ticker:'ETH',  name:'Ethereum',   type:'crypto', coinId:'ethereum' },
-  { ticker:'AAPL', name:'Apple',      type:'stock',  marketSymbol:'AAPL' },
-  { ticker:'TSLA', name:'Tesla',      type:'stock',  marketSymbol:'TSLA' },
-  { ticker:'NVDA', name:'NVIDIA',     type:'stock',  marketSymbol:'NVDA' },
-  { ticker:'SPY',  name:'S&P 500',    type:'etf',    marketSymbol:'SPY' },
-  { ticker:'IWDA', name:'MSCI World', type:'etf',    marketSymbol:'IWDA.AS' },
-  { ticker:'XAU',  name:'Gold',       type:'metal',  marketSymbol:'GC=F' },
-];
-
+// ADD-FLOW-ARCHITECTURE-2: quick picks are now filter-aware. Tapping
+// Crypto / Stocks / ETFs / Metals re-renders the curated list so the
+// surface answers the user's stated intent immediately. The canonical
+// DEFAULTS table already encodes the premium picks per category, so
+// quick picks consume the same source — no second source of truth.
 function _addV2RenderQuickPicks() {
   const wrap = document.getElementById('addV2PopularChips');
   if (!wrap) return;
-  // ADD-V4.2: premium asset cards (replaces pill soup). Desktop wraps
-  // into a 2-column grid via CSS; mobile keeps a horizontal carousel.
+  const filter = (typeof activeSearchFilter === 'string' && activeSearchFilter)
+    ? activeSearchFilter
+    : 'all';
+  const picks = (DEFAULTS && Array.isArray(DEFAULTS[filter]) && DEFAULTS[filter].length)
+    ? DEFAULTS[filter]
+    : (DEFAULTS.all || []);
   const typeLabel = T[lang].typeLabel || {};
-  wrap.innerHTML = _ADD_V2_QUICK_PICKS.map(p => `
+  wrap.innerHTML = picks.map(p => `
     <button type="button" class="add-v2-asset-card" data-quick-ticker="${escHtml(p.ticker)}">
       <span class="add-v2-asset-icon ${escHtml(p.type)}">${escHtml(p.ticker.slice(0, 4))}</span>
       <span class="add-v2-asset-text">
@@ -18408,7 +18454,7 @@ function _addV2RenderQuickPicks() {
   `).join('');
   wrap.querySelectorAll('[data-quick-ticker]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const item = _ADD_V2_QUICK_PICKS.find(p => p.ticker === btn.dataset.quickTicker);
+      const item = picks.find(p => p.ticker === btn.dataset.quickTicker);
       if (item && typeof selectAsset === 'function') {
         closeSuggestions();
         selectAsset(item);

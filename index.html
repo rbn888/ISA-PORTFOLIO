@@ -802,9 +802,13 @@
     </div>
   </div>
 
-  <!-- Modal: Añadir liquidez -->
+  <!-- Modal: Añadir liquidez
+       ADD-FLOW-ARCHITECTURE-2: dedicated transactional surface. No
+       asset search, no discovery UI — strictly currency → amount →
+       optional source → confirm. Visual accent (.modal--liquidity)
+       distinguishes it from the discovery-focused asset modal. -->
   <div class="modal-overlay" id="liquidityOverlay">
-    <div class="modal modal--sm">
+    <div class="modal modal--sm modal--liquidity">
       <div class="modal-header">
         <h3 data-i18n="modalLiqTitle">Añadir liquidez</h3>
         <button class="modal-close" id="liquidityClose">✕</button>
@@ -821,6 +825,20 @@
         <div class="form-group">
           <label for="liquidityQty" data-i18n="amount">Importe</label>
           <input type="text" inputmode="decimal" id="liquidityQty" placeholder="0" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>
+            <span data-i18n="liqSourceLabel">Origen</span>
+            <span class="label-optional" data-i18n="liqSourceOptional"> (opcional)</span>
+          </label>
+          <div class="liq-source-row" id="liqSourceRow">
+            <button type="button" class="liq-source-pill active" data-source=""    data-i18n="liqSourceNone">Sin especificar</button>
+            <button type="button" class="liq-source-pill"        data-source="bank"   data-i18n="liqSourceBank">Banco</button>
+            <button type="button" class="liq-source-pill"        data-source="broker" data-i18n="liqSourceBroker">Bróker</button>
+            <button type="button" class="liq-source-pill"        data-source="wallet" data-i18n="liqSourceWallet">Wallet</button>
+            <button type="button" class="liq-source-pill"        data-source="cash"   data-i18n="liqSourceCash">Reserva</button>
+          </div>
+          <input type="hidden" id="liquiditySource" value="">
         </div>
         <button type="submit" class="btn-submit btn-submit--green" data-i18n="addLiqBtn">Añadir liquidez</button>
       </form>

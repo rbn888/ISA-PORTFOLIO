@@ -2364,6 +2364,56 @@ body.modal-open {
 /* ── Modal size variant ────────────────────────────────── */
 .modal--sm { max-width: 400px; }
 
+/* ADD-FLOW-ARCHITECTURE-2: liquidity-modal visual accent.
+   Transactional flow reads green so the user instantly perceives
+   it as different from the discovery-focused asset modal. The
+   border + header hairline are subtle so the surface stays calm. */
+.modal--liquidity {
+  border-color: rgba(74, 222, 128, 0.18);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(74, 222, 128, 0.10) inset;
+}
+.modal--liquidity .modal-header {
+  border-bottom: 1px solid rgba(74, 222, 128, 0.16);
+}
+.modal--liquidity .modal-header h3 {
+  color: rgba(218, 246, 224, 0.96);
+  letter-spacing: 0.005em;
+}
+
+/* Source pill row — premium chip selector. Reuses the existing
+   liq-btn visual language so the whole modal feels coherent. */
+.liq-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.liq-source-pill {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(220,230,250,0.86);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+.liq-source-pill:hover {
+  background: rgba(74,222,128,0.08);
+  border-color: rgba(74,222,128,0.22);
+  color: rgba(225,242,228,0.95);
+}
+.liq-source-pill.active {
+  background: rgba(74,222,128,0.16);
+  border-color: rgba(74,222,128,0.40);
+  color: rgba(232,250,236,0.98);
+}
+.liq-source-pill:active { transform: scale(0.96); }
+
 /* ── Input hint ────────────────────────────────────────── */
 .input-hint {
   font-size: 11px;
